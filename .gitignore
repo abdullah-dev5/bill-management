@@ -1,0 +1,26 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Go
+/backend/bin/
+/backend/tmp/
+*.exe
+*.test
+coverage.out
+
+# Node / web
+node_modules/
+/web/dist/
+/web/dev-dist/
+*.tsbuildinfo
+.vite/
+
+# Editors & OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
