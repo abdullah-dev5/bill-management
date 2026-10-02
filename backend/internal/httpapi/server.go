@@ -1,0 +1,113 @@
+// Package httpapi implements the REST API defined in api/openapi.yaml.
+package httpapi
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"sync/atomic"
+	"time"
+
+	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	oapimw "github.com/oapi-codegen/nethttp-middleware"
+
+	"github.com/abdullah-dev5/bill-management/backend/internal/apigen"
+	"github.com/abdullah-dev5/bill-management/backend/internal/config"
+	"github.com/abdullah-dev5/bill-management/backend/internal/mail"
+	"github.com/abdullah-dev5/bill-management/backend/internal/ratelimit"
+	"github.com/abdullah-dev5/bill-management/backend/internal/store"
+)
+
+const apiPrefix = "/api/v1"
+
+// Server implements apigen.ServerInterface.
+type Server struct {
+	db   *store.DB
+	cfg  config.Config
+	log  *slog.Logger
+	mail mail.Mailer
+	now  func() time.Time
+
+	loginByEmail *ratelimit.Limiter
+	loginByIP    *ratelimit.Limiter
+	signupByIP   *ratelimit.Limiter
+	resetByKey   *ratelimit.Limiter
+
+	lastTick atomic.Int64 // unix seconds of the last successful tick
+}
+
+var _ apigen.ServerInterface = (*Server)(nil)
+
+func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer) *Server {
+	return &Server{
+		db:           db,
+		cfg:          cfg,
+		log:          log,
+		mail:         mailer,
+		now:          time.Now,
+		loginByEmail: ratelimit.New(5, 15*time.Minute),
+		loginByIP:    ratelimit.New(30, 15*time.Minute),
+		signupByIP:   ratelimit.New(10, time.Hour),
+		resetByKey:   ratelimit.New(3, time.Hour),
+	}
+}
+
+// Handler builds the full HTTP handler: health, internal tick and the versioned API.
+func (s *Server) Handler() (http.Handler, error) {
+	spec, err := apigen.GetSwagger()
+	if err != nil {
+		return nil, err
+	}
+	spec.Servers = nil // paths are matched with the prefix trimmed below
+
+	validator := oapimw.OapiRequestValidatorWithOptions(spec, &oapimw.Options{
+		Prefix:                apiPrefix,
+		SilenceServersWarning: true,
+		DoNotValidateServers:  true,
+		Options: openapi3filter.Options{
+			AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+			MultiError:         true,
+		},
+		ErrorHandlerWithOpts: func(_ context.Context, err error, w http.ResponseWriter, r *http.Request, opts oapimw.ErrorHandlerOpts) {
+			if opts.MatchedRoute == nil {
+				writeError(w, errNotFound("route"))
+				return
+			}
+			writeError(w, specValidationError(err))
+		},
+	})
+
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID, middleware.RealIP, s.logRequests, middleware.Recoverer, securityHeaders)
+	r.NotFound(func(w http.ResponseWriter, _ *http.Request) { writeError(w, errNotFound("route")) })
+	r.MethodNotAllowed(func(w http.ResponseWriter, _ *http.Request) {
+		writeError(w, &apiError{status: http.StatusMethodNotAllowed, code: "method_not_allowed", message: "Method not allowed."})
+	})
+
+	r.Get("/healthz", s.healthz)
+	r.Post("/internal/tick", s.tick)
+
+	r.Group(func(api chi.Router) {
+		api.Use(limitBody(1<<20), s.csrf, s.loadSession, s.requireAuth, validator)
+		apigen.HandlerWithOptions(s, apigen.ChiServerOptions{
+			BaseURL:    apiPrefix,
+			BaseRouter: api,
+			ErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
+				writeError(w, &apiError{status: http.StatusBadRequest, code: "invalid_parameter", message: err.Error()})
+			},
+		})
+	})
+	return r, nil
+}
+
+// today is the current date in the household's timezone.
+func (s *Server) today(tz string) time.Time {
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.UTC
+	}
+	y, m, d := s.now().In(loc).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}

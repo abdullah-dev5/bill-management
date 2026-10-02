@@ -64,7 +64,7 @@ A **bill profile** is a named tracker the user creates for one bill or expense s
 | FR-BILL-04 | Entries in an expense-log profile (e.g. "Electrician Rs 3,500") need only description, amount and date. An optional sub-category is allowed (e.g. Electrician, Plumber). | M | M1 |
 | FR-BILL-05 | Edit a bill. Every change is written to the audit log (who, when, field, old → new). | M | M1 |
 | FR-BILL-06 | Archive (soft delete) and restore. Hard delete only from the archive, with confirmation. | M | M1 |
-| FR-BILL-07 | Status is derived and stored: Draft, Unpaid, Partially Paid, Paid, Overdue, Cancelled (see the state machine in [04](04-domain-model.md)). | M | M1 |
+| FR-BILL-07 | Status is derived on read from stored facts (never stale): Draft, Unpaid, Partially Paid, Paid, Overdue, Cancelled (see the state machine in [04](04-domain-model.md)). | M | M1 |
 | FR-BILL-08 | Per-field provenance: each key field records its source (manual / scan / upload / official / user-edited) and confidence. | M | M2 |
 | FR-BILL-09 | The system warns, without blocking, when payable ≠ current charges + arrears + adjustments. | S | M2 |
 | FR-BILL-10 | Profiles of kind **recurring** can auto-create the bill each cycle from their expected amount (e.g. rent Rs 40,000 on the 1st). The user can edit it before it is due. | S | M5 |

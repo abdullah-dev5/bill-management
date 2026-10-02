@@ -1,0 +1,20 @@
+import i18n from 'i18next'
+import { initReactI18next } from 'react-i18next'
+import en from './en'
+
+declare module 'i18next' {
+  interface CustomTypeOptions {
+    defaultNS: 'translation'
+    resources: { translation: typeof en }
+  }
+}
+
+void i18n.use(initReactI18next).init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: { en: { translation: en } },
+  interpolation: { escapeValue: false }, // React already escapes
+  returnNull: false,
+})
+
+export default i18n

@@ -1,0 +1,919 @@
+openapi: 3.0.3
+info:
+  title: Bill Management API
+  version: 0.1.0
+  description: |
+    REST API for the Bill Management PWA.
+    Money is always integer minor units (paisa) in fields ending in `Minor`.
+    Dates are ISO `YYYY-MM-DD`; billing months are `YYYY-MM`.
+    Authentication uses an HTTP-only session cookie. Every state-changing request
+    must also send the `X-CSRF-Token` header matching the `bm_csrf` cookie.
+servers:
+  - url: /api/v1
+security:
+  - cookieAuth: []
+tags:
+  - name: auth
+  - name: household
+  - name: types
+  - name: providers
+  - name: profiles
+  - name: bills
+  - name: payments
+  - name: home
+
+paths:
+  /auth/signup:
+    post:
+      tags: [auth]
+      operationId: signup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupRequest' }
+      responses:
+        '201':
+          description: Account created and signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      responses:
+        '204': { description: Signed out }
+  /auth/logout-all:
+    post:
+      tags: [auth]
+      operationId: logoutAll
+      responses:
+        '204': { description: All sessions revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      responses:
+        '200':
+          description: Current user and household
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/password-reset/request:
+    post:
+      tags: [auth]
+      operationId: requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+      responses:
+        '204': { description: If the email exists, a reset link was sent }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /auth/password-reset/confirm:
+    post:
+      tags: [auth]
+      operationId: confirmPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetConfirm' }
+      responses:
+        '204': { description: Password changed; all sessions revoked }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /account:
+    delete:
+      tags: [auth]
+      operationId: requestAccountDeletion
+      description: Schedules deletion in 14 days and signs out everywhere. Signing in again cancels it.
+      responses:
+        '204': { description: Deletion scheduled }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /household:
+    get:
+      tags: [household]
+      operationId: getHousehold
+      responses:
+        '200':
+          description: Household
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Household' }
+    put:
+      tags: [household]
+      operationId: updateHousehold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HouseholdInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Household' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /home:
+    get:
+      tags: [home]
+      operationId: getHome
+      parameters:
+        - name: month
+          in: query
+          required: false
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+      responses:
+        '200':
+          description: Home dashboard summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HomeSummary' }
+
+  /types:
+    get:
+      tags: [types]
+      operationId: listTypes
+      responses:
+        '200':
+          description: System and custom bill types
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BillType' }
+    post:
+      tags: [types]
+      operationId: createType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BillTypeInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillType' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /types/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [types]
+      operationId: updateType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BillTypeInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillType' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /types/{id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [types]
+      operationId: archiveType
+      responses:
+        '204': { description: Archived }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /providers:
+    get:
+      tags: [providers]
+      operationId: listProviders
+      parameters:
+        - name: typeId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Provider catalogue plus custom providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Provider' }
+    post:
+      tags: [providers]
+      operationId: createProvider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProviderInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Provider' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /profiles:
+    get:
+      tags: [profiles]
+      operationId: listProfiles
+      parameters:
+        - name: includeArchived
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Bill profiles with summaries, in display order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Profile' }
+    post:
+      tags: [profiles]
+      operationId: createProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /profiles/order:
+    put:
+      tags: [profiles]
+      operationId: reorderProfiles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileOrder' }
+      responses:
+        '204': { description: Reordered }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /profiles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [profiles]
+      operationId: getProfile
+      responses:
+        '200':
+          description: Profile with summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [profiles]
+      operationId: updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /profiles/{id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [profiles]
+      operationId: archiveProfile
+      responses:
+        '204': { description: Archived }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /profiles/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [profiles]
+      operationId: restoreProfile
+      responses:
+        '204': { description: Restored }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /bills:
+    get:
+      tags: [bills]
+      operationId: listBills
+      parameters:
+        - name: profileId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/BillStatus' }
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: archived
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Bills, newest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    post:
+      tags: [bills]
+      operationId: createBill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BillCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/DuplicateBill' }
+  /bills/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [bills]
+      operationId: getBill
+      responses:
+        '200':
+          description: Bill with payments and history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [bills]
+      operationId: updateBill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BillInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/DuplicateBill' }
+    delete:
+      tags: [bills]
+      operationId: deleteBill
+      description: Permanently deletes a bill. Only archived bills can be deleted.
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /bills/{id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [bills]
+      operationId: archiveBill
+      responses:
+        '204': { description: Archived }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /bills/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [bills]
+      operationId: restoreBill
+      responses:
+        '204': { description: Restored }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/DuplicateBill' }
+  /bills/{id}/payments:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [payments]
+      operationId: createPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentInput' }
+      responses:
+        '201':
+          description: Payment recorded; returns the updated bill
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /payments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    delete:
+      tags: [payments]
+      operationId: deletePayment
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: bm_session
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    ValidationError:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Not signed in or wrong credentials
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Your role does not allow this
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Conflicts with existing data
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    DuplicateBill:
+      description: A bill for this profile and billing month already exists (`existingBillId` is set)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooManyRequests:
+      description: Rate limited
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: validation_failed }
+        message: { type: string }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+          description: Field name → problem, for validation errors
+        existingBillId:
+          type: string
+          format: uuid
+
+    Role:
+      type: string
+      enum: [owner, editor, viewer]
+
+    User:
+      type: object
+      required: [id, email, displayName, locale]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        locale: { type: string }
+
+    Household:
+      type: object
+      required: [id, name, currency, timezone]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        currency: { type: string, example: PKR }
+        timezone: { type: string, example: Asia/Karachi }
+
+    HouseholdInput:
+      type: object
+      required: [name, currency, timezone]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        timezone: { type: string }
+
+    Me:
+      type: object
+      required: [user, household, role]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        household: { $ref: '#/components/schemas/Household' }
+        role: { $ref: '#/components/schemas/Role' }
+
+    SignupRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 10, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string }
+
+    PasswordResetConfirm:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string }
+        password: { type: string, minLength: 10, maxLength: 128 }
+
+    ProfileKind:
+      type: string
+      enum: [metered, recurring, expense_log]
+
+    TypeGroup:
+      type: string
+      enum: [utilities, household, other]
+
+    BillingCycle:
+      type: string
+      enum: [monthly, bimonthly, quarterly, yearly]
+
+    BillType:
+      type: object
+      required: [id, name, icon, defaultKind, group, isSystem, archived]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        icon: { type: string, description: Lucide icon name }
+        defaultKind: { $ref: '#/components/schemas/ProfileKind' }
+        group: { $ref: '#/components/schemas/TypeGroup' }
+        isSystem: { type: boolean }
+        parentId: { type: string, format: uuid, nullable: true }
+        archived: { type: boolean }
+
+    BillTypeInput:
+      type: object
+      required: [name, icon, defaultKind, group]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+        icon: { type: string, minLength: 1, maxLength: 40 }
+        defaultKind: { $ref: '#/components/schemas/ProfileKind' }
+        group: { $ref: '#/components/schemas/TypeGroup' }
+        parentId: { type: string, format: uuid, nullable: true }
+
+    Provider:
+      type: object
+      required: [id, name, shortName, typeId, refNumberLabel, isCustom]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        shortName: { type: string }
+        typeId: { type: string, format: uuid }
+        region: { type: string, nullable: true }
+        refNumberLabel: { type: string }
+        refNumberPattern: { type: string, nullable: true }
+        consumptionUnit: { type: string, nullable: true }
+        isCustom: { type: boolean }
+
+    ProviderInput:
+      type: object
+      required: [name, typeId]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        shortName: { type: string, maxLength: 20 }
+        typeId: { type: string, format: uuid }
+        refNumberLabel: { type: string, maxLength: 40 }
+        consumptionUnit: { type: string, maxLength: 12 }
+
+    Profile:
+      type: object
+      required: [id, name, typeId, kind, icon, color, propertyId, autoCreateBill, isDefault, pinned, sortOrder, archived, summary]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        typeId: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/ProfileKind' }
+        icon: { type: string }
+        color: { type: integer, minimum: 1, maximum: 8, description: Profile palette slot }
+        propertyId: { type: string, format: uuid }
+        providerId: { type: string, format: uuid, nullable: true }
+        referenceNumber: { type: string, nullable: true }
+        meterNumber: { type: string, nullable: true }
+        multiplyingFactor: { type: number, format: double, nullable: true }
+        consumptionUnit: { type: string, nullable: true }
+        billingCycle: { allOf: [{ $ref: '#/components/schemas/BillingCycle' }], nullable: true }
+        typicalIssueDay: { type: integer, nullable: true }
+        typicalDueDay: { type: integer, nullable: true }
+        expectedAmountMinor: { type: integer, format: int64, nullable: true }
+        autoCreateBill: { type: boolean }
+        isDefault: { type: boolean }
+        pinned: { type: boolean }
+        sortOrder: { type: integer }
+        archived: { type: boolean }
+        summary: { $ref: '#/components/schemas/ProfileSummary' }
+
+    ProfileSummary:
+      type: object
+      required: [billCount, outstandingMinor, thisYearMinor]
+      properties:
+        billCount: { type: integer }
+        outstandingMinor: { type: integer, format: int64 }
+        thisYearMinor: { type: integer, format: int64, description: Spend this calendar year (current charges + adjustments) }
+        latestBill: { $ref: '#/components/schemas/Bill' }
+
+    ProfileInput:
+      type: object
+      required: [name, typeId]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        typeId: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/ProfileKind' }
+        icon: { type: string, maxLength: 40 }
+        color: { type: integer, minimum: 1, maximum: 8 }
+        providerId: { type: string, format: uuid, nullable: true }
+        referenceNumber: { type: string, maxLength: 40, nullable: true }
+        meterNumber: { type: string, maxLength: 40, nullable: true }
+        multiplyingFactor: { type: number, format: double, minimum: 0.0001, maximum: 100000, nullable: true }
+        consumptionUnit: { type: string, maxLength: 12, nullable: true }
+        billingCycle: { allOf: [{ $ref: '#/components/schemas/BillingCycle' }], nullable: true }
+        typicalIssueDay: { type: integer, minimum: 1, maximum: 31, nullable: true }
+        typicalDueDay: { type: integer, minimum: 1, maximum: 31, nullable: true }
+        expectedAmountMinor: { type: integer, format: int64, minimum: 0, nullable: true }
+        autoCreateBill: { type: boolean }
+        pinned: { type: boolean }
+
+    ProfileOrder:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items: { type: string, format: uuid }
+
+    BillStatus:
+      type: string
+      enum: [draft, unpaid, partially_paid, paid, overdue, cancelled]
+
+    Bill:
+      type: object
+      required: [id, profileId, typeId, expenseDate, currentChargesMinor, arrearsMinor, adjustmentsMinor, payableMinor, currency, status, paidMinor, outstandingMinor, isEstimated, cancelled, tags, archived, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        profileId: { type: string, format: uuid }
+        typeId: { type: string, format: uuid }
+        description: { type: string, nullable: true }
+        billNumber: { type: string, nullable: true }
+        periodKey: { type: string, nullable: true, example: '2026-09' }
+        periodStart: { type: string, format: date, nullable: true }
+        periodEnd: { type: string, format: date, nullable: true }
+        issueDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        expenseDate: { type: string, format: date }
+        currentChargesMinor: { type: integer, format: int64 }
+        arrearsMinor: { type: integer, format: int64 }
+        adjustmentsMinor: { type: integer, format: int64 }
+        payableMinor: { type: integer, format: int64 }
+        payableAfterDueMinor: { type: integer, format: int64, nullable: true }
+        currency: { type: string }
+        status: { $ref: '#/components/schemas/BillStatus' }
+        paidMinor: { type: integer, format: int64 }
+        outstandingMinor: { type: integer, format: int64 }
+        isEstimated: { type: boolean }
+        cancelled: { type: boolean }
+        notes: { type: string, nullable: true }
+        tags:
+          type: array
+          items: { type: string }
+        archived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    BillInput:
+      type: object
+      required: [profileId, currentChargesMinor]
+      properties:
+        profileId: { type: string, format: uuid }
+        typeId: { type: string, format: uuid, nullable: true, description: Sub-category; defaults to the profile's type }
+        description: { type: string, maxLength: 200, nullable: true }
+        billNumber: { type: string, maxLength: 60, nullable: true }
+        periodKey: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', nullable: true }
+        periodStart: { type: string, format: date, nullable: true }
+        periodEnd: { type: string, format: date, nullable: true }
+        issueDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        expenseDate: { type: string, format: date, nullable: true }
+        currentChargesMinor: { type: integer, format: int64, minimum: 0 }
+        arrearsMinor: { type: integer, format: int64, minimum: 0 }
+        adjustmentsMinor: { type: integer, format: int64 }
+        payableMinor: { type: integer, format: int64, minimum: 0, nullable: true, description: Defaults to current charges + arrears + adjustments }
+        payableAfterDueMinor: { type: integer, format: int64, minimum: 0, nullable: true }
+        isEstimated: { type: boolean }
+        cancelled: { type: boolean }
+        notes: { type: string, maxLength: 2000, nullable: true }
+        tags:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 30 }
+
+    BillCreate:
+      allOf:
+        - $ref: '#/components/schemas/BillInput'
+        - type: object
+          properties:
+            paidNow:
+              $ref: '#/components/schemas/PaidNow'
+
+    PaidNow:
+      type: object
+      description: Records a full payment in the same step ("Already paid?")
+      required: [paidOn, method]
+      properties:
+        paidOn: { type: string, format: date }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+
+    BillPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Bill' }
+        nextCursor: { type: string, nullable: true }
+
+    BillDetail:
+      allOf:
+        - $ref: '#/components/schemas/Bill'
+        - type: object
+          required: [payments, history]
+          properties:
+            payments:
+              type: array
+              items: { $ref: '#/components/schemas/Payment' }
+            history:
+              type: array
+              items: { $ref: '#/components/schemas/AuditEvent' }
+
+    PaymentMethod:
+      type: string
+      enum: [cash, bank_transfer, card, jazzcash, easypaisa, cheque, other]
+
+    Payment:
+      type: object
+      required: [id, billId, paidOn, amountMinor, method, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        billId: { type: string, format: uuid }
+        paidOn: { type: string, format: date }
+        amountMinor: { type: integer, format: int64 }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        reference: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    PaymentInput:
+      type: object
+      required: [paidOn, amountMinor, method]
+      properties:
+        paidOn: { type: string, format: date }
+        amountMinor: { type: integer, format: int64, minimum: 1 }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        reference: { type: string, maxLength: 80, nullable: true }
+        notes: { type: string, maxLength: 500, nullable: true }
+
+    AuditEvent:
+      type: object
+      required: [id, at, action, entityType, changes]
+      properties:
+        id: { type: string, format: uuid }
+        at: { type: string, format: date-time }
+        actorName: { type: string, nullable: true }
+        entityType: { type: string }
+        action: { type: string }
+        changes:
+          type: object
+          additionalProperties: true
+
+    HomeSummary:
+      type: object
+      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent]
+      properties:
+        month: { type: string, example: '2026-10' }
+        billedMinor: { type: integer, format: int64, description: Spend for the month (current charges + adjustments) }
+        paidMinor: { type: integer, format: int64, description: Payments made during the month }
+        outstandingMinor: { type: integer, format: int64, description: Unpaid amount across all open bills }
+        dueSoon:
+          type: array
+          items: { $ref: '#/components/schemas/Bill' }
+        overdue:
+          type: array
+          items: { $ref: '#/components/schemas/Bill' }
+        pinned:
+          type: array
+          items: { $ref: '#/components/schemas/Profile' }
+        recent:
+          type: array
+          items: { $ref: '#/components/schemas/Bill' }

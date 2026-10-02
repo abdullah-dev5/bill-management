@@ -1,0 +1,25 @@
+# Render Blueprint — the Go API on the free web service (docs/adr/005-hosting.md).
+# In Render: New → Blueprint → pick this repository. Fill the `sync: false` values when asked.
+services:
+  - type: web
+    name: bill-management-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Supabase *session pooler* URL (IPv4), see docs/deploy.md
+      - key: APP_BASE_URL
+        sync: false # e.g. https://bill-management.pages.dev
+      - key: TICK_TOKEN
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false # optional until email is set up
+      - key: MAIL_FROM
+        value: Bill Manager <onboarding@resend.dev>

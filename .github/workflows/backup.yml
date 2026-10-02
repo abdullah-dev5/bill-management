@@ -1,0 +1,46 @@
+name: Database backup
+
+# Daily encrypted pg_dump kept as a private workflow artifact for 14 days (NFR-16).
+# Needs repository secrets DATABASE_URL and BACKUP_PASSPHRASE; skips quietly until they exist.
+# Restore: download the artifact, then
+#   gpg -d bill-db-*.sql.gz.gpg | gunzip | psql "$DATABASE_URL"
+on:
+  schedule:
+    - cron: '30 21 * * *' # 02:30 Pakistan time
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check secrets
+        id: check
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "Backup secrets not configured; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install pg_dump 17
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+      - name: Dump and encrypt
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          name="bill-db-$(date -u +%Y%m%d-%H%M).sql.gz.gpg"
+          /usr/lib/postgresql/17/bin/pg_dump --no-owner --no-privileges "$DATABASE_URL" \
+            | gzip -9 \
+            | gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSPHRASE" -o "$name"
+          echo "BACKUP_FILE=$name" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        if: steps.check.outputs.skip != 'true'
+        with:
+          name: ${{ env.BACKUP_FILE }}
+          path: ${{ env.BACKUP_FILE }}
+          retention-days: 14
