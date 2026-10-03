@@ -30,7 +30,11 @@ func NewExtractionChain(cfg config.Config) *extract.Chain {
 		Timeout:     map[string]time.Duration{"gemini": 45 * time.Second, "ocrspace": 30 * time.Second},
 	}
 	if cfg.GeminiAPIKey != "" {
-		c.Gemini = &extract.Gemini{APIKey: cfg.GeminiAPIKey, Model: cfg.GeminiModel}
+		models := strings.Split(cfg.GeminiModel, ",")
+		for i := range models {
+			models[i] = strings.TrimSpace(models[i])
+		}
+		c.Gemini = &extract.Gemini{APIKey: cfg.GeminiAPIKey, Model: models[0], Fallbacks: models[1:]}
 	}
 	if cfg.OCRSpaceAPIKey != "" {
 		c.OCRSpace = &extract.OCRSpace{APIKey: cfg.OCRSpaceAPIKey}
@@ -263,14 +267,34 @@ func (s *Server) extractDocument(ctx context.Context, job store.Extraction) (sto
 		}
 	}
 	out := storedResult{Result: res}
-	if short := res.Text(extract.FProvider); short != "" {
-		for _, h := range hints {
-			if strings.EqualFold(h.ShortName, short) {
-				id := h.ID
-				out.ProviderID = &id
-				break
+	if name := res.Text(extract.FProvider); name != "" {
+		if h, ok := matchProvider(hints, name); ok {
+			id := h.ID
+			out.ProviderID = &id
+			if f, ok := out.Fields[extract.FProvider]; ok {
+				f.Value = h.ShortName
+				out.Fields[extract.FProvider] = f
 			}
 		}
 	}
 	return out, trace, nil
+}
+
+// matchProvider finds the catalogue provider for an extracted name: its short name ("HESCO"),
+// its full name ("Hyderabad Electric Supply Company"), or a name containing the short name.
+func matchProvider(hints []store.ListProviderHintsRow, name string) (store.ListProviderHintsRow, bool) {
+	clean := func(s string) string { return strings.Join(strings.Fields(strings.ToUpper(s)), " ") }
+	n := clean(name)
+	for _, h := range hints {
+		if n == clean(h.ShortName) || n == clean(h.Name) {
+			return h, true
+		}
+	}
+	for _, h := range hints {
+		short, full := clean(h.ShortName), clean(h.Name)
+		if len(short) >= 3 && strings.Contains(" "+n+" ", " "+short+" ") || len(n) >= 8 && strings.Contains(full, n) {
+			return h, true
+		}
+	}
+	return store.ListProviderHintsRow{}, false
 }

@@ -105,9 +105,9 @@ func TestValidateFlagsInconsistencies(t *testing.T) {
 	r.set(FReference, "123", 0.9, "x")
 	Validate(&r, Context{ReferencePattern: `^\d{14}$`})
 
-	// 0.9 × 0.5 = 0.45 < 0.5, so the field is dropped for the user to type.
-	if _, ok := r.Fields[FPayable]; ok {
-		t.Error("payable below 0.5 should be dropped")
+	// The payable is kept; the inconsistent charges are replaced by the derived value.
+	if r.Text(FPayable) != "500000" || r.Text(FCurrentCharges) != "500000" || r.Fields[FCurrentCharges].Confidence != 0.75 {
+		t.Errorf("payable %q, charges %+v", r.Text(FPayable), r.Fields[FCurrentCharges])
 	}
 	if _, ok := r.Fields[FUnits]; ok {
 		t.Error("units contradicting the readings should be dropped")
@@ -139,5 +139,15 @@ func TestCrossCheck(t *testing.T) {
 	}
 	if r.Fields[FArrears].Confidence != 0.54 {
 		t.Errorf("missing amount confidence = %.2f, want 0.54", r.Fields[FArrears].Confidence)
+	}
+}
+
+func TestValidateLateSurchargesBecomeTotals(t *testing.T) {
+	r := NewResult()
+	r.set(FPayable, "326600", 0.9, "gemini")
+	r.LateFees = []LateFee{{Until: "2026-10-08", AmountMinor: 12300}, {AmountMinor: 24600}}
+	Validate(&r, Context{})
+	if r.LateFees[0].AmountMinor != 338900 || r.LateFees[1].AmountMinor != 351200 || r.Text(FPayableAfterDue) != "338900" {
+		t.Errorf("late fees %+v, after due %q", r.LateFees, r.Text(FPayableAfterDue))
 	}
 }

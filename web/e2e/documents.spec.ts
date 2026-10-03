@@ -152,3 +152,65 @@ test('read a bill PDF automatically', async ({ page }) => {
   await expect(viewer.getByText('Until 08 Oct 2026')).toBeVisible()
   await shot(page, '05-extraction')
 })
+
+// Uses the real Gemini API (needs GEMINI_API_KEY in backend/.env). Run with: E2E_GEMINI=1 pnpm exec playwright test -g Gemini
+test('read a bill photo with Gemini', async ({ page }) => {
+  test.skip(!process.env.E2E_GEMINI, 'set E2E_GEMINI=1 to call the real Gemini API')
+  test.setTimeout(150_000)
+  await page.goto('/sign-up')
+  await page.getByLabel('Your name').fill('Omar Siddiqui')
+  await page.getByLabel('Email').fill(`e2e-gemini-${test.info().project.name}-${Date.now()}@example.com`)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'I’ll do this later' }).click()
+  await expect(page.getByRole('heading', { name: 'Hello, Omar' })).toBeVisible()
+
+  await page.goto('/settings')
+  await page.locator('#main').getByRole('switch', { name: /Use AI-assisted extraction/ }).click()
+  await expect(page.getByText('AI-assisted extraction turned on')).toBeVisible()
+
+  // A photo of the bill: the masked HESCO text drawn on a canvas.
+  const lines = hescoLines()
+  const photo = await page.evaluate((lines) => {
+    const c = document.createElement('canvas')
+    c.width = 1400
+    c.height = 40 + lines.length * 22
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.fillStyle = '#111'
+    ctx.font = '18px sans-serif'
+    lines.forEach((l, i) => ctx.fillText(l, 30, 40 + i * 22))
+    return c.toDataURL('image/jpeg', 0.9).split(',')[1]!
+  }, lines)
+
+  const billId = await page.evaluate(async () => {
+    const csrf = document.cookie.split('; ').find((c) => c.startsWith('bm_csrf='))!.slice(8)
+    const profiles = await (await fetch('/api/v1/profiles')).json()
+    const general = profiles.find((p: { isDefault: boolean }) => p.isDefault)
+    const res = await fetch('/api/v1/bills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify({ profileId: general.id, description: 'Photo to read', expenseDate: '2026-09-18', currentChargesMinor: 100 }),
+    })
+    return (await res.json()).id as string
+  })
+  await page.goto(`/bills/${billId}`)
+  const main = page.locator('#main')
+  await main.getByRole('button', { name: 'Add document' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Add a document' })
+  await sheet.getByTestId('file-input').setInputFiles({ name: 'hesco-photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(photo, 'base64') })
+  await sheet.getByRole('button', { name: 'Use photo' }).click({ timeout: 15_000 })
+  await expect(page.getByText('Document added')).toBeVisible()
+
+  await main.getByRole('button', { name: /^hesco-photo\.jpg/ }).click()
+  const viewer = page.getByRole('dialog', { name: 'hesco-photo.jpg' })
+  await viewer.getByRole('button', { name: 'Read bill' }).click()
+  await expect(viewer.getByText('Read with AI (Gemini)')).toBeVisible({ timeout: 120_000 })
+  const fields = viewer.locator('dl')
+  await expect(fields.getByText('HESCO')).toBeVisible()
+  await expect(fields.getByText('09123450012345')).toBeVisible()
+  await expect(fields.getByText('05 Oct 2026')).toBeVisible()
+  await expect(fields.getByText('Rs 3,266').first()).toBeVisible()
+  await shot(page, '06-gemini')
+})

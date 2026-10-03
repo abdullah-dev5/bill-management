@@ -50,24 +50,32 @@ the household owner turns on **Settings → Privacy → Use AI-assisted extracti
 **Choose the model**
 1. In AI Studio, open the model picker (or the **Models** page in the docs) and find the current **Flash** model.
    Flash models are fast and have the most generous free limits.
-2. Copy its API name, e.g. `gemini-2.5-flash`.
+2. Copy its API name, e.g. `gemini-3.8-flash`. You can list several, separated by commas: when the first is busy
+   ("high demand") or over its free limit, the next is tried.
 
 **Add to `backend/.env`**
 ```
 GEMINI_API_KEY=AIza...your key...
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.8-flash,gemini-3.5-flash,gemini-flash-latest
 ```
-If `GEMINI_MODEL` is left out, the app uses `gemini-2.5-flash`. If Google retires that model, extraction
-reports a model error in the API log; update the name.
+If `GEMINI_MODEL` is left out, the app uses `gemini-flash-latest` (Google's alias for the current Flash model).
+Older models are withdrawn for new accounts over time; if extraction logs "model … is no longer available",
+pick a current name. To see the models your key can use:
+```powershell
+Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models?key=$k&pageSize=200" |
+  Select-Object -ExpandProperty models | Where-Object name -like '*flash*' | Select-Object -ExpandProperty name
+```
 
 **Check the key works** (PowerShell; replace the key and model):
 ```powershell
 $k = "AIza...your key..."
 Invoke-RestMethod -Method Post -ContentType "application/json" `
-  -Uri "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$k" `
+  -Uri "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=$k" `
   -Body '{"contents":[{"parts":[{"text":"Reply with OK"}]}]}' | ConvertTo-Json -Depth 6
 ```
-A reply containing `OK` means the key works. `API_KEY_INVALID` → copy the key again. `NOT_FOUND` → wrong model name.
+A reply containing `OK` means the key works. `API_KEY_INVALID` → copy the key again. `NOT_FOUND` → the model
+name isn't available to your key (list them as above). `UNAVAILABLE` / "high demand" → Google is busy; try again
+in a minute (the app retries and falls back by itself).
 
 **Turn it on in the app:** sign in as the household owner → **Settings → Privacy → Use AI-assisted extraction**.
 

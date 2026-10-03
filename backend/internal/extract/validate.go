@@ -42,8 +42,33 @@ func Validate(r *Result, ctx Context) {
 	arrears, _ := r.Money(FArrears)
 	adjust, _ := r.Money(FAdjustments)
 	if hasPayable && hasCurrent && abs(payable-(current+arrears+adjust)) > 100 {
-		penalise(0.5, fmt.Sprintf("The payable amount doesn't equal current charges + arrears + adjustments (off by %s).", rupees(payable-(current+arrears+adjust))),
-			FPayable, FCurrentCharges)
+		// The payable is printed prominently and is the more reliable figure: doubt the charges,
+		// and offer the charges implied by it instead.
+		penalise(0.5, fmt.Sprintf("Current charges + arrears + adjustments don't equal the payable amount (off by %s); the charges were worked out from the payable.", rupees(payable-(current+arrears+adjust))),
+			FCurrentCharges)
+		src := r.Fields[FPayable].Source
+		delete(r.Fields, FCurrentCharges)
+		r.setMoney(FCurrentCharges, payable-arrears-adjust, 0.75, src+"+derived")
+	}
+
+	// A late amount smaller than the payable is a surcharge printed on its own; turn it into the total.
+	if hasPayable {
+		for i, lf := range r.LateFees {
+			if lf.AmountMinor > 0 && lf.AmountMinor < payable {
+				r.LateFees[i].AmountMinor += payable
+			}
+		}
+		if len(r.LateFees) > 0 {
+			if after, ok := r.Money(FPayableAfterDue); !ok || after < payable {
+				f := r.Fields[FPayableAfterDue]
+				conf := f.Confidence
+				if conf == 0 {
+					conf = 0.75
+				}
+				delete(r.Fields, FPayableAfterDue)
+				r.setMoney(FPayableAfterDue, r.LateFees[0].AmountMinor, conf, firstNonEmpty(f.Source, r.Fields[FPayable].Source))
+			}
+		}
 	}
 	if after, ok := r.Money(FPayableAfterDue); ok && hasPayable && after < payable {
 		penalise(0.5, "The amount after the due date is lower than the amount within it.", FPayableAfterDue)
@@ -136,6 +161,13 @@ func CrossCheck(r *Result, rawText string) {
 			r.Warnings = append(r.Warnings, Warning{Field: name, Message: "This amount doesn't appear in the document text; check it."})
 		}
 	}
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func onlyDigits(s string) string {

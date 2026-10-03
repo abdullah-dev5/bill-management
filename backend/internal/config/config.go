@@ -98,7 +98,7 @@ func Load() (Config, error) {
 	c.StorageQuotaBytes = quotaMB << 20
 
 	c.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
-	c.GeminiModel = getenv("GEMINI_MODEL", "gemini-2.5-flash")
+	c.GeminiModel = getenv("GEMINI_MODEL", "gemini-flash-latest")
 	c.OCRSpaceAPIKey = os.Getenv("OCRSPACE_API_KEY")
 	for _, lim := range []struct {
 		env string

@@ -239,3 +239,31 @@ func TestGeminiInvalidJSONIsRetriedOnce(t *testing.T) {
 		t.Errorf("calls = %d, want 2 (one repair attempt)", gemini.calls.Load())
 	}
 }
+
+func TestGeminiFallsBackToTheNextModel(t *testing.T) {
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.URL.Path)
+		switch {
+		case strings.Contains(r.URL.Path, "/models/busy:"):
+			w.WriteHeader(http.StatusServiceUnavailable)
+			io.WriteString(w, `{"error":{"message":"high demand"}}`)
+		case strings.Contains(r.URL.Path, "/models/cut:"):
+			io.WriteString(w, `{"candidates":[{"finishReason":"MAX_TOKENS","content":{"parts":[{"text":"{}"}]}}]}`)
+		default:
+			io.WriteString(w, geminiReply(map[string]any{"due_date": map[string]any{"value": "05 OCT 26", "confidence": 0.9}}))
+		}
+	}))
+	defer srv.Close()
+
+	g := &Gemini{APIKey: "k", Model: "busy", Fallbacks: []string{"ok"}, BaseURL: srv.URL}
+	r, err := g.Extract(context.Background(), photoInput)
+	if err != nil || r.Text(FDueDate) != "2026-10-05" || len(seen) != 2 {
+		t.Fatalf("fallback: %v, %+v, calls %v", err, r.Fields, seen)
+	}
+
+	g = &Gemini{APIKey: "k", Model: "cut", Fallbacks: []string{"ok"}, BaseURL: srv.URL}
+	if _, err := g.Extract(context.Background(), photoInput); !errors.Is(err, ErrInvalidOutput) {
+		t.Fatalf("a cut-off response must be rejected, not passed to the next model: %v", err)
+	}
+}

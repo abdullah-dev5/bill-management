@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -15,10 +16,12 @@ import (
 // Gemini reads a bill image or PDF with Google's Gemini API and returns our field schema
 // as structured JSON (docs/05 §8).
 type Gemini struct {
-	APIKey  string
-	Model   string
-	BaseURL string // default https://generativelanguage.googleapis.com
-	HTTP    *http.Client
+	APIKey string
+	Model  string
+	// Fallbacks are tried in order when a model is overloaded or out of quota.
+	Fallbacks []string
+	BaseURL   string // default https://generativelanguage.googleapis.com
+	HTTP      *http.Client
 }
 
 func (g *Gemini) Name() string { return "gemini" }
@@ -28,9 +31,13 @@ Extract only what is printed on the document. If a field is not visible, return 
 Never infer, compute or convert amounts: copy each value exactly as printed (e.g. "3,266", "05 OCT 26").
 For every field give a confidence between 0 and 1 for how sure you are you read it correctly.
 "payable_within_due_date" is the total to pay by the due date; "payable_after_due_date" is the first amount
-payable after the due date. "late_fees" lists every amount printed for paying late, with the date until which it applies.
+payable after the due date. "late_fees" lists every TOTAL amount payable after the due date (the full amount to pay, not the surcharge alone),
+with the date until which it applies.
+"line_items" lists the individual charges that make up this period's charges (with subsidies or credits as negative
+amounts); leave out subtotals, totals, arrears and amounts payable.
 "history" is the table of previous months (month, units, bill amount, payment), if the bill prints one.
-"current_charges" is this period's charges excluding arrears.`
+"current_charges" is the total of this period's charges including taxes and fuel adjustments, excluding arrears
+(usually the grand total minus arrears).`
 
 var geminiFields = map[string]string{
 	"provider_name": FProvider, "reference_number": FReference, "bill_number": FBillNumber,
@@ -41,27 +48,41 @@ var geminiFields = map[string]string{
 	"adjustments": FAdjustments, "payable_within_due_date": FPayable, "payable_after_due_date": FPayableAfterDue,
 }
 
+// geminiFieldOrder fixes the order of the response fields (Gemini fills them in this order).
+var geminiFieldOrder = []string{
+	"provider_name", "reference_number", "bill_number", "customer_name", "billing_month", "period_start", "period_end",
+	"issue_date", "due_date", "reading_date", "previous_reading", "current_reading", "units", "multiplying_factor",
+	"current_charges", "arrears", "adjustments", "payable_within_due_date", "payable_after_due_date",
+}
+
+// geminiSchema lists every field as required but nullable: with optional fields the model
+// tends to return only a few of them.
 func geminiSchema() map[string]any {
 	field := map[string]any{
 		"type": "OBJECT", "nullable": true,
-		"properties": map[string]any{"value": map[string]any{"type": "STRING"}, "confidence": map[string]any{"type": "NUMBER"}},
-		"required":   []string{"value", "confidence"},
+		"properties":       map[string]any{"value": map[string]any{"type": "STRING"}, "confidence": map[string]any{"type": "NUMBER"}},
+		"required":         []string{"value", "confidence"},
+		"propertyOrdering": []string{"value", "confidence"},
 	}
 	props := map[string]any{}
-	for k := range geminiFields {
+	for _, k := range geminiFieldOrder {
 		props[k] = field
 	}
 	str := map[string]any{"type": "STRING", "nullable": true}
 	props["late_fees"] = map[string]any{"type": "ARRAY", "items": map[string]any{
-		"type": "OBJECT", "properties": map[string]any{"until": str, "amount": map[string]any{"type": "STRING"}}, "required": []string{"amount"},
+		"type": "OBJECT", "properties": map[string]any{"until": str, "amount": map[string]any{"type": "STRING"}},
+		"required": []string{"until", "amount"}, "propertyOrdering": []string{"until", "amount"},
 	}}
 	props["line_items"] = map[string]any{"type": "ARRAY", "items": map[string]any{
-		"type": "OBJECT", "properties": map[string]any{"label": map[string]any{"type": "STRING"}, "amount": map[string]any{"type": "STRING"}}, "required": []string{"label", "amount"},
+		"type": "OBJECT", "properties": map[string]any{"label": map[string]any{"type": "STRING"}, "amount": map[string]any{"type": "STRING"}},
+		"required": []string{"label", "amount"}, "propertyOrdering": []string{"label", "amount"},
 	}}
 	props["history"] = map[string]any{"type": "ARRAY", "items": map[string]any{
-		"type": "OBJECT", "properties": map[string]any{"month": map[string]any{"type": "STRING"}, "units": str, "bill": str, "payment": str}, "required": []string{"month"},
+		"type": "OBJECT", "properties": map[string]any{"month": map[string]any{"type": "STRING"}, "units": str, "bill": str, "payment": str},
+		"required": []string{"month", "units", "bill", "payment"}, "propertyOrdering": []string{"month", "units", "bill", "payment"},
 	}}
-	return map[string]any{"type": "OBJECT", "properties": props}
+	order := append(append([]string{}, geminiFieldOrder...), "late_fees", "line_items", "history")
+	return map[string]any{"type": "OBJECT", "properties": props, "required": order, "propertyOrdering": order}
 }
 
 type geminiField struct {
@@ -104,6 +125,7 @@ func (g *Gemini) Extract(ctx context.Context, in Input) (Result, error) {
 		}}},
 		"generationConfig": map[string]any{
 			"temperature": 0, "responseMimeType": "application/json", "responseSchema": geminiSchema(),
+			"maxOutputTokens": 16384,
 		},
 	}
 	raw, err := g.call(ctx, body)
@@ -123,7 +145,23 @@ func (g *Gemini) Extract(ctx context.Context, in Input) (Result, error) {
 	return out.toResult(), nil
 }
 
+// call tries the model, then each fallback while the failure is an overload or a quota limit.
 func (g *Gemini) call(ctx context.Context, body map[string]any) (string, error) {
+	var err error
+	for _, model := range append([]string{g.Model}, g.Fallbacks...) {
+		var text string
+		text, err = g.callModel(ctx, model, body)
+		if err == nil {
+			return text, nil
+		}
+		if !errors.Is(err, ErrTransient) && !errors.Is(err, ErrRateLimited) || ctx.Err() != nil {
+			return "", err
+		}
+	}
+	return "", err
+}
+
+func (g *Gemini) callModel(ctx context.Context, model string, body map[string]any) (string, error) {
 	base := g.BaseURL
 	if base == "" {
 		base = "https://generativelanguage.googleapis.com"
@@ -132,7 +170,7 @@ func (g *Gemini) call(ctx context.Context, body map[string]any) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1beta/models/"+g.Model+":generateContent", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1beta/models/"+model+":generateContent", bytes.NewReader(payload))
 	if err != nil {
 		return "", err
 	}
@@ -160,7 +198,15 @@ func (g *Gemini) call(ctx context.Context, body map[string]any) (string, error) 
 	if err := json.Unmarshal(data, &parsed); err != nil || len(parsed.Candidates) == 0 || len(parsed.Candidates[0].Content.Parts) == 0 {
 		return "", fmt.Errorf("%w: empty response", ErrInvalidOutput)
 	}
-	return parsed.Candidates[0].Content.Parts[0].Text, nil
+	c := parsed.Candidates[0]
+	if c.FinishReason != "" && c.FinishReason != "STOP" {
+		return "", fmt.Errorf("%w: the response was cut off (%s)", ErrInvalidOutput, c.FinishReason)
+	}
+	var text strings.Builder
+	for _, p := range c.Content.Parts {
+		text.WriteString(p.Text)
+	}
+	return text.String(), nil
 }
 
 func geminiErrorMessage(data []byte) string {

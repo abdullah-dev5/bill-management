@@ -83,7 +83,7 @@ travel through the API instead. Nothing else changes.
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | prod | — | Supabase S3 access key |
 | `STORAGE_DIRECT_UPLOADS` | no | `true` | `false` sends file bytes through the API |
 | `STORAGE_QUOTA_MB` | no | `100` | Document storage per household |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | no | — / `gemini-2.5-flash` | AI extraction; see [setup-external-services.md](setup-external-services.md) |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | no | — / `gemini-flash-latest` (comma-separated list = fallbacks) | AI extraction; see [setup-external-services.md](setup-external-services.md) |
 | `OCRSPACE_API_KEY` | no | — | OCR fallback |
 | `GEMINI_DAILY_LIMIT` / `OCRSPACE_DAILY_LIMIT` | no | `200` / `800` | Calls per day, to stay inside free tiers |
 | `EXTRACTION_DAILY_LIMIT` | no | `50` | Automatic reads per household per day |
