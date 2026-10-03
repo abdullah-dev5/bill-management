@@ -782,6 +782,11 @@ export interface components {
             lateStepUntil?: string | null;
             /** Format: int64 */
             payableFinalMinor?: number | null;
+            /**
+             * Format: uuid
+             * @description Paid through a later bill that carried this bill's amount as arrears
+             */
+            settledByBillId?: string | null;
             currency: string;
             status: components["schemas"]["BillStatus"];
             /** Format: int64 */
@@ -914,6 +919,8 @@ export interface components {
             notes?: string | null;
             /** Format: date-time */
             createdAt: string;
+            /** Format: uuid */
+            receiptDocumentId?: string | null;
         };
         PaymentInput: {
             /** Format: date */
@@ -923,6 +930,11 @@ export interface components {
             method: components["schemas"]["PaymentMethod"];
             reference?: string | null;
             notes?: string | null;
+            /**
+             * Format: uuid
+             * @description A document of this bill to keep as the payment's receipt
+             */
+            receiptDocumentId?: string;
         };
         /** @enum {string} */
         DocumentKind: "bill" | "receipt" | "other";
@@ -950,6 +962,11 @@ export interface components {
             /** Format: date-time */
             urlsExpireAt?: string | null;
             pageCount?: number | null;
+            /**
+             * Format: uuid
+             * @description Set when the document is a payment's receipt
+             */
+            paymentId?: string | null;
         };
         ExtractedField: {
             /** @description Money in minor units, dates YYYY-MM-DD, months YYYY-MM, numbers as decimals */
@@ -1050,7 +1067,57 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        MonthTotalGroup: {
+            group: components["schemas"]["TypeGroup"];
+            /** Format: int64 */
+            totalMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /** Format: int64 */
+            remainingMinor: number;
+            billCount: number;
+        };
+        MonthTotalProfile: {
+            /** Format: uuid */
+            profileId: string;
+            name: string;
+            icon: string;
+            color: number;
+            group: components["schemas"]["TypeGroup"];
+            /** Format: int64 */
+            totalMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /** Format: int64 */
+            remainingMinor: number;
+            billCount: number;
+        };
+        /** @description FR-DASH-07 — what the household has to pay for the month's bills. */
+        MonthTotal: {
+            /**
+             * Format: int64
+             * @description paid + remaining
+             */
+            totalMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /**
+             * Format: int64
+             * @description Still to pay at today's amounts (late fees included once due)
+             */
+            remainingMinor: number;
+            billCount: number;
+            /**
+             * Format: int64
+             * @description Still owed on earlier months' bills, not counting amounts this month's open bills already carry as arrears
+             */
+            earlierOutstandingMinor: number;
+            groups: components["schemas"]["MonthTotalGroup"][];
+            profiles: components["schemas"]["MonthTotalProfile"][];
+            nextDue?: components["schemas"]["Bill"] | null;
+        };
         HomeSummary: {
+            monthTotal: components["schemas"]["MonthTotal"];
             /** @example 2026-10 */
             month: string;
             /**

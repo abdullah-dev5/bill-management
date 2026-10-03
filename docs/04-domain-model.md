@@ -133,6 +133,7 @@ Unique: (household_id, lower(name)) and (household_id, provider_id, reference_nu
 | payable_after_due_minor | bigint null | |
 | late_step_until | date null | the after-due amount applies until this date (stepped late fees) |
 | payable_final_minor | bigint null | amount payable after `late_step_until` |
+| settled_by_bill_id | uuid null | set when a later bill carried this bill's amount as arrears and was paid in full (counts as Paid) |
 | currency | char(3) | |
 | paid_minor | bigint | denormalised sum of payments |
 | paid_on_time_minor | bigint | payments dated on/before the due date (decides on-time vs late) |

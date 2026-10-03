@@ -240,7 +240,7 @@ func (s *Server) ConfirmPasswordReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	tok, err := s.db.GetValidPasswordResetToken(ctx, auth.HashToken(in.Token))
+	tok, err := s.db.GetValidPasswordResetToken(ctx, store.GetValidPasswordResetTokenParams{TokenHash: auth.HashToken(in.Token), Now: s.now()})
 	if err != nil {
 		if store.IsNotFound(err) {
 			s.fail(w, r, errField("token", "This reset link has expired or was already used. Request a new one."))

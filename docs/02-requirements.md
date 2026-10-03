@@ -136,6 +136,9 @@ A **bill profile** is a named tracker the user creates for one bill or expense s
 | FR-DASH-04 | "Expected but missing" bills list (see FR-REM-04). | M | M5 |
 | FR-DASH-05 | Recent activity (bills added, payments). | S | M4 |
 | FR-DASH-06 | Month switcher. | M | M4 |
+| FR-DASH-07 | **Monthly bills total:** the combined amount to pay for the month across all profiles (utilities, household and other), broken down by group and by profile, with paid, remaining and next due. Updates as soon as a bill is added, typed, scanned or uploaded. | M | M3 |
+
+**Acceptance (FR-DASH-07):** *Given* September bills for electricity Rs 3,266 (unpaid), gas Rs 1,850 (paid) and rent Rs 45,000 (unpaid), *when* the user opens September, *then* the total to pay is Rs 50,116, paid Rs 1,850, remaining Rs 48,266, with Utilities Rs 5,116 and Household Rs 45,000 shown separately.
 
 ### 1.10 History & analytics (ANLT)
 

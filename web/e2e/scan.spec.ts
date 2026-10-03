@@ -44,8 +44,8 @@ test('scan a bill, check it, save it to a new profile with its history', async (
   await shot(page, '01-review')
 
   await main.getByRole('button', { name: 'Save bill' }).click()
-  await expect(page.getByText('Bill saved')).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'September 2026', exact: true })).toBeVisible()
+  // The saved bill opens (checked rather than the short-lived toast).
+  await expect(page.getByRole('heading', { name: 'September 2026', exact: true })).toBeVisible({ timeout: 15_000 })
   await expect(main.getByRole('button', { name: /^hesco-sep-26\.pdf/ })).toBeVisible()
   await expect(main.getByText('After due date, until 08 Oct 2026')).toBeVisible()
   await expect(main.getByText('After 08 Oct 2026')).toBeVisible()

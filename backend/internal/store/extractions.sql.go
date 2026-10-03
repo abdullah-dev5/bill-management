@@ -18,7 +18,7 @@ UPDATE extractions SET
 WHERE id = (
     SELECT id FROM extractions
     WHERE attempts < 3
-      AND (status = 'queued' OR (status = 'running' AND locked_until < now()))
+      AND (status = 'queued' OR (status = 'running' AND locked_until < $2::timestamptz))
     ORDER BY created_at
     FOR UPDATE SKIP LOCKED
     LIMIT 1
@@ -26,9 +26,14 @@ WHERE id = (
 RETURNING id, household_id, document_id, status, attempts, locked_until, result, trace, error, created_by, created_at, started_at, finished_at
 `
 
+type ClaimExtractionParams struct {
+	LockedUntil *time.Time
+	Now         time.Time
+}
+
 // Takes the oldest queued job, or a running one whose worker died (lock expired).
-func (q *Queries) ClaimExtraction(ctx context.Context, lockedUntil *time.Time) (Extraction, error) {
-	row := q.db.QueryRow(ctx, claimExtraction, lockedUntil)
+func (q *Queries) ClaimExtraction(ctx context.Context, arg ClaimExtractionParams) (Extraction, error) {
+	row := q.db.QueryRow(ctx, claimExtraction, arg.LockedUntil, arg.Now)
 	var i Extraction
 	err := row.Scan(
 		&i.ID,
@@ -107,11 +112,11 @@ const failAbandonedExtractions = `-- name: FailAbandonedExtractions :execrows
 UPDATE extractions SET
     status = 'failed', error = 'Reading this document kept failing. Please enter the details yourself.',
     finished_at = now(), locked_until = NULL
-WHERE status IN ('queued', 'running') AND attempts >= 3 AND (locked_until IS NULL OR locked_until < now())
+WHERE status IN ('queued', 'running') AND attempts >= 3 AND (locked_until IS NULL OR locked_until < $1::timestamptz)
 `
 
-func (q *Queries) FailAbandonedExtractions(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, failAbandonedExtractions)
+func (q *Queries) FailAbandonedExtractions(ctx context.Context, now time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, failAbandonedExtractions, now)
 	if err != nil {
 		return 0, err
 	}

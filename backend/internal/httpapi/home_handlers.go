@@ -77,6 +77,11 @@ func (s *Server) GetHome(w http.ResponseWriter, r *http.Request, params apigen.G
 		}
 	}
 
+	if out.MonthTotal, err = s.monthTotal(ctx, a.HouseholdID, month, today); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+
 	recent, err := s.db.ListRecentBills(ctx, store.ListRecentBillsParams{HouseholdID: a.HouseholdID, Today: today})
 	if err != nil {
 		s.fail(w, r, err)
@@ -117,12 +122,12 @@ func (s *Server) tick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	sessions, err := s.db.DeleteExpiredSessions(ctx)
+	sessions, err := s.db.DeleteExpiredSessions(ctx, s.now())
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	tokens, err := s.db.DeleteExpiredPasswordResetTokens(ctx)
+	tokens, err := s.db.DeleteExpiredPasswordResetTokens(ctx, s.now())
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -150,7 +155,7 @@ func (s *Server) tick(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	if _, err := s.db.FailAbandonedExtractions(ctx); err != nil {
+	if _, err := s.db.FailAbandonedExtractions(ctx, s.now()); err != nil {
 		s.fail(w, r, err)
 		return
 	}

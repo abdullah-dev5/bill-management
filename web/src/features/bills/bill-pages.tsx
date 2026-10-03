@@ -1,12 +1,12 @@
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { Archive, ArrowLeft, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
+import { Archive, ArrowLeft, Paperclip, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { BillStatus, Profile } from '@/api/client'
 import { useBill, useBillAction, useCreateBill, useDeletePayment, useProfile, useProfiles, useUpdateBill } from '@/api/hooks'
 import { PageHeader } from '@/components/layout/app-shell'
-import { DocumentsSection } from '@/features/documents/documents-section'
+import { DocumentsSection, DocumentViewer } from '@/features/documents/documents-section'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/field'
 import { Card, Chip, ErrorNotice, FeaturedCard, IconTile, SectionTitle, Skeleton, StatusBadge } from '@/components/ui/misc'
@@ -139,6 +139,7 @@ export function BillDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [paymentToDelete, setPaymentToDelete] = useState<string>()
   const linksRefreshedAt = useRef(0)
+  const [receiptId, setReceiptId] = useState<string>()
 
   if (bill.isError) return <ErrorNotice error={bill.error} onRetry={() => void bill.refetch()} />
   if (!bill.data) return <PageSkeleton />
@@ -197,6 +198,14 @@ export function BillDetailPage() {
         </Card>
       )}
       {b.cancelled && <Card className="bg-card-muted text-sm font-medium">{t('bills.cancelledBanner')}</Card>}
+      {b.settledByBillId && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 bg-[var(--st-paid-bg)] text-[var(--st-paid-fg)]">
+          <p className="text-sm font-medium">{t('bills.settledBanner')}</p>
+          <Link to="/bills/$billId" params={{ billId: b.settledByBillId }} className="text-sm font-semibold underline">
+            {t('bills.viewLaterBill')}
+          </Link>
+        </Card>
+      )}
 
       <FeaturedCard>
         <div className="flex items-start justify-between gap-3">
@@ -276,6 +285,11 @@ export function BillDetailPage() {
                   </span>
                 </span>
                 <span className="tabular font-medium text-ink">{money(pm.amountMinor)}</span>
+                {pm.receiptDocumentId && (
+                  <Button size="icon" variant="ghost" aria-label={t('bills.viewReceipt')} onClick={() => setReceiptId(pm.receiptDocumentId!)}>
+                    <Paperclip className="size-4" />
+                  </Button>
+                )}
                 {!b.archived && (
                   <Button size="icon" variant="ghost" aria-label={t('common.delete')} onClick={() => setPaymentToDelete(pm.id)}>
                     <X className="size-4" />
@@ -312,7 +326,10 @@ export function BillDetailPage() {
                 <span className="block text-muted">{new Date(h.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                 {h.action === 'update' && <ChangeList changes={h.changes} />}
                 {(h.action === 'attach_document' || h.action === 'remove_document') && (
-                  <span className="block text-muted">{documentName(h.changes)}</span>
+                  <span className="block text-muted">{documentName(h.changes, 'document')}</span>
+                )}
+                {(h.action === 'settled' || h.action === 'unsettled') && (
+                  <span className="block text-muted">{t('bills.viaBill', { bill: documentName(h.changes, 'settledBy') })}</span>
                 )}
               </span>
             </li>
@@ -321,6 +338,7 @@ export function BillDetailPage() {
       </Card>
 
       <PaymentSheet bill={b} open={payOpen} onOpenChange={setPayOpen} />
+      <DocumentViewer id={receiptId} billId={b.id} readOnly={b.archived} onClose={() => setReceiptId(undefined)} />
 
       <Sheet
         open={confirmDelete}
@@ -380,8 +398,8 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   )
 }
 
-function documentName(changes: Record<string, unknown>): string {
-  const pair = changes.document
+function documentName(changes: Record<string, unknown>, key: string): string {
+  const pair = changes[key]
   return Array.isArray(pair) ? String(pair.find((v) => typeof v === 'string') ?? '') : ''
 }
 

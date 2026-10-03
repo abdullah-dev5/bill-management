@@ -59,3 +59,8 @@ SELECT storage_key FROM storage_deletions ORDER BY enqueued_at LIMIT $1;
 
 -- name: RemoveStorageDeletion :exec
 DELETE FROM storage_deletions WHERE storage_key = $1;
+
+-- name: SetDocumentPayment :execrows
+-- Links a receipt to a payment of the same bill.
+UPDATE documents SET payment_id = sqlc.arg(payment_id), kind = 'receipt', updated_at = now()
+WHERE id = sqlc.arg(id) AND household_id = sqlc.arg(household_id) AND bill_id = sqlc.arg(bill_id) AND status = 'ready';

@@ -976,6 +976,11 @@ components:
           nullable: true
           description: The after-due amount applies until this date; payableFinalMinor applies after it
         payableFinalMinor: { type: integer, format: int64, nullable: true }
+        settledByBillId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Paid through a later bill that carried this bill's amount as arrears
         currency: { type: string }
         status: { $ref: '#/components/schemas/BillStatus' }
         paidMinor: { type: integer, format: int64 }
@@ -1114,6 +1119,7 @@ components:
         reference: { type: string, nullable: true }
         notes: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+        receiptDocumentId: { type: string, format: uuid, nullable: true }
 
     PaymentInput:
       type: object
@@ -1124,6 +1130,10 @@ components:
         method: { $ref: '#/components/schemas/PaymentMethod' }
         reference: { type: string, maxLength: 80, nullable: true }
         notes: { type: string, maxLength: 500, nullable: true }
+        receiptDocumentId:
+          type: string
+          format: uuid
+          description: A document of this bill to keep as the payment's receipt
 
     DocumentKind:
       type: string
@@ -1150,6 +1160,7 @@ components:
         downloadUrl: { type: string, nullable: true, description: Signed link that downloads the file }
         urlsExpireAt: { type: string, format: date-time, nullable: true }
         pageCount: { type: integer, nullable: true }
+        paymentId: { type: string, format: uuid, nullable: true, description: Set when the document is a payment's receipt }
 
     ExtractedField:
       type: object
@@ -1269,10 +1280,59 @@ components:
           type: object
           additionalProperties: true
 
+    MonthTotalGroup:
+      type: object
+      required: [group, totalMinor, paidMinor, remainingMinor, billCount]
+      properties:
+        group: { $ref: '#/components/schemas/TypeGroup' }
+        totalMinor: { type: integer, format: int64 }
+        paidMinor: { type: integer, format: int64 }
+        remainingMinor: { type: integer, format: int64 }
+        billCount: { type: integer }
+
+    MonthTotalProfile:
+      type: object
+      required: [profileId, name, icon, color, group, totalMinor, paidMinor, remainingMinor, billCount]
+      properties:
+        profileId: { type: string, format: uuid }
+        name: { type: string }
+        icon: { type: string }
+        color: { type: integer }
+        group: { $ref: '#/components/schemas/TypeGroup' }
+        totalMinor: { type: integer, format: int64 }
+        paidMinor: { type: integer, format: int64 }
+        remainingMinor: { type: integer, format: int64 }
+        billCount: { type: integer }
+
+    MonthTotal:
+      type: object
+      description: FR-DASH-07 — what the household has to pay for the month's bills.
+      required: [totalMinor, paidMinor, remainingMinor, billCount, earlierOutstandingMinor, groups, profiles]
+      properties:
+        totalMinor: { type: integer, format: int64, description: paid + remaining }
+        paidMinor: { type: integer, format: int64 }
+        remainingMinor: { type: integer, format: int64, description: Still to pay at today's amounts (late fees included once due) }
+        billCount: { type: integer }
+        earlierOutstandingMinor:
+          type: integer
+          format: int64
+          description: Still owed on earlier months' bills, not counting amounts this month's open bills already carry as arrears
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/MonthTotalGroup' }
+        profiles:
+          type: array
+          items: { $ref: '#/components/schemas/MonthTotalProfile' }
+        nextDue:
+          allOf:
+            - $ref: '#/components/schemas/Bill'
+          nullable: true
+
     HomeSummary:
       type: object
-      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent]
+      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent, monthTotal]
       properties:
+        monthTotal: { $ref: '#/components/schemas/MonthTotal' }
         month: { type: string, example: '2026-10' }
         billedMinor: { type: integer, format: int64, description: Spend for the month (current charges + adjustments) }
         paidMinor: { type: integer, format: int64, description: Payments made during the month }

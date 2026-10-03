@@ -116,6 +116,9 @@ func (s *Server) SaveScannedBill(w http.ResponseWriter, r *http.Request, id apig
 				return err
 			}
 		}
+		if err := s.settleArrears(ctx, q, a, billID, today); err != nil {
+			return err
+		}
 		if in.ExtractionId != nil {
 			return s.recordCorrections(ctx, q, a, *in.ExtractionId, f)
 		}

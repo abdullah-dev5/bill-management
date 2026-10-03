@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/abdullah-dev5/bill-management/backend/internal/apigen"
@@ -138,6 +139,7 @@ func toBill(v billView) apigen.Bill {
 		PayableAfterDueMinor: b.PayableAfterDueMinor,
 		LateStepUntil:        toDatePtr(b.LateStepUntil),
 		PayableFinalMinor:    b.PayableFinalMinor,
+		SettledByBillId:      b.SettledByBillID,
 		Currency:             b.Currency,
 		Status:               apigen.BillStatus(v.Status),
 		PaidMinor:            b.PaidMinor,
@@ -160,7 +162,7 @@ func toBillDetail(v billView, payments []store.Payment, history []store.ListAudi
 		DueDate: b.DueDate, ExpenseDate: b.ExpenseDate, CurrentChargesMinor: b.CurrentChargesMinor,
 		ArrearsMinor: b.ArrearsMinor, AdjustmentsMinor: b.AdjustmentsMinor, PayableMinor: b.PayableMinor,
 		PayableAfterDueMinor: b.PayableAfterDueMinor, Currency: b.Currency, Status: b.Status,
-		LateStepUntil: b.LateStepUntil, PayableFinalMinor: b.PayableFinalMinor,
+		LateStepUntil: b.LateStepUntil, PayableFinalMinor: b.PayableFinalMinor, SettledByBillId: b.SettledByBillId,
 		PaidMinor: b.PaidMinor, OutstandingMinor: b.OutstandingMinor, IsEstimated: b.IsEstimated,
 		Cancelled: b.Cancelled, Notes: b.Notes, Tags: b.Tags, Archived: b.Archived,
 		CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
@@ -168,8 +170,18 @@ func toBillDetail(v billView, payments []store.Payment, history []store.ListAudi
 		History:   make([]apigen.AuditEvent, 0, len(history)),
 		Documents: documents,
 	}
+	receipts := map[uuid.UUID]uuid.UUID{}
+	for _, doc := range documents {
+		if doc.PaymentId != nil {
+			receipts[*doc.PaymentId] = doc.Id
+		}
+	}
 	for _, p := range payments {
-		d.Payments = append(d.Payments, toPayment(p))
+		pm := toPayment(p)
+		if id, ok := receipts[p.ID]; ok {
+			pm.ReceiptDocumentId = &id
+		}
+		d.Payments = append(d.Payments, pm)
 	}
 	for _, h := range history {
 		d.History = append(d.History, toAuditEvent(h))

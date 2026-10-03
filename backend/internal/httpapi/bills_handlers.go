@@ -121,9 +121,11 @@ func (s *Server) CreateBill(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if in.PaidNow != nil && !f.Cancelled {
-			return recordFullPayment(ctx, q, a, created.Bill, *in.PaidNow, today)
+			if err := recordFullPayment(ctx, q, a, created.Bill, *in.PaidNow, today); err != nil {
+				return err
+			}
 		}
-		return nil
+		return s.settleArrears(ctx, q, a, id, today)
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -177,6 +179,9 @@ func (s *Server) UpdateBill(w http.ResponseWriter, r *http.Request, id apigen.Id
 		}
 		// The due date decides which payments were on time.
 		if err := q.RecalcBillPaid(ctx, id); err != nil {
+			return err
+		}
+		if err := s.settleArrears(ctx, q, a, id, today); err != nil {
 			return err
 		}
 		after, err := q.GetBill(ctx, store.GetBillParams{ID: id, HouseholdID: a.HouseholdID, Today: today})
@@ -290,8 +295,23 @@ func (s *Server) CreatePayment(w http.ResponseWriter, r *http.Request, id apigen
 		if in.PaidOn.Time.After(today.AddDate(0, 0, 1)) {
 			return errField("paidOn", "The payment date can't be in the future.")
 		}
-		return addPayment(ctx, q, a, bill.Bill.ID, in.PaidOn.Time, in.AmountMinor, store.PaymentMethod(in.Method),
+		paymentID, err := addPayment(ctx, q, a, bill.Bill.ID, in.PaidOn.Time, in.AmountMinor, store.PaymentMethod(in.Method),
 			domain.CleanText(in.Reference), domain.CleanText(in.Notes))
+		if err != nil {
+			return err
+		}
+		if in.ReceiptDocumentId != nil {
+			n, err := q.SetDocumentPayment(ctx, store.SetDocumentPaymentParams{
+				ID: *in.ReceiptDocumentId, HouseholdID: a.HouseholdID, BillID: &bill.Bill.ID, PaymentID: &paymentID,
+			})
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return errField("receiptDocumentId", "The receipt must be a document of this bill.")
+			}
+		}
+		return s.settleArrears(ctx, q, a, bill.Bill.ID, today)
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -316,9 +336,16 @@ func (s *Server) DeletePayment(w http.ResponseWriter, r *http.Request, id apigen
 		if err := q.RecalcBillPaid(ctx, p.BillID); err != nil {
 			return err
 		}
-		return audit(ctx, q, a, "bill", p.BillID, "payment_deleted", map[string]any{
+		if err := audit(ctx, q, a, "bill", p.BillID, "payment_deleted", map[string]any{
 			"amountMinor": p.AmountMinor, "paidOn": dateString(p.PaidOn), "method": string(p.Method),
-		})
+		}); err != nil {
+			return err
+		}
+		hh, err := q.GetHousehold(ctx, a.HouseholdID)
+		if err != nil {
+			return err
+		}
+		return s.settleArrears(ctx, q, a, p.BillID, s.today(hh.Timezone))
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -328,17 +355,18 @@ func (s *Server) DeletePayment(w http.ResponseWriter, r *http.Request, id apigen
 }
 
 func addPayment(ctx context.Context, q *store.Queries, a authInfo, billID uuid.UUID, paidOn time.Time, amount int64,
-	method store.PaymentMethod, reference, notes *string) error {
+	method store.PaymentMethod, reference, notes *string) (uuid.UUID, error) {
+	id := uuid.Must(uuid.NewV7())
 	if _, err := q.CreatePayment(ctx, store.CreatePaymentParams{
-		ID: uuid.Must(uuid.NewV7()), HouseholdID: a.HouseholdID, BillID: billID, PaidOn: paidOn,
+		ID: id, HouseholdID: a.HouseholdID, BillID: billID, PaidOn: paidOn,
 		AmountMinor: amount, Method: method, Reference: reference, Notes: notes, CreatedBy: &a.UserID,
 	}); err != nil {
-		return err
+		return uuid.Nil, err
 	}
 	if err := q.RecalcBillPaid(ctx, billID); err != nil {
-		return err
+		return uuid.Nil, err
 	}
-	return audit(ctx, q, a, "bill", billID, "payment_added", map[string]any{
+	return id, audit(ctx, q, a, "bill", billID, "payment_added", map[string]any{
 		"amountMinor": amount, "paidOn": dateString(paidOn), "method": string(method),
 	})
 }
@@ -352,7 +380,8 @@ func recordFullPayment(ctx context.Context, q *store.Queries, a authInfo, b stor
 	if amount <= 0 {
 		return nil
 	}
-	return addPayment(ctx, q, a, b.ID, paid.PaidOn.Time, amount, store.PaymentMethod(paid.Method), nil, nil)
+	_, err := addPayment(ctx, q, a, b.ID, paid.PaidOn.Time, amount, store.PaymentMethod(paid.Method), nil, nil)
+	return err
 }
 
 // amountDueOn is the full amount payable on a given date: within the due date, after it,

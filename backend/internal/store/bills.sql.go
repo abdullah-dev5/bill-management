@@ -30,6 +30,32 @@ func (q *Queries) ArchiveBill(ctx context.Context, arg ArchiveBillParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const clearSettlementsBy = `-- name: ClearSettlementsBy :many
+UPDATE bills SET settled_by_bill_id = NULL, updated_at = now()
+WHERE settled_by_bill_id = $1
+RETURNING id
+`
+
+func (q *Queries) ClearSettlementsBy(ctx context.Context, settledByBillID *uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, clearSettlementsBy, settledByBillID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createAuditEvent = `-- name: CreateAuditEvent :exec
 INSERT INTO audit_events (id, household_id, actor_user_id, entity_type, entity_id, action, changes)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -220,6 +246,50 @@ func (q *Queries) DeletePayment(ctx context.Context, arg DeletePaymentParams) er
 	return err
 }
 
+const earlierOutstandingByProfile = `-- name: EarlierOutstandingByProfile :many
+SELECT profile_id, coalesce(sum(bill_outstanding(
+           cancelled, verified_at IS NOT NULL, due_date, payable_minor,
+           payable_after_due_minor, paid_minor, paid_on_time_minor,
+           late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
+       )), 0)::bigint AS outstanding_minor
+FROM bills
+WHERE household_id = $2 AND archived_at IS NULL AND NOT cancelled AND verified_at IS NOT NULL
+  AND coalesce(period_key, to_char(expense_date, 'YYYY-MM')) < $3::text
+GROUP BY profile_id
+`
+
+type EarlierOutstandingByProfileParams struct {
+	Today       time.Time
+	HouseholdID uuid.UUID
+	Month       string
+}
+
+type EarlierOutstandingByProfileRow struct {
+	ProfileID        uuid.UUID
+	OutstandingMinor int64
+}
+
+// What bills from months before the given one still owe, per profile.
+func (q *Queries) EarlierOutstandingByProfile(ctx context.Context, arg EarlierOutstandingByProfileParams) ([]EarlierOutstandingByProfileRow, error) {
+	rows, err := q.db.Query(ctx, earlierOutstandingByProfile, arg.Today, arg.HouseholdID, arg.Month)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EarlierOutstandingByProfileRow
+	for rows.Next() {
+		var i EarlierOutstandingByProfileRow
+		if err := rows.Scan(&i.ProfileID, &i.OutstandingMinor); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findBillByNumber = `-- name: FindBillByNumber :one
 SELECT id FROM bills
 WHERE profile_id = $1 AND bill_number = $2 AND archived_at IS NULL
@@ -291,16 +361,16 @@ func (q *Queries) FindProbableBill(ctx context.Context, arg FindProbableBillPara
 
 const getBill = `-- name: GetBill :one
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::text AS status,
     bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE id = $2 AND household_id = $3
@@ -356,6 +426,7 @@ func (q *Queries) GetBill(ctx context.Context, arg GetBillParams) (GetBillRow, e
 		&i.Bill.LateStepUntil,
 		&i.Bill.PayableFinalMinor,
 		&i.Bill.PaidByStepMinor,
+		&i.Bill.SettledByBillID,
 		&i.Status,
 		&i.OutstandingMinor,
 	)
@@ -443,16 +514,16 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 
 const listBills = `-- name: ListBills :many
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::text AS status,
     bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE household_id = $2
@@ -463,7 +534,7 @@ WHERE household_id = $2
   AND ($7::text[] IS NULL OR bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
       ) = ANY ($7::text[]))
   AND ($8::date IS NULL
        OR (expense_date, id) < ($8::date, $9::uuid))
@@ -545,6 +616,104 @@ func (q *Queries) ListBills(ctx context.Context, arg ListBillsParams) ([]ListBil
 			&i.Bill.LateStepUntil,
 			&i.Bill.PayableFinalMinor,
 			&i.Bill.PaidByStepMinor,
+			&i.Bill.SettledByBillID,
+			&i.Status,
+			&i.OutstandingMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEarlierOpenBills = `-- name: ListEarlierOpenBills :many
+SELECT
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bill_status(
+        cancelled, verified_at IS NOT NULL, due_date, payable_minor,
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
+    )::text AS status,
+    bill_outstanding(
+        cancelled, verified_at IS NOT NULL, due_date, payable_minor,
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
+    )::bigint AS outstanding_minor
+FROM bills
+WHERE profile_id = $2 AND id <> $3 AND archived_at IS NULL AND NOT cancelled
+  AND verified_at IS NOT NULL AND settled_by_bill_id IS NULL AND expense_date < $4::date
+ORDER BY expense_date DESC, created_at DESC
+LIMIT 12
+`
+
+type ListEarlierOpenBillsParams struct {
+	Today     time.Time
+	ProfileID uuid.UUID
+	BillID    uuid.UUID
+	Before    time.Time
+}
+
+type ListEarlierOpenBillsRow struct {
+	Bill             Bill
+	Status           string
+	OutstandingMinor int64
+}
+
+// Unsettled earlier bills of the same profile, newest first, with what they still owe.
+func (q *Queries) ListEarlierOpenBills(ctx context.Context, arg ListEarlierOpenBillsParams) ([]ListEarlierOpenBillsRow, error) {
+	rows, err := q.db.Query(ctx, listEarlierOpenBills,
+		arg.Today,
+		arg.ProfileID,
+		arg.BillID,
+		arg.Before,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEarlierOpenBillsRow
+	for rows.Next() {
+		var i ListEarlierOpenBillsRow
+		if err := rows.Scan(
+			&i.Bill.ID,
+			&i.Bill.HouseholdID,
+			&i.Bill.ProfileID,
+			&i.Bill.CategoryID,
+			&i.Bill.Description,
+			&i.Bill.BillNumber,
+			&i.Bill.PeriodKey,
+			&i.Bill.PeriodStart,
+			&i.Bill.PeriodEnd,
+			&i.Bill.IssueDate,
+			&i.Bill.DueDate,
+			&i.Bill.ExpenseDate,
+			&i.Bill.CurrentChargesMinor,
+			&i.Bill.ArrearsMinor,
+			&i.Bill.AdjustmentsMinor,
+			&i.Bill.PayableMinor,
+			&i.Bill.PayableAfterDueMinor,
+			&i.Bill.Currency,
+			&i.Bill.PaidMinor,
+			&i.Bill.PaidOnTimeMinor,
+			&i.Bill.IsEstimated,
+			&i.Bill.Cancelled,
+			&i.Bill.VerifiedAt,
+			&i.Bill.VerifiedBy,
+			&i.Bill.FieldMeta,
+			&i.Bill.Notes,
+			&i.Bill.Tags,
+			&i.Bill.CreatedBy,
+			&i.Bill.CreatedAt,
+			&i.Bill.UpdatedAt,
+			&i.Bill.ArchivedAt,
+			&i.Bill.LateStepUntil,
+			&i.Bill.PayableFinalMinor,
+			&i.Bill.PaidByStepMinor,
+			&i.Bill.SettledByBillID,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -560,16 +729,16 @@ func (q *Queries) ListBills(ctx context.Context, arg ListBillsParams) ([]ListBil
 
 const listOpenBillsDueBy = `-- name: ListOpenBillsDueBy :many
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::text AS status,
     bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE household_id = $2 AND archived_at IS NULL AND NOT cancelled
@@ -577,7 +746,7 @@ WHERE household_id = $2 AND archived_at IS NULL AND NOT cancelled
   AND bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
       ) > 0
 ORDER BY due_date, id
 LIMIT 20
@@ -639,6 +808,7 @@ func (q *Queries) ListOpenBillsDueBy(ctx context.Context, arg ListOpenBillsDueBy
 			&i.Bill.LateStepUntil,
 			&i.Bill.PayableFinalMinor,
 			&i.Bill.PaidByStepMinor,
+			&i.Bill.SettledByBillID,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -690,16 +860,16 @@ func (q *Queries) ListPaymentsForBill(ctx context.Context, billID uuid.UUID) ([]
 
 const listRecentBills = `-- name: ListRecentBills :many
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::text AS status,
     bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE household_id = $2 AND archived_at IS NULL
@@ -762,6 +932,7 @@ func (q *Queries) ListRecentBills(ctx context.Context, arg ListRecentBillsParams
 			&i.Bill.LateStepUntil,
 			&i.Bill.PayableFinalMinor,
 			&i.Bill.PaidByStepMinor,
+			&i.Bill.SettledByBillID,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -794,6 +965,89 @@ func (q *Queries) MonthBilled(ctx context.Context, arg MonthBilledParams) (int64
 	return column_1, err
 }
 
+const monthNextDue = `-- name: MonthNextDue :one
+SELECT
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bill_status(
+        cancelled, verified_at IS NOT NULL, due_date, payable_minor,
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
+    )::text AS status,
+    bill_outstanding(
+        cancelled, verified_at IS NOT NULL, due_date, payable_minor,
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
+    )::bigint AS outstanding_minor
+FROM bills
+WHERE household_id = $2 AND archived_at IS NULL AND NOT cancelled AND verified_at IS NOT NULL
+  AND coalesce(period_key, to_char(expense_date, 'YYYY-MM')) = $3::text
+  AND bill_outstanding(
+        cancelled, verified_at IS NOT NULL, due_date, payable_minor,
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
+      ) > 0
+ORDER BY due_date NULLS LAST, created_at
+LIMIT 1
+`
+
+type MonthNextDueParams struct {
+	Today       time.Time
+	HouseholdID uuid.UUID
+	Month       string
+}
+
+type MonthNextDueRow struct {
+	Bill             Bill
+	Status           string
+	OutstandingMinor int64
+}
+
+// The month's open bill that is due first.
+func (q *Queries) MonthNextDue(ctx context.Context, arg MonthNextDueParams) (MonthNextDueRow, error) {
+	row := q.db.QueryRow(ctx, monthNextDue, arg.Today, arg.HouseholdID, arg.Month)
+	var i MonthNextDueRow
+	err := row.Scan(
+		&i.Bill.ID,
+		&i.Bill.HouseholdID,
+		&i.Bill.ProfileID,
+		&i.Bill.CategoryID,
+		&i.Bill.Description,
+		&i.Bill.BillNumber,
+		&i.Bill.PeriodKey,
+		&i.Bill.PeriodStart,
+		&i.Bill.PeriodEnd,
+		&i.Bill.IssueDate,
+		&i.Bill.DueDate,
+		&i.Bill.ExpenseDate,
+		&i.Bill.CurrentChargesMinor,
+		&i.Bill.ArrearsMinor,
+		&i.Bill.AdjustmentsMinor,
+		&i.Bill.PayableMinor,
+		&i.Bill.PayableAfterDueMinor,
+		&i.Bill.Currency,
+		&i.Bill.PaidMinor,
+		&i.Bill.PaidOnTimeMinor,
+		&i.Bill.IsEstimated,
+		&i.Bill.Cancelled,
+		&i.Bill.VerifiedAt,
+		&i.Bill.VerifiedBy,
+		&i.Bill.FieldMeta,
+		&i.Bill.Notes,
+		&i.Bill.Tags,
+		&i.Bill.CreatedBy,
+		&i.Bill.CreatedAt,
+		&i.Bill.UpdatedAt,
+		&i.Bill.ArchivedAt,
+		&i.Bill.LateStepUntil,
+		&i.Bill.PayableFinalMinor,
+		&i.Bill.PaidByStepMinor,
+		&i.Bill.SettledByBillID,
+		&i.Status,
+		&i.OutstandingMinor,
+	)
+	return i, err
+}
+
 const monthPaid = `-- name: MonthPaid :one
 SELECT coalesce(sum(p.amount_minor), 0)::bigint
 FROM payments p
@@ -813,6 +1067,78 @@ func (q *Queries) MonthPaid(ctx context.Context, arg MonthPaidParams) (int64, er
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const monthTotalsByProfile = `-- name: MonthTotalsByProfile :many
+SELECT p.id AS profile_id, p.name, p.icon, p.color, c.type_group,
+       count(b.id)::int AS bill_count,
+       coalesce(sum(CASE WHEN b.settled_by_bill_id IS NOT NULL THEN greatest(b.paid_minor, b.payable_minor) ELSE b.paid_minor END), 0)::bigint AS paid_minor,
+       coalesce(sum(bill_outstanding(
+           b.cancelled, b.verified_at IS NOT NULL, b.due_date, b.payable_minor,
+           b.payable_after_due_minor, b.paid_minor, b.paid_on_time_minor,
+           b.late_step_until, b.payable_final_minor, b.paid_by_step_minor, b.settled_by_bill_id IS NOT NULL, $1::date
+       )), 0)::bigint AS remaining_minor,
+       coalesce(sum(b.arrears_minor) FILTER (WHERE bill_outstanding(
+           b.cancelled, b.verified_at IS NOT NULL, b.due_date, b.payable_minor,
+           b.payable_after_due_minor, b.paid_minor, b.paid_on_time_minor,
+           b.late_step_until, b.payable_final_minor, b.paid_by_step_minor, b.settled_by_bill_id IS NOT NULL, $1::date
+       ) > 0), 0)::bigint AS open_arrears_minor
+FROM bills b
+JOIN bill_profiles p ON p.id = b.profile_id
+JOIN categories c ON c.id = p.category_id
+WHERE b.household_id = $2 AND b.archived_at IS NULL AND NOT b.cancelled AND b.verified_at IS NOT NULL
+  AND coalesce(b.period_key, to_char(b.expense_date, 'YYYY-MM')) = $3::text
+GROUP BY p.id, p.name, p.icon, p.color, c.type_group, p.sort_order
+ORDER BY p.sort_order, p.name
+`
+
+type MonthTotalsByProfileParams struct {
+	Today       time.Time
+	HouseholdID uuid.UUID
+	Month       string
+}
+
+type MonthTotalsByProfileRow struct {
+	ProfileID        uuid.UUID
+	Name             string
+	Icon             string
+	Color            int16
+	TypeGroup        TypeGroup
+	BillCount        int32
+	PaidMinor        int64
+	RemainingMinor   int64
+	OpenArrearsMinor int64
+}
+
+// FR-DASH-07: the month's bills per profile. Settled bills count as paid.
+func (q *Queries) MonthTotalsByProfile(ctx context.Context, arg MonthTotalsByProfileParams) ([]MonthTotalsByProfileRow, error) {
+	rows, err := q.db.Query(ctx, monthTotalsByProfile, arg.Today, arg.HouseholdID, arg.Month)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MonthTotalsByProfileRow
+	for rows.Next() {
+		var i MonthTotalsByProfileRow
+		if err := rows.Scan(
+			&i.ProfileID,
+			&i.Name,
+			&i.Icon,
+			&i.Color,
+			&i.TypeGroup,
+			&i.BillCount,
+			&i.PaidMinor,
+			&i.RemainingMinor,
+			&i.OpenArrearsMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const recalcBillPaid = `-- name: RecalcBillPaid :exec
@@ -854,11 +1180,27 @@ func (q *Queries) RestoreBill(ctx context.Context, arg RestoreBillParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const settleBill = `-- name: SettleBill :exec
+UPDATE bills SET settled_by_bill_id = $1, updated_at = now()
+WHERE id = $2 AND household_id = $3
+`
+
+type SettleBillParams struct {
+	SettledBy   *uuid.UUID
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+}
+
+func (q *Queries) SettleBill(ctx context.Context, arg SettleBillParams) error {
+	_, err := q.db.Exec(ctx, settleBill, arg.SettledBy, arg.ID, arg.HouseholdID)
+	return err
+}
+
 const totalOutstanding = `-- name: TotalOutstanding :one
 SELECT coalesce(sum(bill_outstanding(
     cancelled, verified_at IS NOT NULL, due_date, payable_minor,
     payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, $1::date
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
 )), 0)::bigint
 FROM bills
 WHERE household_id = $2 AND archived_at IS NULL

@@ -56,7 +56,7 @@ SELECT
     coalesce(sum(bill_outstanding(
         b.cancelled, b.verified_at IS NOT NULL, b.due_date, b.payable_minor,
         b.payable_after_due_minor, b.paid_minor, b.paid_on_time_minor,
-        b.late_step_until, b.payable_final_minor, b.paid_by_step_minor, sqlc.arg(today)::date
+        b.late_step_until, b.payable_final_minor, b.paid_by_step_minor, b.settled_by_bill_id IS NOT NULL, sqlc.arg(today)::date
     )), 0)::bigint AS outstanding_minor,
     coalesce(sum(b.current_charges_minor + b.adjustments_minor) FILTER (
         WHERE NOT b.cancelled AND b.verified_at IS NOT NULL
@@ -73,12 +73,12 @@ SELECT DISTINCT ON (bills.profile_id)
     bill_status(
         bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
         bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
-        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, sqlc.arg(today)::date
+        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id IS NOT NULL, sqlc.arg(today)::date
     )::text AS status,
     bill_outstanding(
         bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
         bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
-        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, sqlc.arg(today)::date
+        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id IS NOT NULL, sqlc.arg(today)::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE bills.household_id = sqlc.arg(household_id) AND bills.archived_at IS NULL

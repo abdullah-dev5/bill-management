@@ -179,11 +179,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const deleteExpiredPasswordResetTokens = `-- name: DeleteExpiredPasswordResetTokens :execrows
-DELETE FROM password_reset_tokens WHERE expires_at <= now() OR used_at IS NOT NULL
+DELETE FROM password_reset_tokens WHERE expires_at <= $1::timestamptz OR used_at IS NOT NULL
 `
 
-func (q *Queries) DeleteExpiredPasswordResetTokens(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteExpiredPasswordResetTokens)
+func (q *Queries) DeleteExpiredPasswordResetTokens(ctx context.Context, now time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredPasswordResetTokens, now)
 	if err != nil {
 		return 0, err
 	}
@@ -191,11 +191,11 @@ func (q *Queries) DeleteExpiredPasswordResetTokens(ctx context.Context) (int64, 
 }
 
 const deleteExpiredSessions = `-- name: DeleteExpiredSessions :execrows
-DELETE FROM sessions WHERE expires_at <= now()
+DELETE FROM sessions WHERE expires_at <= $1::timestamptz
 `
 
-func (q *Queries) DeleteExpiredSessions(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteExpiredSessions)
+func (q *Queries) DeleteExpiredSessions(ctx context.Context, now time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredSessions, now)
 	if err != nil {
 		return 0, err
 	}
@@ -313,8 +313,13 @@ func (q *Queries) GetPrimaryMembership(ctx context.Context, userID uuid.UUID) (G
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
 SELECT id, user_id, expires_at, last_seen_at FROM sessions
-WHERE token_hash = $1 AND expires_at > now()
+WHERE token_hash = $1 AND expires_at > $2::timestamptz
 `
+
+type GetSessionByTokenHashParams struct {
+	TokenHash []byte
+	Now       time.Time
+}
 
 type GetSessionByTokenHashRow struct {
 	ID         uuid.UUID
@@ -323,8 +328,8 @@ type GetSessionByTokenHashRow struct {
 	LastSeenAt time.Time
 }
 
-func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error) {
-	row := q.db.QueryRow(ctx, getSessionByTokenHash, tokenHash)
+func (q *Queries) GetSessionByTokenHash(ctx context.Context, arg GetSessionByTokenHashParams) (GetSessionByTokenHashRow, error) {
+	row := q.db.QueryRow(ctx, getSessionByTokenHash, arg.TokenHash, arg.Now)
 	var i GetSessionByTokenHashRow
 	err := row.Scan(
 		&i.ID,
@@ -377,16 +382,21 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 
 const getValidPasswordResetToken = `-- name: GetValidPasswordResetToken :one
 SELECT id, user_id FROM password_reset_tokens
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2::timestamptz
 `
+
+type GetValidPasswordResetTokenParams struct {
+	TokenHash []byte
+	Now       time.Time
+}
 
 type GetValidPasswordResetTokenRow struct {
 	ID     uuid.UUID
 	UserID uuid.UUID
 }
 
-func (q *Queries) GetValidPasswordResetToken(ctx context.Context, tokenHash []byte) (GetValidPasswordResetTokenRow, error) {
-	row := q.db.QueryRow(ctx, getValidPasswordResetToken, tokenHash)
+func (q *Queries) GetValidPasswordResetToken(ctx context.Context, arg GetValidPasswordResetTokenParams) (GetValidPasswordResetTokenRow, error) {
+	row := q.db.QueryRow(ctx, getValidPasswordResetToken, arg.TokenHash, arg.Now)
 	var i GetValidPasswordResetTokenRow
 	err := row.Scan(&i.ID, &i.UserID)
 	return i, err
