@@ -88,6 +88,8 @@ func (s *Server) SaveScannedBill(w http.ResponseWriter, r *http.Request, id apig
 				// The user checked every value on the verification screen.
 				VerifiedAt: &now, VerifiedBy: &a.UserID, Notes: f.Notes, Tags: f.Tags, CreatedBy: &a.UserID,
 				LateStepUntil: f.LateStepUntil, PayableFinalMinor: f.PayableFinal,
+				PreviousReading: f.PreviousReading, CurrentReading: f.CurrentReading, Units: f.Units,
+				MultiplyingFactor: f.MultiplyingFactor, MeterReplaced: f.MeterReplaced,
 			}); err != nil {
 				if store.UniqueViolation(err) == "bills_profile_period_uniq" {
 					return checkDuplicate(ctx, s.db.Queries, f, uuid.Nil)
@@ -166,11 +168,7 @@ func saveHistory(ctx context.Context, q *store.Queries, a authInfo, profileID, d
 		if !domain.ValidPeriodKey(h.Month) {
 			return errField("history", "Invalid month "+h.Month+".")
 		}
-		var units *float64
-		if h.Units != nil {
-			u := float64(*h.Units)
-			units = &u
-		}
+		units := h.Units
 		if err := q.UpsertProfileHistory(ctx, store.UpsertProfileHistoryParams{
 			ProfileID: profileID, HouseholdID: a.HouseholdID, PeriodKey: h.Month,
 			Units: units, BilledMinor: h.BilledMinor, PaidMinor: h.PaidMinor, DocumentID: &documentID,
@@ -201,6 +199,13 @@ func (s *Server) recordCorrections(ctx context.Context, q *store.Queries, a auth
 		}
 		return money(*v)
 	}
+	num := func(v *float64) *string {
+		if v == nil {
+			return nil
+		}
+		s := strconv.FormatFloat(*v, 'f', -1, 64)
+		return &s
+	}
 	date := func(t *time.Time) *string {
 		if t == nil {
 			return nil
@@ -220,6 +225,9 @@ func (s *Server) recordCorrections(ctx context.Context, q *store.Queries, a auth
 		extract.FAdjustments:     money(f.Adjustments),
 		extract.FPayable:         money(f.Payable),
 		extract.FPayableAfterDue: moneyPtr(f.PayableAfterDue),
+		extract.FPreviousReading: num(f.PreviousReading),
+		extract.FCurrentReading:  num(f.CurrentReading),
+		extract.FUnits:           num(f.Units),
 	}
 	if f.BillNumber != nil {
 		n := domain.NormalizeReference(*f.BillNumber)
@@ -295,10 +303,7 @@ func (s *Server) GetProfileHistory(w http.ResponseWriter, r *http.Request, id ap
 	months := map[string]*apigen.HistoryMonth{}
 	for _, p := range printed {
 		m := &apigen.HistoryMonth{Month: p.PeriodKey, Source: apigen.HistoryMonthSourcePrinted, BilledMinor: p.BilledMinor, PaidMinor: p.PaidMinor}
-		if p.Units != nil {
-			u := float32(*p.Units)
-			m.Units = &u
-		}
+		m.Units = p.Units
 		months[p.PeriodKey] = m
 	}
 	for _, b := range bills {
@@ -307,6 +312,9 @@ func (s *Server) GetProfileHistory(w http.ResponseWriter, r *http.Request, id ap
 		if !ok {
 			m = &apigen.HistoryMonth{Month: b.PeriodKey}
 			months[b.PeriodKey] = m
+		}
+		if b.Units != nil {
+			m.Units = b.Units
 		}
 		// The bill itself wins over printed history; printed units are kept until readings exist (M3).
 		m.Source, m.BilledMinor, m.PaidMinor, m.BillId = apigen.HistoryMonthSourceBill, &billed, &paid, &billID

@@ -97,6 +97,11 @@ func Validate(r *Result, ctx Context) {
 			if math.Abs((cur-prev)*mf-units) > 1 {
 				penalise(0.5, fmt.Sprintf("Readings × multiplying factor (%g) don't match the units printed (%g).", (cur-prev)*mf, units),
 					FUnits, FCurrentReading, FPreviousReading)
+			} else {
+				// The readings confirm the units: trust them as much as the readings.
+				u := r.Fields[FUnits]
+				u.Confidence = math.Max(u.Confidence, math.Min(r.Fields[FPreviousReading].Confidence, r.Fields[FCurrentReading].Confidence))
+				r.Fields[FUnits] = u
 			}
 		}
 	}

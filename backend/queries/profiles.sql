@@ -87,5 +87,12 @@ ORDER BY bills.profile_id,
          bills.expense_date DESC,
          bills.created_at DESC;
 
+-- name: LatestReadings :many
+-- Each profile's most recent current reading, to suggest the next bill's previous reading.
+SELECT DISTINCT ON (profile_id) profile_id, current_reading::float8 AS current_reading
+FROM bills
+WHERE household_id = $1 AND archived_at IS NULL AND current_reading IS NOT NULL
+ORDER BY profile_id, coalesce(period_key, to_char(expense_date, 'YYYY-MM')) DESC, created_at DESC;
+
 -- name: CountProfileBills :one
 SELECT count(*) FROM bills WHERE profile_id = $1;

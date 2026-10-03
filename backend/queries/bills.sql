@@ -6,13 +6,15 @@ INSERT INTO bills (
     period_key, period_start, period_end, issue_date, due_date, expense_date,
     current_charges_minor, arrears_minor, adjustments_minor, payable_minor, payable_after_due_minor,
     currency, is_estimated, cancelled, verified_at, verified_by, notes, tags, created_by,
-    late_step_until, payable_final_minor
+    late_step_until, payable_final_minor,
+    previous_reading, current_reading, units, multiplying_factor, meter_replaced
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12,
     $13, $14, $15, $16, $17,
     $18, $19, $20, $21, $22, $23, $24, $25,
-    $26, $27
+    $26, $27,
+    $28, $29, $30, $31, $32
 )
 RETURNING id;
 
@@ -22,7 +24,9 @@ UPDATE bills SET
     period_key = $7, period_start = $8, period_end = $9, issue_date = $10, due_date = $11,
     expense_date = $12, current_charges_minor = $13, arrears_minor = $14, adjustments_minor = $15,
     payable_minor = $16, payable_after_due_minor = $17, is_estimated = $18, cancelled = $19,
-    notes = $20, tags = $21, late_step_until = $22, payable_final_minor = $23, updated_at = now()
+    notes = $20, tags = $21, late_step_until = $22, payable_final_minor = $23,
+    previous_reading = $24, current_reading = $25, units = $26, multiplying_factor = $27, meter_replaced = $28,
+    updated_at = now()
 WHERE id = $1 AND household_id = $2;
 
 -- name: GetBill :one

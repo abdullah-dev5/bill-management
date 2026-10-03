@@ -277,7 +277,7 @@ function ProfileOverview({ profile, onSeeAll }: { profile: Profile; onSeeAll: ()
       </Card>
       {profile.kind !== 'expense_log' && (
         <div className="lg:col-span-12">
-          <HistoryCard profileId={profile.id} />
+          <HistoryCard profileId={profile.id} unit={profile.consumptionUnit} />
         </div>
       )}
       <section className="lg:col-span-12">

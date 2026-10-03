@@ -716,6 +716,11 @@ export interface components {
              */
             thisYearMinor: number;
             latestBill?: components["schemas"]["Bill"];
+            /**
+             * Format: double
+             * @description The latest bill's present reading (next bill's previous reading)
+             */
+            lastReading?: number | null;
         };
         ProfileInput: {
             name: string;
@@ -793,6 +798,18 @@ export interface components {
             paidMinor: number;
             /** Format: int64 */
             outstandingMinor: number;
+            /** Format: double */
+            previousReading?: number | null;
+            /** Format: double */
+            currentReading?: number | null;
+            /**
+             * Format: double
+             * @description Consumption for the period (readings × multiplying factor
+             */
+            units?: number | null;
+            /** Format: double */
+            multiplyingFactor?: number | null;
+            meterReplaced: boolean;
             isEstimated: boolean;
             cancelled: boolean;
             notes?: string | null;
@@ -841,6 +858,19 @@ export interface components {
             lateStepUntil?: string | null;
             /** Format: int64 */
             payableFinalMinor?: number | null;
+            /** Format: double */
+            previousReading?: number | null;
+            /** Format: double */
+            currentReading?: number | null;
+            /**
+             * Format: double
+             * @description Consumption for the period (readings × multiplying factor
+             */
+            units?: number | null;
+            /** Format: double */
+            multiplyingFactor?: number | null;
+            /** @description The meter was replaced this period (readings restart) */
+            meterReplaced?: boolean;
             isEstimated?: boolean;
             cancelled?: boolean;
             notes?: string | null;
@@ -866,6 +896,7 @@ export interface components {
         };
         HistoryEntry: {
             month: string;
+            /** Format: double */
             units?: number | null;
             /** Format: int64 */
             billedMinor?: number | null;
@@ -875,6 +906,7 @@ export interface components {
         HistoryMonth: {
             /** @example 2026-08 */
             month: string;
+            /** Format: double */
             units?: number | null;
             /**
              * Format: int64

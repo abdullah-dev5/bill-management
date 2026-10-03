@@ -6,8 +6,8 @@ M3 ships in three phases; each is committed and pushed, and the branch is merged
 | Phase | Scope | State |
 |---|---|---|
 | 1 — Payments & monthly total | Monthly bills total (FR-DASH-07), receipts on payments, arrears settlement | **Done** |
-| 2 — Readings & consumption | Meter readings, multiplying factor, replacement, estimated readings, consumption chart | Next |
-| 3 — Profile dashboards | Overview / Bills / Payments / Documents tabs, history table, URL filters, full-month end-to-end test | — |
+| 2 — Readings & consumption | Meter readings, multiplying factor, replacement, estimated readings, consumption chart | **Done** |
+| 3 — Profile dashboards | Overview / Bills / Payments / Documents tabs, history table, URL filters, full-month end-to-end test | Next |
 
 ## Phase 1 — Payments & monthly total (delivered)
 | Area | What's in | Requirements |
@@ -24,3 +24,20 @@ M3 ships in three phases; each is committed and pushed, and the branch is merged
   depend on the time of day. Network deadlines for file transfers use real time.
 - Web: end-to-end on phone and desktop — monthly total on Home, paying with a receipt, the earlier bill settled.
 - The sign-up rate limit is relaxed in development only (end-to-end runs create many accounts); production keeps 10 per hour.
+
+## Phase 2 — Readings & consumption (delivered)
+| Area | What's in | Requirements |
+|---|---|---|
+| Readings | Metered bills store the previous and present readings, the units and the multiplying factor (taken from the profile, editable per bill) | FR-CONS-01 |
+| Consumption | Units = (present − previous) × MF, worked out as you type; printed units within 1 of that are accepted, larger differences are explained and rejected | FR-CONS-02 |
+| Meter replacement | "Meter replaced this month": the readings restart and the printed units are used, so consumption never goes negative | FR-CONS-03 |
+| Estimated readings | The existing "estimated" flag is shown on the bill | FR-CONS-04 |
+| Next bill | A new bill starts from the profile's last present reading | — |
+| Scanned bills | Readings, units and MF are filled in from the extraction; units confirmed by the readings no longer need checking | FR-EXTR-08 |
+| Consumption history | The profile's history chart switches between amount and units, combining its bills with the units printed on them | FR-CONS-06 |
+
+### Quality
+- Go: readings arithmetic, MF from the profile, lower reading, a single reading, contradicting units, replaced meter
+  with and without units, rounding tolerance, readings ignored for non-metered profiles, last reading, history units.
+- Web: unit tests for reading parsing and the units calculation; the scan end-to-end test now checks the readings are
+  filled in, shown on the bill ("18,690 → 18,854 · 164 kWh") and charted as units on the profile.

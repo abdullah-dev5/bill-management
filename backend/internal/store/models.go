@@ -620,6 +620,11 @@ type Bill struct {
 	PayableFinalMinor    *int64
 	PaidByStepMinor      int64
 	SettledByBillID      *uuid.UUID
+	PreviousReading      *float64
+	CurrentReading       *float64
+	Units                *float64
+	MultiplyingFactor    *float64
+	MeterReplaced        bool
 }
 
 type BillProfile struct {

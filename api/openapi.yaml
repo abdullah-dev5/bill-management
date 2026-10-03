@@ -916,6 +916,7 @@ components:
         outstandingMinor: { type: integer, format: int64 }
         thisYearMinor: { type: integer, format: int64, description: Spend this calendar year (current charges + adjustments) }
         latestBill: { $ref: '#/components/schemas/Bill' }
+        lastReading: { type: number, format: double, nullable: true, description: The latest bill's present reading (next bill's previous reading) }
 
     ProfileInput:
       type: object
@@ -952,7 +953,7 @@ components:
 
     Bill:
       type: object
-      required: [id, profileId, typeId, expenseDate, currentChargesMinor, arrearsMinor, adjustmentsMinor, payableMinor, currency, status, paidMinor, outstandingMinor, isEstimated, cancelled, tags, archived, createdAt, updatedAt]
+      required: [id, profileId, typeId, expenseDate, currentChargesMinor, arrearsMinor, adjustmentsMinor, payableMinor, currency, status, paidMinor, outstandingMinor, isEstimated, meterReplaced, cancelled, tags, archived, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         profileId: { type: string, format: uuid }
@@ -985,6 +986,11 @@ components:
         status: { $ref: '#/components/schemas/BillStatus' }
         paidMinor: { type: integer, format: int64 }
         outstandingMinor: { type: integer, format: int64 }
+        previousReading: { type: number, format: double, nullable: true }
+        currentReading: { type: number, format: double, nullable: true }
+        units: { type: number, format: double, nullable: true, description: Consumption for the period (readings × multiplying factor, or as printed) }
+        multiplyingFactor: { type: number, format: double, nullable: true }
+        meterReplaced: { type: boolean }
         isEstimated: { type: boolean }
         cancelled: { type: boolean }
         notes: { type: string, nullable: true }
@@ -1016,6 +1022,11 @@ components:
         payableAfterDueMinor: { type: integer, format: int64, minimum: 0, nullable: true }
         lateStepUntil: { type: string, format: date, nullable: true }
         payableFinalMinor: { type: integer, format: int64, minimum: 0, nullable: true }
+        previousReading: { type: number, format: double, minimum: 0, nullable: true }
+        currentReading: { type: number, format: double, minimum: 0, nullable: true }
+        units: { type: number, format: double, nullable: true, description: Consumption for the period (readings × multiplying factor, or as printed) }
+        multiplyingFactor: { type: number, format: double, minimum: 0.0001, nullable: true }
+        meterReplaced: { type: boolean, description: The meter was replaced this period (readings restart) }
         isEstimated: { type: boolean }
         cancelled: { type: boolean }
         notes: { type: string, maxLength: 2000, nullable: true }
@@ -1055,7 +1066,7 @@ components:
       required: [month]
       properties:
         month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
-        units: { type: number, nullable: true }
+        units: { type: number, format: double, nullable: true }
         billedMinor: { type: integer, format: int64, nullable: true }
         paidMinor: { type: integer, format: int64, nullable: true }
 
@@ -1064,7 +1075,7 @@ components:
       required: [month, source]
       properties:
         month: { type: string, example: '2026-08' }
-        units: { type: number, nullable: true }
+        units: { type: number, format: double, nullable: true }
         billedMinor: { type: integer, format: int64, nullable: true, description: Spend for the month (excludes arrears for bills) }
         paidMinor: { type: integer, format: int64, nullable: true }
         source: { type: string, enum: [bill, printed] }

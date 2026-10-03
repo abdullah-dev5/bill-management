@@ -91,13 +91,15 @@ INSERT INTO bills (
     period_key, period_start, period_end, issue_date, due_date, expense_date,
     current_charges_minor, arrears_minor, adjustments_minor, payable_minor, payable_after_due_minor,
     currency, is_estimated, cancelled, verified_at, verified_by, notes, tags, created_by,
-    late_step_until, payable_final_minor
+    late_step_until, payable_final_minor,
+    previous_reading, current_reading, units, multiplying_factor, meter_replaced
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12,
     $13, $14, $15, $16, $17,
     $18, $19, $20, $21, $22, $23, $24, $25,
-    $26, $27
+    $26, $27,
+    $28, $29, $30, $31, $32
 )
 RETURNING id
 `
@@ -130,6 +132,11 @@ type CreateBillParams struct {
 	CreatedBy            *uuid.UUID
 	LateStepUntil        *time.Time
 	PayableFinalMinor    *int64
+	PreviousReading      *float64
+	CurrentReading       *float64
+	Units                *float64
+	MultiplyingFactor    *float64
+	MeterReplaced        bool
 }
 
 // Status and outstanding are derived on read: see bill_status() / bill_outstanding() in 00001_init.sql.
@@ -162,6 +169,11 @@ func (q *Queries) CreateBill(ctx context.Context, arg CreateBillParams) (uuid.UU
 		arg.CreatedBy,
 		arg.LateStepUntil,
 		arg.PayableFinalMinor,
+		arg.PreviousReading,
+		arg.CurrentReading,
+		arg.Units,
+		arg.MultiplyingFactor,
+		arg.MeterReplaced,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -361,7 +373,7 @@ func (q *Queries) FindProbableBill(ctx context.Context, arg FindProbableBillPara
 
 const getBill = `-- name: GetBill :one
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id, bills.previous_reading, bills.current_reading, bills.units, bills.multiplying_factor, bills.meter_replaced,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
@@ -427,6 +439,11 @@ func (q *Queries) GetBill(ctx context.Context, arg GetBillParams) (GetBillRow, e
 		&i.Bill.PayableFinalMinor,
 		&i.Bill.PaidByStepMinor,
 		&i.Bill.SettledByBillID,
+		&i.Bill.PreviousReading,
+		&i.Bill.CurrentReading,
+		&i.Bill.Units,
+		&i.Bill.MultiplyingFactor,
+		&i.Bill.MeterReplaced,
 		&i.Status,
 		&i.OutstandingMinor,
 	)
@@ -514,7 +531,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 
 const listBills = `-- name: ListBills :many
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id, bills.previous_reading, bills.current_reading, bills.units, bills.multiplying_factor, bills.meter_replaced,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
@@ -617,6 +634,11 @@ func (q *Queries) ListBills(ctx context.Context, arg ListBillsParams) ([]ListBil
 			&i.Bill.PayableFinalMinor,
 			&i.Bill.PaidByStepMinor,
 			&i.Bill.SettledByBillID,
+			&i.Bill.PreviousReading,
+			&i.Bill.CurrentReading,
+			&i.Bill.Units,
+			&i.Bill.MultiplyingFactor,
+			&i.Bill.MeterReplaced,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -632,7 +654,7 @@ func (q *Queries) ListBills(ctx context.Context, arg ListBillsParams) ([]ListBil
 
 const listEarlierOpenBills = `-- name: ListEarlierOpenBills :many
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id, bills.previous_reading, bills.current_reading, bills.units, bills.multiplying_factor, bills.meter_replaced,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
@@ -714,6 +736,11 @@ func (q *Queries) ListEarlierOpenBills(ctx context.Context, arg ListEarlierOpenB
 			&i.Bill.PayableFinalMinor,
 			&i.Bill.PaidByStepMinor,
 			&i.Bill.SettledByBillID,
+			&i.Bill.PreviousReading,
+			&i.Bill.CurrentReading,
+			&i.Bill.Units,
+			&i.Bill.MultiplyingFactor,
+			&i.Bill.MeterReplaced,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -729,7 +756,7 @@ func (q *Queries) ListEarlierOpenBills(ctx context.Context, arg ListEarlierOpenB
 
 const listOpenBillsDueBy = `-- name: ListOpenBillsDueBy :many
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id, bills.previous_reading, bills.current_reading, bills.units, bills.multiplying_factor, bills.meter_replaced,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
@@ -809,6 +836,11 @@ func (q *Queries) ListOpenBillsDueBy(ctx context.Context, arg ListOpenBillsDueBy
 			&i.Bill.PayableFinalMinor,
 			&i.Bill.PaidByStepMinor,
 			&i.Bill.SettledByBillID,
+			&i.Bill.PreviousReading,
+			&i.Bill.CurrentReading,
+			&i.Bill.Units,
+			&i.Bill.MultiplyingFactor,
+			&i.Bill.MeterReplaced,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -860,7 +892,7 @@ func (q *Queries) ListPaymentsForBill(ctx context.Context, billID uuid.UUID) ([]
 
 const listRecentBills = `-- name: ListRecentBills :many
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id, bills.previous_reading, bills.current_reading, bills.units, bills.multiplying_factor, bills.meter_replaced,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
@@ -933,6 +965,11 @@ func (q *Queries) ListRecentBills(ctx context.Context, arg ListRecentBillsParams
 			&i.Bill.PayableFinalMinor,
 			&i.Bill.PaidByStepMinor,
 			&i.Bill.SettledByBillID,
+			&i.Bill.PreviousReading,
+			&i.Bill.CurrentReading,
+			&i.Bill.Units,
+			&i.Bill.MultiplyingFactor,
+			&i.Bill.MeterReplaced,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -967,7 +1004,7 @@ func (q *Queries) MonthBilled(ctx context.Context, arg MonthBilledParams) (int64
 
 const monthNextDue = `-- name: MonthNextDue :one
 SELECT
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id, bills.previous_reading, bills.current_reading, bills.units, bills.multiplying_factor, bills.meter_replaced,
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
         payable_after_due_minor, paid_minor, paid_on_time_minor,
@@ -1042,6 +1079,11 @@ func (q *Queries) MonthNextDue(ctx context.Context, arg MonthNextDueParams) (Mon
 		&i.Bill.PayableFinalMinor,
 		&i.Bill.PaidByStepMinor,
 		&i.Bill.SettledByBillID,
+		&i.Bill.PreviousReading,
+		&i.Bill.CurrentReading,
+		&i.Bill.Units,
+		&i.Bill.MultiplyingFactor,
+		&i.Bill.MeterReplaced,
 		&i.Status,
 		&i.OutstandingMinor,
 	)
@@ -1224,7 +1266,9 @@ UPDATE bills SET
     period_key = $7, period_start = $8, period_end = $9, issue_date = $10, due_date = $11,
     expense_date = $12, current_charges_minor = $13, arrears_minor = $14, adjustments_minor = $15,
     payable_minor = $16, payable_after_due_minor = $17, is_estimated = $18, cancelled = $19,
-    notes = $20, tags = $21, late_step_until = $22, payable_final_minor = $23, updated_at = now()
+    notes = $20, tags = $21, late_step_until = $22, payable_final_minor = $23,
+    previous_reading = $24, current_reading = $25, units = $26, multiplying_factor = $27, meter_replaced = $28,
+    updated_at = now()
 WHERE id = $1 AND household_id = $2
 `
 
@@ -1252,6 +1296,11 @@ type UpdateBillParams struct {
 	Tags                 []string
 	LateStepUntil        *time.Time
 	PayableFinalMinor    *int64
+	PreviousReading      *float64
+	CurrentReading       *float64
+	Units                *float64
+	MultiplyingFactor    *float64
+	MeterReplaced        bool
 }
 
 func (q *Queries) UpdateBill(ctx context.Context, arg UpdateBillParams) (int64, error) {
@@ -1279,6 +1328,11 @@ func (q *Queries) UpdateBill(ctx context.Context, arg UpdateBillParams) (int64, 
 		arg.Tags,
 		arg.LateStepUntil,
 		arg.PayableFinalMinor,
+		arg.PreviousReading,
+		arg.CurrentReading,
+		arg.Units,
+		arg.MultiplyingFactor,
+		arg.MeterReplaced,
 	)
 	if err != nil {
 		return 0, err

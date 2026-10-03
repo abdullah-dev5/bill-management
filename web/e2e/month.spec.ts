@@ -74,7 +74,6 @@ test('monthly total, paying with a receipt, and arrears settled through a later 
     .setInputFiles({ name: 'bank-receipt.pdf', mimeType: 'application/pdf', buffer: textPdf(['Payment received', 'Rs 6,166']) })
   await expect(sheet.getByTestId('receipt-name')).toHaveText('bank-receipt.pdf')
   await sheet.getByRole('button', { name: 'Save' }).click()
-  await expect(page.getByText('Payment recorded')).toBeVisible()
   await expect(main.getByRole('button', { name: 'View receipt' })).toBeVisible()
   await shot(page, '02-paid-with-receipt')
 

@@ -183,7 +183,7 @@ func (q *Queries) GetProfile(ctx context.Context, arg GetProfileParams) (BillPro
 
 const latestBillPerProfile = `-- name: LatestBillPerProfile :many
 SELECT DISTINCT ON (bills.profile_id)
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id, bills.previous_reading, bills.current_reading, bills.units, bills.multiplying_factor, bills.meter_replaced,
     bill_status(
         bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
         bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
@@ -258,9 +258,47 @@ func (q *Queries) LatestBillPerProfile(ctx context.Context, arg LatestBillPerPro
 			&i.Bill.PayableFinalMinor,
 			&i.Bill.PaidByStepMinor,
 			&i.Bill.SettledByBillID,
+			&i.Bill.PreviousReading,
+			&i.Bill.CurrentReading,
+			&i.Bill.Units,
+			&i.Bill.MultiplyingFactor,
+			&i.Bill.MeterReplaced,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const latestReadings = `-- name: LatestReadings :many
+SELECT DISTINCT ON (profile_id) profile_id, current_reading::float8 AS current_reading
+FROM bills
+WHERE household_id = $1 AND archived_at IS NULL AND current_reading IS NOT NULL
+ORDER BY profile_id, coalesce(period_key, to_char(expense_date, 'YYYY-MM')) DESC, created_at DESC
+`
+
+type LatestReadingsRow struct {
+	ProfileID      uuid.UUID
+	CurrentReading float64
+}
+
+// Each profile's most recent current reading, to suggest the next bill's previous reading.
+func (q *Queries) LatestReadings(ctx context.Context, householdID uuid.UUID) ([]LatestReadingsRow, error) {
+	rows, err := q.db.Query(ctx, latestReadings, householdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LatestReadingsRow
+	for rows.Next() {
+		var i LatestReadingsRow
+		if err := rows.Scan(&i.ProfileID, &i.CurrentReading); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

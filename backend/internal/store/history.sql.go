@@ -72,7 +72,7 @@ func (q *Queries) GetExtraction(ctx context.Context, arg GetExtractionParams) (E
 }
 
 const listProfileBillMonths = `-- name: ListProfileBillMonths :many
-SELECT period_key::text AS period_key, (payable_minor - arrears_minor)::bigint AS billed_minor, paid_minor, id
+SELECT period_key::text AS period_key, (payable_minor - arrears_minor)::bigint AS billed_minor, paid_minor, id, units
 FROM bills
 WHERE profile_id = $1 AND household_id = $2 AND archived_at IS NULL AND period_key IS NOT NULL
 ORDER BY period_key
@@ -88,6 +88,7 @@ type ListProfileBillMonthsRow struct {
 	BilledMinor int64
 	PaidMinor   int64
 	ID          uuid.UUID
+	Units       *float64
 }
 
 // One row per billing month of a cycle-based profile, for the history view.
@@ -105,6 +106,7 @@ func (q *Queries) ListProfileBillMonths(ctx context.Context, arg ListProfileBill
 			&i.BilledMinor,
 			&i.PaidMinor,
 			&i.ID,
+			&i.Units,
 		); err != nil {
 			return nil, err
 		}

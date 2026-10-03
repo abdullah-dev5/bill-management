@@ -2,7 +2,7 @@
 
 A household bill manager that turns **scanned, uploaded, manually entered and officially retrieved** bills into one organised, searchable and trackable financial history.
 
-> **Status:** M1 Foundation complete ([delivery notes](docs/milestones/M1-foundation.md)). M2 complete: documents, automatic bill reading and the verification screen. M3 in progress: phase 1 (monthly total, receipts, arrears settlement) done ([notes](docs/milestones/M3-payments-consumption.md)) ([progress notes](docs/milestones/M2-documents-extraction.md)).
+> **Status:** M1 Foundation complete ([delivery notes](docs/milestones/M1-foundation.md)). M2 complete: documents, automatic bill reading and the verification screen. M3 in progress: phases 1 (monthly total, receipts, arrears settlement) and 2 (meter readings, consumption) done ([notes](docs/milestones/M3-payments-consumption.md)) ([progress notes](docs/milestones/M2-documents-extraction.md)).
 > **Stack (final):** Go backend + React/TypeScript PWA, hosted on free tiers that need no payment card: Cloudflare Pages, Render, Supabase, GitHub Actions, cron-job.org.
 
 ## Core principle

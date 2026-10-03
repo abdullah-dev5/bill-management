@@ -253,6 +253,18 @@ export function BillDetailPage() {
           )}
           <Row label={t('bills.paidLabel')} value={money(b.paidMinor)} />
           {isOpen(b) && <Row label={t('bills.outstanding')} value={money(b.outstandingMinor)} strong />}
+          {b.units != null && (
+            <Row
+              label={t('bills.consumption')}
+              value={
+                (b.previousReading != null && b.currentReading != null ? `${fmtNum(b.previousReading)} → ${fmtNum(b.currentReading)} · ` : '') +
+                `${fmtNum(b.units)} ${p?.consumptionUnit || t('bills.unitsDefault')}` +
+                (b.multiplyingFactor && b.multiplyingFactor !== 1 ? ` (×${fmtNum(b.multiplyingFactor)})` : '')
+              }
+            />
+          )}
+          {b.meterReplaced && <Row label={t('bills.meterReplaced')} value={t('common.yes')} />}
+          {b.isEstimated && <Row label={t('bills.estimated')} value={t('common.yes')} />}
           {b.issueDate && <Row label={t('bills.issueDate')} value={formatDate(b.issueDate)} />}
           {b.billNumber && <Row label={t('bills.billNumber')} value={b.billNumber} />}
           {b.notes && <Row label={t('bills.notes')} value={b.notes} />}
@@ -388,6 +400,8 @@ export function BillDetailPage() {
     </div>
   )
 }
+
+const fmtNum = (n: number) => n.toLocaleString('en-PK', { maximumFractionDigits: 2 })
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
