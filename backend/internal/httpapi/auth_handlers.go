@@ -328,11 +328,16 @@ func (s *Server) writeMe(w http.ResponseWriter, r *http.Request, status int, use
 		s.fail(w, r, err)
 		return
 	}
+	usage, err := s.storageUsage(ctx, s.db.Queries, hh.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	writeJSON(w, status, apigen.Me{
 		User: apigen.User{
 			Id: user.ID, Email: openapiEmail(user.Email), DisplayName: user.DisplayName, Locale: user.Locale,
 		},
-		Household: toHousehold(hh),
+		Household: toHousehold(hh, usage),
 		Role:      apigen.Role(m.Role),
 	})
 }

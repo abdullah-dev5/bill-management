@@ -13,10 +13,17 @@ import { applyServerErrors } from '@/lib/forms'
 export const METHODS: PaymentMethod[] = ['cash', 'bank_transfer', 'card', 'jazzcash', 'easypaisa', 'cheque', 'other']
 
 /** The amount that applies if paid on `paidOn` (late amount after the due date, FR-PAY-05). */
-export function amountDueOn(bill: Pick<BillDetail, 'payableMinor' | 'payableAfterDueMinor' | 'dueDate' | 'paidMinor'>, paidOn: string): number {
-  const late = bill.dueDate != null && paidOn > bill.dueDate && bill.payableAfterDueMinor != null
-  const target = late ? (bill.payableAfterDueMinor as number) : bill.payableMinor
-  return Math.max(target - bill.paidMinor, 0)
+type DueFields = Pick<BillDetail, 'payableMinor' | 'payableAfterDueMinor' | 'dueDate' | 'paidMinor' | 'lateStepUntil' | 'payableFinalMinor'>
+
+/** The full amount payable on a date: within the due date, after it, or after the late-fee step. */
+export function payableOn(bill: Omit<DueFields, 'paidMinor'>, paidOn: string): number {
+  if (bill.dueDate == null || paidOn <= bill.dueDate || bill.payableAfterDueMinor == null) return bill.payableMinor
+  if (bill.lateStepUntil && bill.payableFinalMinor != null && paidOn > bill.lateStepUntil) return bill.payableFinalMinor
+  return bill.payableAfterDueMinor
+}
+
+export function amountDueOn(bill: DueFields, paidOn: string): number {
+  return Math.max(payableOn(bill, paidOn) - bill.paidMinor, 0)
 }
 
 interface Values {

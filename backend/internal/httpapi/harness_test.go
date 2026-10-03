@@ -25,6 +25,8 @@ import (
 	"github.com/abdullah-dev5/bill-management/backend/internal/apigen"
 	"github.com/abdullah-dev5/bill-management/backend/internal/config"
 	"github.com/abdullah-dev5/bill-management/backend/internal/mail"
+	"github.com/abdullah-dev5/bill-management/backend/internal/secure"
+	"github.com/abdullah-dev5/bill-management/backend/internal/storage"
 	"github.com/abdullah-dev5/bill-management/backend/internal/store"
 	"github.com/abdullah-dev5/bill-management/backend/migrations"
 )
@@ -32,6 +34,14 @@ import (
 var testDB *store.DB
 
 const testTickToken = "test-tick-token-0123456789abcdef0123"
+
+var testKeys = func() *secure.Keys {
+	k, err := secure.New("test-data-key-0123456789abcdef0123456789")
+	if err != nil {
+		panic(err)
+	}
+	return k
+}()
 
 // TestMain resets the test database schema and applies all migrations once.
 func TestMain(m *testing.M) {
@@ -71,7 +81,7 @@ func resetSchema(ctx context.Context, url string) error {
 	}
 	db := stdlib.OpenDB(*cfg)
 	defer db.Close()
-	return migrations.Run(ctx, db, "up")
+	return migrations.Run(ctx, db, "up", testKeys)
 }
 
 // fakeMailer records sent messages.
@@ -102,6 +112,7 @@ type env struct {
 	server *Server
 	http   *httptest.Server
 	mailer *fakeMailer
+	files  *storage.Local
 	clock  atomic.Int64
 }
 
@@ -112,8 +123,13 @@ func newEnv(t *testing.T) *env {
 	t.Helper()
 	e := &env{t: t, mailer: &fakeMailer{}}
 	e.clock.Store(defaultNow.UnixNano())
-	cfg := config.Config{Env: "test", AppBaseURL: "http://app.test", TickToken: testTickToken}
-	e.server = New(testDB, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), e.mailer)
+	cfg := config.Config{Env: "test", AppBaseURL: "http://app.test", TickToken: testTickToken, StorageQuotaBytes: 50 << 20}
+	files, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.files = files
+	e.server = New(testDB, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), e.mailer, testKeys, files)
 	e.server.now = func() time.Time { return time.Unix(0, e.clock.Load()).UTC() }
 	h, err := e.server.Handler()
 	if err != nil {

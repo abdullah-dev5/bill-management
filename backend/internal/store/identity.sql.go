@@ -455,16 +455,18 @@ func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) erro
 }
 
 const updateHousehold = `-- name: UpdateHousehold :one
-UPDATE households SET name = $2, currency = $3, timezone = $4, updated_at = now()
+UPDATE households SET name = $2, currency = $3, timezone = $4,
+    ai_extraction_consent = $5, updated_at = now()
 WHERE id = $1
 RETURNING id, name, currency, timezone, ai_extraction_consent, created_at, updated_at
 `
 
 type UpdateHouseholdParams struct {
-	ID       uuid.UUID
-	Name     string
-	Currency string
-	Timezone string
+	ID                  uuid.UUID
+	Name                string
+	Currency            string
+	Timezone            string
+	AiExtractionConsent bool
 }
 
 func (q *Queries) UpdateHousehold(ctx context.Context, arg UpdateHouseholdParams) (Household, error) {
@@ -473,6 +475,7 @@ func (q *Queries) UpdateHousehold(ctx context.Context, arg UpdateHouseholdParams
 		arg.Name,
 		arg.Currency,
 		arg.Timezone,
+		arg.AiExtractionConsent,
 	)
 	var i Household
 	err := row.Scan(

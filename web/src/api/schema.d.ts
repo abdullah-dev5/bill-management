@@ -426,6 +426,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Ready documents of a bill, or documents not attached to any bill yet. */
+        get: operations["listDocuments"];
+        put?: never;
+        /**
+         * @description Starts an upload. Returns where to PUT the file; call `complete` afterwards.
+         *     If the household already has this exact file (same SHA-256), the existing
+         *     document is returned with `duplicate: true` and no upload is needed.
+         */
+        post: operations["createDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Includes fresh signed links (valid for 5 minutes). */
+        get: operations["getDocument"];
+        /** @description Attach to a bill, detach (billId null) or change the kind. */
+        put: operations["updateDocument"];
+        post?: never;
+        delete: operations["deleteDocument"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{id}/extraction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description The latest extraction of this document. */
+        get: operations["getExtraction"];
+        put?: never;
+        /**
+         * @description Reads the document in the background (docs/05). Poll GET until the status is
+         *     `succeeded` or `failed`. If a run is already queued or running it is returned.
+         */
+        post: operations["startExtraction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{id}/bill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Saves a checked (verified) bill from a scanned or uploaded document and attaches the document
+         *     (FR-EXTR-08, FR-RECO-01…03). If the profile already has this bill (same billing month or bill
+         *     number) the response is 409 `duplicate_bill`; a bill that looks the same gives 409
+         *     `probable_duplicate`. Repeat the request with `duplicate` set to attach the document to that
+         *     bill, or (for probable duplicates) to keep the new bill separate.
+         */
+        post: operations["saveScannedBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Month by month, from the profile's bills and from history printed on its bills. */
+        get: operations["getProfileHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Verifies the uploaded file (type, size, SHA-256) and makes it available. */
+        post: operations["completeDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -459,11 +587,23 @@ export interface components {
             currency: string;
             /** @example Asia/Karachi */
             timezone: string;
+            /** @description Bill images may be sent to a third-party AI service to read them (docs/08 §5) */
+            aiExtractionConsent: boolean;
+            storage: components["schemas"]["StorageUsage"];
+        };
+        StorageUsage: {
+            /** Format: int64 */
+            usedBytes: number;
+            /** Format: int64 */
+            quotaBytes: number;
+            documentCount: number;
         };
         HouseholdInput: {
             name: string;
             currency: string;
             timezone: string;
+            /** @description Unchanged when omitted */
+            aiExtractionConsent?: boolean;
         };
         Me: {
             user: components["schemas"]["User"];
@@ -635,6 +775,13 @@ export interface components {
             payableMinor: number;
             /** Format: int64 */
             payableAfterDueMinor?: number | null;
+            /**
+             * Format: date
+             * @description The after-due amount applies until this date; payableFinalMinor applies after it
+             */
+            lateStepUntil?: string | null;
+            /** Format: int64 */
+            payableFinalMinor?: number | null;
             currency: string;
             status: components["schemas"]["BillStatus"];
             /** Format: int64 */
@@ -685,6 +832,10 @@ export interface components {
             payableMinor?: number | null;
             /** Format: int64 */
             payableAfterDueMinor?: number | null;
+            /** Format: date */
+            lateStepUntil?: string | null;
+            /** Format: int64 */
+            payableFinalMinor?: number | null;
             isEstimated?: boolean;
             cancelled?: boolean;
             notes?: string | null;
@@ -692,6 +843,45 @@ export interface components {
         };
         BillCreate: components["schemas"]["BillInput"] & {
             paidNow?: components["schemas"]["PaidNow"];
+        };
+        ScannedBillInput: {
+            bill: components["schemas"]["BillInput"];
+            /**
+             * Format: uuid
+             * @description The extraction the values came from, to record corrections
+             */
+            extractionId?: string;
+            /** @description Bill history printed on the document, saved to the profile */
+            history?: components["schemas"]["HistoryEntry"][];
+            /**
+             * @description How to handle a duplicate reported by a previous attempt
+             * @enum {string}
+             */
+            duplicate?: "attach" | "keep_separate";
+        };
+        HistoryEntry: {
+            month: string;
+            units?: number | null;
+            /** Format: int64 */
+            billedMinor?: number | null;
+            /** Format: int64 */
+            paidMinor?: number | null;
+        };
+        HistoryMonth: {
+            /** @example 2026-08 */
+            month: string;
+            units?: number | null;
+            /**
+             * Format: int64
+             * @description Spend for the month (excludes arrears for bills)
+             */
+            billedMinor?: number | null;
+            /** Format: int64 */
+            paidMinor?: number | null;
+            /** @enum {string} */
+            source: "bill" | "printed";
+            /** Format: uuid */
+            billId?: string | null;
         };
         /** @description Records a full payment in the same step ("Already paid?") */
         PaidNow: {
@@ -706,6 +896,7 @@ export interface components {
         BillDetail: components["schemas"]["Bill"] & {
             payments: components["schemas"]["Payment"][];
             history: components["schemas"]["AuditEvent"][];
+            documents: components["schemas"]["Document"][];
         };
         /** @enum {string} */
         PaymentMethod: "cash" | "bank_transfer" | "card" | "jazzcash" | "easypaisa" | "cheque" | "other";
@@ -732,6 +923,120 @@ export interface components {
             method: components["schemas"]["PaymentMethod"];
             reference?: string | null;
             notes?: string | null;
+        };
+        /** @enum {string} */
+        DocumentKind: "bill" | "receipt" | "other";
+        /** @enum {string} */
+        DocumentSource: "camera" | "upload";
+        Document: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            billId?: string | null;
+            kind: components["schemas"]["DocumentKind"];
+            source: components["schemas"]["DocumentSource"];
+            /** @enum {string} */
+            status: "pending" | "ready";
+            fileName: string;
+            contentType: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Signed link for showing the file inline */
+            viewUrl?: string | null;
+            /** @description Signed link that downloads the file */
+            downloadUrl?: string | null;
+            /** Format: date-time */
+            urlsExpireAt?: string | null;
+            pageCount?: number | null;
+        };
+        ExtractedField: {
+            /** @description Money in minor units, dates YYYY-MM-DD, months YYYY-MM, numbers as decimals */
+            value: string;
+            confidence: number;
+            /** @example pdf-text+pitc */
+            source: string;
+        };
+        Extraction: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            documentId: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed";
+            tiers: {
+                /** @example gemini */
+                tier: string;
+                /** @enum {string} */
+                outcome: "used" | "skipped" | "failed" | "not_needed";
+                message?: string;
+                /** Format: int64 */
+                ms: number;
+            }[];
+            fields: {
+                [key: string]: components["schemas"]["ExtractedField"];
+            };
+            lineItems: {
+                label: string;
+                /** Format: int64 */
+                amountMinor: number;
+            }[];
+            lateFees: {
+                /** Format: date */
+                until?: string;
+                /** Format: int64 */
+                amountMinor: number;
+            }[];
+            history: {
+                /** @example 2026-08 */
+                month: string;
+                units?: number;
+                /** Format: int64 */
+                billedMinor?: number;
+                /** Format: int64 */
+                paidMinor?: number;
+            }[];
+            warnings: {
+                field?: string;
+                message: string;
+            }[];
+            /** Format: uuid */
+            providerId?: string | null;
+            error?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            finishedAt?: string | null;
+        };
+        DocumentUploadInput: {
+            fileName: string;
+            /** @enum {string} */
+            contentType: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
+            /** Format: int64 */
+            sizeBytes: number;
+            sha256: string;
+            kind: components["schemas"]["DocumentKind"];
+            source: components["schemas"]["DocumentSource"];
+            /** Format: uuid */
+            billId?: string;
+        };
+        DocumentUpload: {
+            document: components["schemas"]["Document"];
+            duplicate: boolean;
+            upload?: {
+                url: string;
+                /** @enum {string} */
+                method: "PUT";
+                headers: {
+                    [key: string]: string;
+                };
+            } | null;
+        };
+        DocumentUpdate: {
+            /** Format: uuid */
+            billId?: string | null;
+            kind: components["schemas"]["DocumentKind"];
         };
         AuditEvent: {
             /** Format: uuid */
@@ -1617,6 +1922,271 @@ export interface operations {
                 };
                 content?: never;
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listDocuments: {
+        parameters: {
+            query?: {
+                billId?: string;
+                unattached?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Documents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"][];
+                };
+            };
+        };
+    };
+    createDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentUploadInput"];
+            };
+        };
+        responses: {
+            /** @description Same file already stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentUpload"];
+                };
+            };
+            /** @description Upload started */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentUpload"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Document */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getExtraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Extraction */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Extraction"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startExtraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Extraction"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    saveScannedBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannedBillInput"];
+            };
+        };
+        responses: {
+            /** @description Document attached to the existing bill */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillDetail"];
+                };
+            };
+            /** @description Bill created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillDetail"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["DuplicateBill"];
+        };
+    };
+    getProfileHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Months, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryMonth"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    completeDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ready */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
             404: components["responses"]["NotFound"];
         };
     };

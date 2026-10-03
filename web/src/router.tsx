@@ -25,6 +25,7 @@ const ProfilePage = lazyRouteComponent(profiles, 'ProfilePage')
 const HomePage = lazyRouteComponent(() => import('@/features/home/home-page'), 'HomePage')
 const OnboardingPage = lazyRouteComponent(() => import('@/features/onboarding/onboarding-page'), 'OnboardingPage')
 const SettingsPage = lazyRouteComponent(() => import('@/features/settings/settings-page'), 'SettingsPage')
+const ScanPage = lazyRouteComponent(() => import('@/features/scan/scan-page'), 'ScanPage')
 
 interface RouterContext {
   queryClient: QueryClient
@@ -136,6 +137,7 @@ const billRoute = createRoute({ getParentRoute: () => appRoute, path: '/bills/$b
 const editBillRoute = createRoute({ getParentRoute: () => appRoute, path: '/bills/$billId/edit', component: EditBillPage })
 
 const settingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings', component: SettingsPage })
+const scanRoute = createRoute({ getParentRoute: () => appRoute, path: '/scan/$documentId', component: ScanPage })
 
 const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute, forgotRoute, resetRoute]),
@@ -150,6 +152,7 @@ const routeTree = rootRoute.addChildren([
     billRoute,
     editBillRoute,
     settingsRoute,
+    scanRoute,
   ]),
 ])
 

@@ -6,6 +6,7 @@
 # Go
 /backend/bin/
 /backend/tmp/
+/backend/var/
 *.exe
 *.test
 coverage.out
@@ -29,3 +30,6 @@ Thumbs.db
 /web/e2e/.results/
 /web/e2e/.screenshots/
 /web/playwright-report/
+
+# Real bills for local extraction tests (contain personal data; never commit)
+/samples/

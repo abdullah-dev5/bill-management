@@ -1,10 +1,11 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { LayoutGrid, Plus, Receipt, Settings, House, ChevronRight } from 'lucide-react'
+import { LayoutGrid, Plus, Receipt, Settings, House, ChevronRight, ScanLine } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useProfiles } from '@/api/hooks'
 import { IconTile } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
+import { CaptureSheet } from '@/features/documents/capture-sheet'
 import { cn } from '@/lib/cn'
 
 const NAV = [
@@ -149,29 +150,57 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boo
   const general = list.find((p) => p.isDefault)
   const others = list.filter((p) => !p.isDefault)
 
+  const [capturing, setCapturing] = useState(false)
   const go = (profileId: string) => {
     onOpenChange(false)
     void navigate({ to: '/bills/new', search: { profileId } })
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={t('bills.addWhat')}>
-      <div className="flex flex-col gap-2">
-        {general && (
-          <AddRow onClick={() => go(general.id)} icon={<IconTile icon="receipt" color={general.color} />} title={t('bills.quickExpense')} sub={t('bills.quickExpenseHint')} />
-        )}
-        {others.map((p) => (
-          <AddRow key={p.id} onClick={() => go(p.id)} icon={<IconTile icon={p.icon} color={p.color} />} title={p.name} sub={t(`kind.${p.kind}`)} />
-        ))}
-        <Link
-          to="/profiles/new"
-          onClick={() => onOpenChange(false)}
-          className="mt-2 flex h-12 items-center justify-center gap-2 rounded-full bg-card-muted text-sm font-semibold text-ink"
-        >
-          <Plus className="size-4" aria-hidden /> {t('nav.newProfile')}
-        </Link>
-      </div>
-    </Sheet>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange} title={t('bills.addWhat')}>
+        <div className="flex flex-col gap-2">
+          <AddRow
+            onClick={() => {
+              onOpenChange(false)
+              setCapturing(true)
+            }}
+            icon={
+              <span className="flex size-11 items-center justify-center rounded-tile bg-accent text-ink">
+                <ScanLine className="size-5" aria-hidden />
+              </span>
+            }
+            title={t('scan.scanOrUpload')}
+            sub={t('scan.scanOrUploadHint')}
+          />
+          {general && (
+            <AddRow onClick={() => go(general.id)} icon={<IconTile icon="receipt" color={general.color} />} title={t('bills.quickExpense')} sub={t('bills.quickExpenseHint')} />
+          )}
+          {others.map((p) => (
+            <AddRow key={p.id} onClick={() => go(p.id)} icon={<IconTile icon={p.icon} color={p.color} />} title={p.name} sub={t(`kind.${p.kind}`)} />
+          ))}
+          <Link
+            to="/profiles/new"
+            onClick={() => onOpenChange(false)}
+            className="mt-2 flex h-12 items-center justify-center gap-2 rounded-full bg-card-muted text-sm font-semibold text-ink"
+          >
+            <Plus className="size-4" aria-hidden /> {t('nav.newProfile')}
+          </Link>
+        </div>
+      </Sheet>
+      <CaptureSheet
+        open={capturing}
+        onOpenChange={setCapturing}
+        title={t('scan.scanOrUpload')}
+        onUploaded={async ({ document }) => {
+          if (document.billId) {
+            await navigate({ to: '/bills/$billId', params: { billId: document.billId } })
+          } else {
+            await navigate({ to: '/scan/$documentId', params: { documentId: document.id } })
+          }
+        }}
+      />
+    </>
   )
 }
 

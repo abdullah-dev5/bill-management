@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -15,12 +16,26 @@ import (
 // --- Household -----------------------------------------------------------------
 
 func (s *Server) GetHousehold(w http.ResponseWriter, r *http.Request) {
-	hh, err := s.db.GetHousehold(r.Context(), mustAuth(r).HouseholdID)
+	ctx := r.Context()
+	hh, err := s.db.GetHousehold(ctx, mustAuth(r).HouseholdID)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toHousehold(hh))
+	usage, err := s.storageUsage(ctx, s.db.Queries, hh.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toHousehold(hh, usage))
+}
+
+func (s *Server) storageUsage(ctx context.Context, q *store.Queries, householdID uuid.UUID) (apigen.StorageUsage, error) {
+	u, err := q.HouseholdStorageUsage(ctx, householdID)
+	if err != nil {
+		return apigen.StorageUsage{}, err
+	}
+	return apigen.StorageUsage{UsedBytes: u.UsedBytes, QuotaBytes: s.cfg.StorageQuotaBytes, DocumentCount: int(u.DocumentCount)}, nil
 }
 
 func (s *Server) UpdateHousehold(w http.ResponseWriter, r *http.Request) {
@@ -50,15 +65,19 @@ func (s *Server) UpdateHousehold(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
+		consent := before.AiExtractionConsent
+		if in.AiExtractionConsent != nil {
+			consent = *in.AiExtractionConsent
+		}
 		out, err = q.UpdateHousehold(ctx, store.UpdateHouseholdParams{
-			ID: a.HouseholdID, Name: name, Currency: in.Currency, Timezone: in.Timezone,
+			ID: a.HouseholdID, Name: name, Currency: in.Currency, Timezone: in.Timezone, AiExtractionConsent: consent,
 		})
 		if err != nil {
 			return err
 		}
 		changes := diff(
-			snapshot{"name": before.Name, "currency": before.Currency, "timezone": before.Timezone},
-			snapshot{"name": out.Name, "currency": out.Currency, "timezone": out.Timezone},
+			snapshot{"name": before.Name, "currency": before.Currency, "timezone": before.Timezone, "aiExtractionConsent": before.AiExtractionConsent},
+			snapshot{"name": out.Name, "currency": out.Currency, "timezone": out.Timezone, "aiExtractionConsent": out.AiExtractionConsent},
 		)
 		return audit(ctx, q, a, "household", a.HouseholdID, "update", changes)
 	})
@@ -66,7 +85,12 @@ func (s *Server) UpdateHousehold(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toHousehold(out))
+	usage, err := s.storageUsage(ctx, s.db.Queries, out.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toHousehold(out, usage))
 }
 
 // --- Bill types ----------------------------------------------------------------

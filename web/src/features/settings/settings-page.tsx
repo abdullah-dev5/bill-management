@@ -9,10 +9,11 @@ import { api, unwrap, type BillType, type ProfileKind } from '@/api/client'
 import { useArchiveType, useHousehold, useMe, useSaveType, useTypes, useUpdateHousehold } from '@/api/hooks'
 import { PageHeader } from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
-import { Field, Input, Select } from '@/components/ui/field'
+import { Field, Input, Select, Toggle } from '@/components/ui/field'
 import { Card, Chip, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { applyServerErrors } from '@/lib/forms'
+import { formatBytes } from '@/lib/image'
 import { ICON_NAMES, NamedIcon } from '@/lib/icons'
 import { applyTheme, getTheme, type ThemeChoice } from '@/lib/theme'
 import { cn } from '@/lib/cn'
@@ -25,6 +26,8 @@ export function SettingsPage() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <PageHeader title={t('settings.title')} />
       <HouseholdSection />
+      <PrivacySection />
+      <StorageSection />
       <AppearanceSection />
       <TypesSection />
       <AccountSection />
@@ -88,6 +91,66 @@ function HouseholdSection() {
           </Button>
         )}
       </form>
+    </Card>
+  )
+}
+
+function PrivacySection() {
+  const { t } = useTranslation()
+  const { data: me } = useMe()
+  const { data: hh } = useHousehold()
+  const save = useUpdateHousehold()
+  if (!hh) return <Skeleton className="h-40 rounded-card" />
+  const isOwner = me?.role === 'owner'
+
+  const setConsent = async (on: boolean) => {
+    try {
+      await save.mutateAsync({ name: hh.name, currency: hh.currency, timezone: hh.timezone, aiExtractionConsent: on })
+      toast.success(on ? t('settings.aiConsentOn') : t('settings.aiConsentOff'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('common.errorTitle'))
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle>{t('settings.privacy')}</SectionTitle>
+      {!isOwner && <p className="mb-3 text-sm text-muted">{t('settings.ownerOnly')}</p>}
+      <Toggle
+        label={t('settings.aiConsent')}
+        hint={t('settings.aiConsentHint')}
+        checked={hh.aiExtractionConsent}
+        disabled={!isOwner || save.isPending}
+        onChange={(on) => void setConsent(on)}
+      />
+      <p className="mt-3 rounded-field bg-card-muted p-4 text-sm text-body">{t('settings.aiConsentNotice')}</p>
+    </Card>
+  )
+}
+
+function StorageSection() {
+  const { t } = useTranslation()
+  const { data: hh } = useHousehold()
+  if (!hh) return <Skeleton className="h-28 rounded-card" />
+  const { usedBytes, quotaBytes, documentCount } = hh.storage
+  const fraction = Math.min(1, usedBytes / quotaBytes)
+  return (
+    <Card>
+      <SectionTitle>{t('settings.storage')}</SectionTitle>
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-card-muted"
+        role="meter"
+        aria-label={t('settings.storage')}
+        aria-valuemin={0}
+        aria-valuemax={quotaBytes}
+        aria-valuenow={usedBytes}
+      >
+        <div className={cn('h-full rounded-full', fraction > 0.9 ? 'bg-[var(--danger)]' : 'bg-featured')} style={{ width: `${Math.max(fraction * 100, usedBytes ? 1 : 0)}%` }} />
+      </div>
+      <p className="mt-2 text-sm text-muted">
+        {t('settings.storageUsed', { used: formatBytes(usedBytes), quota: formatBytes(quotaBytes), count: documentCount })}
+      </p>
+      {fraction > 0.9 && <p className="mt-1 text-sm font-medium text-[var(--danger)]">{t('settings.storageFull')}</p>}
     </Card>
   )
 }

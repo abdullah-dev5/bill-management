@@ -1,0 +1,277 @@
+import { expect, test, type Page } from '@playwright/test'
+import { hescoLines, textPdf } from './pdf'
+
+const password = 'e2e test passphrase'
+
+async function shot(page: Page, name: string) {
+  await page.screenshot({ path: `e2e/.screenshots/${test.info().project.name}-docs-${name}.png`, fullPage: true })
+}
+
+/** A photo-like JPEG drawn in the browser, so it decodes like a real camera image. */
+async function makePhoto(page: Page): Promise<Buffer> {
+  const dataUrl = await page.evaluate(() => {
+    const c = document.createElement('canvas')
+    c.width = 1600
+    c.height = 1200
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#d9d4c7'
+    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(200, 100, 1200, 1000)
+    ctx.fillStyle = '#222'
+    ctx.font = 'bold 64px sans-serif'
+    ctx.fillText('LESCO — Electricity Bill', 260, 240)
+    ctx.font = '40px sans-serif'
+    ctx.fillText('Payable within due date: Rs 8,420', 260, 400)
+    return c.toDataURL('image/jpeg', 0.9)
+  })
+  return Buffer.from(dataUrl.split(',')[1]!, 'base64')
+}
+
+const pdf = textPdf(['Payment receipt', 'Paid Rs 2,500'])
+
+test('attach, view, deduplicate and delete bill documents', async ({ page }) => {
+  await page.goto('/sign-up')
+  await page.getByLabel('Your name').fill('Bilal Ahmed')
+  await page.getByLabel('Email').fill(`e2e-docs-${test.info().project.name}-${Date.now()}@example.com`)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'I’ll do this later' }).click()
+  await expect(page.getByRole('heading', { name: 'Hello, Bilal' })).toBeVisible()
+
+  // A bill to attach documents to, created through the API with the page's session.
+  const billId = await page.evaluate(async () => {
+    const csrf = document.cookie.split('; ').find((c) => c.startsWith('bm_csrf='))!.slice(8)
+    const headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }
+    const profiles = await (await fetch('/api/v1/profiles')).json()
+    const general = profiles.find((p: { isDefault: boolean }) => p.isDefault)
+    const res = await fetch('/api/v1/bills', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ profileId: general.id, description: 'Plumber', expenseDate: '2026-10-01', currentChargesMinor: 250000 }),
+    })
+    return (await res.json()).id as string
+  })
+
+  await page.goto(`/bills/${billId}`)
+  const main = page.locator('#main')
+  await expect(main.getByText('No documents yet.', { exact: false })).toBeVisible()
+
+  // Photo: pick, crop, upload.
+  await main.getByRole('button', { name: 'Add document' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Add a document' })
+  await expect(sheet).toBeVisible()
+  await sheet.getByTestId('file-input').setInputFiles({ name: 'bill-photo.jpg', mimeType: 'image/jpeg', buffer: await makePhoto(page) })
+  await expect(sheet.getByRole('button', { name: 'Use photo' })).toBeVisible({ timeout: 15_000 })
+  const preview = sheet.getByRole('img', { name: 'Photo preview' })
+  await expect(preview).toBeVisible()
+  const box = (await preview.boundingBox())!
+  await page.mouse.move(box.x + 2, box.y + 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width * 0.12, box.y + box.height * 0.08, { steps: 5 })
+  await page.mouse.up()
+  await shot(page, '01-crop')
+  await sheet.getByRole('button', { name: 'Use photo' }).click()
+  await expect(page.getByText('Document added')).toBeVisible()
+  await expect(main.getByRole('button', { name: /^bill-photo\.jpg/ })).toBeVisible()
+  await expect(main.getByText('attached a document')).toBeVisible()
+
+  // PDF, then the same PDF again: the second is recognised as a duplicate.
+  for (const expected of ['Document added', 'This file is already saved.']) {
+    await main.getByRole('button', { name: 'Add document' }).click()
+    await page.getByRole('dialog', { name: 'Add a document' }).getByRole('button', { name: 'Receipt' }).click()
+    await page.getByRole('dialog', { name: 'Add a document' }).getByTestId('file-input').setInputFiles({ name: 'receipt.pdf', mimeType: 'application/pdf', buffer: pdf })
+    await expect(page.getByText(expected)).toBeVisible()
+  }
+  await expect(main.getByRole('button', { name: /^receipt\.pdf/ })).toHaveCount(1)
+  await shot(page, '02-documents')
+
+  // Open the photo, then delete it.
+  await main.getByRole('button', { name: /bill-photo\.jpg/ }).click()
+  const viewer = page.getByRole('dialog', { name: 'bill-photo.jpg' })
+  await expect(viewer.getByRole('img', { name: 'bill-photo.jpg' })).toBeVisible()
+  await expect(viewer.getByRole('link', { name: 'Download' })).toBeVisible()
+  await shot(page, '03-viewer')
+  await viewer.getByRole('button', { name: 'Delete' }).click()
+  await page.getByRole('dialog', { name: 'Delete this document?' }).getByRole('button', { name: 'Delete' }).click()
+  await expect(page.getByText('Document deleted')).toBeVisible()
+  await expect(main.getByRole('button', { name: /^bill-photo\.jpg/ })).toHaveCount(0)
+  await expect(main.getByText('removed a document')).toBeVisible()
+
+  // Settings shows storage use and the AI consent switch (off by default).
+  await page.goto('/settings')
+  await expect(main.getByText(/of 100\.0 MB used · 1 document$/)).toBeVisible()
+  const consent = main.getByRole('switch', { name: /Use AI-assisted extraction/ })
+  await expect(consent).toHaveAttribute('aria-checked', 'false')
+  await consent.click()
+  await expect(page.getByText('AI-assisted extraction turned on')).toBeVisible()
+  await expect(consent).toHaveAttribute('aria-checked', 'true')
+  await shot(page, '04-settings')
+})
+
+test('read a bill PDF automatically', async ({ page }) => {
+  await page.goto('/sign-up')
+  await page.getByLabel('Your name').fill('Sana Malik')
+  await page.getByLabel('Email').fill(`e2e-extract-${test.info().project.name}-${Date.now()}@example.com`)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'I’ll do this later' }).click()
+  await expect(page.getByRole('heading', { name: 'Hello, Sana' })).toBeVisible()
+
+  const billId = await page.evaluate(async () => {
+    const csrf = document.cookie.split('; ').find((c) => c.startsWith('bm_csrf='))!.slice(8)
+    const profiles = await (await fetch('/api/v1/profiles')).json()
+    const general = profiles.find((p: { isDefault: boolean }) => p.isDefault)
+    const res = await fetch('/api/v1/bills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify({ profileId: general.id, description: 'Electricity (to check)', expenseDate: '2026-09-18', currentChargesMinor: 100 }),
+    })
+    return (await res.json()).id as string
+  })
+  await page.goto(`/bills/${billId}`)
+  const main = page.locator('#main')
+  await main.getByRole('button', { name: 'Add document' }).click()
+  await page
+    .getByRole('dialog', { name: 'Add a document' })
+    .getByTestId('file-input')
+    .setInputFiles({ name: 'hesco-sep-26.pdf', mimeType: 'application/pdf', buffer: textPdf(hescoLines()) })
+  await expect(page.getByText('Document added')).toBeVisible()
+
+  await main.getByRole('button', { name: /^hesco-sep-26\.pdf/ }).click()
+  const viewer = page.getByRole('dialog', { name: 'hesco-sep-26.pdf' })
+  await viewer.getByRole('button', { name: 'Read bill' }).click()
+  await expect(viewer.getByText('Read with the PDF text')).toBeVisible({ timeout: 15_000 })
+  const fields = viewer.locator('dl')
+  await expect(fields.getByText('HESCO')).toBeVisible()
+  await expect(fields.getByText('09123450012345')).toBeVisible()
+  await expect(fields.getByText('September 2026')).toBeVisible()
+  await expect(fields.getByText('05 Oct 2026')).toBeVisible()
+  await expect(fields.getByText('Rs 3,266').first()).toBeVisible()
+  await expect(viewer.getByText('Bill history (12 months)')).toBeVisible()
+  await expect(viewer.getByText('Until 08 Oct 2026')).toBeVisible()
+  await shot(page, '05-extraction')
+})
+
+// Uses the real Gemini API (needs GEMINI_API_KEY in backend/.env). Run with: E2E_GEMINI=1 pnpm exec playwright test -g Gemini
+test('read a bill photo with Gemini', async ({ page }) => {
+  test.skip(!process.env.E2E_GEMINI, 'set E2E_GEMINI=1 to call the real Gemini API')
+  test.setTimeout(150_000)
+  await page.goto('/sign-up')
+  await page.getByLabel('Your name').fill('Omar Siddiqui')
+  await page.getByLabel('Email').fill(`e2e-gemini-${test.info().project.name}-${Date.now()}@example.com`)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'I’ll do this later' }).click()
+  await expect(page.getByRole('heading', { name: 'Hello, Omar' })).toBeVisible()
+
+  await page.goto('/settings')
+  await page.locator('#main').getByRole('switch', { name: /Use AI-assisted extraction/ }).click()
+  await expect(page.getByText('AI-assisted extraction turned on')).toBeVisible()
+
+  // A photo of the bill: the masked HESCO text drawn on a canvas.
+  const lines = hescoLines()
+  const photo = await page.evaluate((lines) => {
+    const c = document.createElement('canvas')
+    c.width = 1400
+    c.height = 40 + lines.length * 22
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.fillStyle = '#111'
+    ctx.font = '18px sans-serif'
+    lines.forEach((l, i) => ctx.fillText(l, 30, 40 + i * 22))
+    return c.toDataURL('image/jpeg', 0.9).split(',')[1]!
+  }, lines)
+
+  const billId = await page.evaluate(async () => {
+    const csrf = document.cookie.split('; ').find((c) => c.startsWith('bm_csrf='))!.slice(8)
+    const profiles = await (await fetch('/api/v1/profiles')).json()
+    const general = profiles.find((p: { isDefault: boolean }) => p.isDefault)
+    const res = await fetch('/api/v1/bills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify({ profileId: general.id, description: 'Photo to read', expenseDate: '2026-09-18', currentChargesMinor: 100 }),
+    })
+    return (await res.json()).id as string
+  })
+  await page.goto(`/bills/${billId}`)
+  const main = page.locator('#main')
+  await main.getByRole('button', { name: 'Add document' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Add a document' })
+  await sheet.getByTestId('file-input').setInputFiles({ name: 'hesco-photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(photo, 'base64') })
+  await sheet.getByRole('button', { name: 'Use photo' }).click({ timeout: 15_000 })
+  await expect(page.getByText('Document added')).toBeVisible()
+
+  await main.getByRole('button', { name: /^hesco-photo\.jpg/ }).click()
+  const viewer = page.getByRole('dialog', { name: 'hesco-photo.jpg' })
+  await viewer.getByRole('button', { name: 'Read bill' }).click()
+  await expect(viewer.getByText('Read with AI (Gemini)')).toBeVisible({ timeout: 120_000 })
+  const fields = viewer.locator('dl')
+  await expect(fields.getByText('HESCO')).toBeVisible()
+  await expect(fields.getByText('09123450012345')).toBeVisible()
+  await expect(fields.getByText('05 Oct 2026')).toBeVisible()
+  await expect(fields.getByText('Rs 3,266').first()).toBeVisible()
+  await shot(page, '06-gemini')
+})
+
+// Uses the real OCR.space API (needs OCRSPACE_API_KEY in backend/.env); AI extraction stays off.
+// Run with: E2E_OCR=1 pnpm exec playwright test -g OCR
+test('read a bill photo with OCR in privacy mode', async ({ page }) => {
+  test.skip(!process.env.E2E_OCR, 'set E2E_OCR=1 to call the real OCR.space API')
+  test.setTimeout(150_000)
+  await page.goto('/sign-up')
+  await page.getByLabel('Your name').fill('Zara Ahmed')
+  await page.getByLabel('Email').fill(`e2e-ocr-${test.info().project.name}-${Date.now()}@example.com`)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'I’ll do this later' }).click()
+  await expect(page.getByRole('heading', { name: 'Hello, Zara' })).toBeVisible()
+
+  // A photo of the bill: the masked HESCO text in two columns on a page-shaped canvas,
+  // so it stays readable after the phone-side resize to 2000 px.
+  const lines = hescoLines()
+  const photo = await page.evaluate((lines) => {
+    const half = Math.ceil(lines.length / 2)
+    const c = document.createElement('canvas')
+    c.width = 1600
+    c.height = 60 + half * 30
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.fillStyle = '#111'
+    ctx.font = '22px Arial, sans-serif'
+    lines.forEach((l, i) => ctx.fillText(l, i < half ? 30 : 830, 50 + (i % half) * 30, 760))
+    return c.toDataURL('image/jpeg', 0.85).split(',')[1]!
+  }, lines)
+
+  const billId = await page.evaluate(async () => {
+    const csrf = document.cookie.split('; ').find((c) => c.startsWith('bm_csrf='))!.slice(8)
+    const profiles = await (await fetch('/api/v1/profiles')).json()
+    const general = profiles.find((p: { isDefault: boolean }) => p.isDefault)
+    const res = await fetch('/api/v1/bills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify({ profileId: general.id, description: 'Photo for OCR', expenseDate: '2026-09-18', currentChargesMinor: 100 }),
+    })
+    return (await res.json()).id as string
+  })
+  await page.goto(`/bills/${billId}`)
+  const main = page.locator('#main')
+  await main.getByRole('button', { name: 'Add document' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Add a document' })
+  await sheet.getByTestId('file-input').setInputFiles({ name: 'hesco-ocr.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(photo, 'base64') })
+  await sheet.getByRole('button', { name: 'Use photo' }).click({ timeout: 15_000 })
+  await expect(page.getByText('Document added')).toBeVisible()
+
+  await main.getByRole('button', { name: /^hesco-ocr\.jpg/ }).click()
+  const viewer = page.getByRole('dialog', { name: 'hesco-ocr.jpg' })
+  await viewer.getByRole('button', { name: 'Read bill' }).click()
+  await expect(viewer.getByText('Read with OCR')).toBeVisible({ timeout: 120_000 })
+  const fields = viewer.locator('dl')
+  await expect(fields.getByText('HESCO')).toBeVisible()
+  await expect(fields.getByText('09123450012345')).toBeVisible()
+  await expect(fields.getByText('05 Oct 2026')).toBeVisible()
+  await expect(fields.getByText('Rs 3,266').first()).toBeVisible()
+  await shot(page, '07-ocr')
+})
