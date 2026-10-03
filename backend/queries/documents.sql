@@ -34,7 +34,7 @@ WHERE id = $1 AND household_id = $2 AND status = 'pending'
 RETURNING *;
 
 -- name: MarkDocumentReady :one
-UPDATE documents SET status = 'ready', uploaded_at = now(), updated_at = now()
+UPDATE documents SET status = 'ready', page_count = $3, uploaded_at = now(), updated_at = now()
 WHERE id = $1 AND household_id = $2
 RETURNING *;
 

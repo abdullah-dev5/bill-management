@@ -253,6 +253,70 @@ func AllDocumentStatusValues() []DocumentStatus {
 	}
 }
 
+type ExtractionStatus string
+
+const (
+	ExtractionStatusQueued    ExtractionStatus = "queued"
+	ExtractionStatusRunning   ExtractionStatus = "running"
+	ExtractionStatusSucceeded ExtractionStatus = "succeeded"
+	ExtractionStatusFailed    ExtractionStatus = "failed"
+)
+
+func (e *ExtractionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ExtractionStatus(s)
+	case string:
+		*e = ExtractionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ExtractionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullExtractionStatus struct {
+	ExtractionStatus ExtractionStatus
+	Valid            bool // Valid is true if ExtractionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullExtractionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ExtractionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ExtractionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullExtractionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ExtractionStatus), nil
+}
+
+func (e ExtractionStatus) Valid() bool {
+	switch e {
+	case ExtractionStatusQueued,
+		ExtractionStatusRunning,
+		ExtractionStatusSucceeded,
+		ExtractionStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllExtractionStatusValues() []ExtractionStatus {
+	return []ExtractionStatus{
+		ExtractionStatusQueued,
+		ExtractionStatusRunning,
+		ExtractionStatusSucceeded,
+		ExtractionStatusFailed,
+	}
+}
+
 type MemberRole string
 
 const (
@@ -613,6 +677,24 @@ type Document struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	UploadedAt  *time.Time
+	PageCount   *int32
+	OcrText     *string
+}
+
+type Extraction struct {
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+	DocumentID  uuid.UUID
+	Status      ExtractionStatus
+	Attempts    int32
+	LockedUntil *time.Time
+	Result      []byte
+	Trace       []byte
+	Error       *string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	StartedAt   *time.Time
+	FinishedAt  *time.Time
 }
 
 type Household struct {

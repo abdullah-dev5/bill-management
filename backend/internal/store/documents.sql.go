@@ -17,7 +17,7 @@ INSERT INTO documents (
     id, household_id, bill_id, kind, source, storage_key, file_name,
     content_type, size_bytes, sha256, created_by
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at
+RETURNING id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text
 `
 
 type CreateDocumentParams struct {
@@ -65,6 +65,8 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UploadedAt,
+		&i.PageCount,
+		&i.OcrText,
 	)
 	return i, err
 }
@@ -99,7 +101,7 @@ func (q *Queries) DeleteStalePendingDocuments(ctx context.Context, createdAt tim
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at FROM documents WHERE id = $1 AND household_id = $2
+SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text FROM documents WHERE id = $1 AND household_id = $2
 `
 
 type GetDocumentParams struct {
@@ -126,12 +128,14 @@ func (q *Queries) GetDocument(ctx context.Context, arg GetDocumentParams) (Docum
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UploadedAt,
+		&i.PageCount,
+		&i.OcrText,
 	)
 	return i, err
 }
 
 const getDocumentByID = `-- name: GetDocumentByID :one
-SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at FROM documents WHERE id = $1
+SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text FROM documents WHERE id = $1
 `
 
 // Unscoped: only for signed file links, where the signature is the authorisation.
@@ -154,12 +158,14 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id uuid.UUID) (Document, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UploadedAt,
+		&i.PageCount,
+		&i.OcrText,
 	)
 	return i, err
 }
 
 const getDocumentBySHA256 = `-- name: GetDocumentBySHA256 :one
-SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at FROM documents WHERE household_id = $1 AND sha256 = $2
+SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text FROM documents WHERE household_id = $1 AND sha256 = $2
 `
 
 type GetDocumentBySHA256Params struct {
@@ -186,6 +192,8 @@ func (q *Queries) GetDocumentBySHA256(ctx context.Context, arg GetDocumentBySHA2
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UploadedAt,
+		&i.PageCount,
+		&i.OcrText,
 	)
 	return i, err
 }
@@ -209,7 +217,7 @@ func (q *Queries) HouseholdStorageUsage(ctx context.Context, householdID uuid.UU
 }
 
 const listBillDocuments = `-- name: ListBillDocuments :many
-SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at FROM documents
+SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text FROM documents
 WHERE household_id = $1 AND bill_id = $2 AND status = 'ready'
 ORDER BY created_at
 `
@@ -244,6 +252,8 @@ func (q *Queries) ListBillDocuments(ctx context.Context, arg ListBillDocumentsPa
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.UploadedAt,
+			&i.PageCount,
+			&i.OcrText,
 		); err != nil {
 			return nil, err
 		}
@@ -280,7 +290,7 @@ func (q *Queries) ListStorageDeletions(ctx context.Context, limit int32) ([]stri
 }
 
 const listUnattachedDocuments = `-- name: ListUnattachedDocuments :many
-SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at FROM documents
+SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text FROM documents
 WHERE household_id = $1 AND bill_id IS NULL AND status = 'ready'
 ORDER BY created_at DESC
 LIMIT 50
@@ -311,6 +321,8 @@ func (q *Queries) ListUnattachedDocuments(ctx context.Context, householdID uuid.
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.UploadedAt,
+			&i.PageCount,
+			&i.OcrText,
 		); err != nil {
 			return nil, err
 		}
@@ -323,18 +335,19 @@ func (q *Queries) ListUnattachedDocuments(ctx context.Context, householdID uuid.
 }
 
 const markDocumentReady = `-- name: MarkDocumentReady :one
-UPDATE documents SET status = 'ready', uploaded_at = now(), updated_at = now()
+UPDATE documents SET status = 'ready', page_count = $3, uploaded_at = now(), updated_at = now()
 WHERE id = $1 AND household_id = $2
-RETURNING id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at
+RETURNING id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text
 `
 
 type MarkDocumentReadyParams struct {
 	ID          uuid.UUID
 	HouseholdID uuid.UUID
+	PageCount   *int32
 }
 
 func (q *Queries) MarkDocumentReady(ctx context.Context, arg MarkDocumentReadyParams) (Document, error) {
-	row := q.db.QueryRow(ctx, markDocumentReady, arg.ID, arg.HouseholdID)
+	row := q.db.QueryRow(ctx, markDocumentReady, arg.ID, arg.HouseholdID, arg.PageCount)
 	var i Document
 	err := row.Scan(
 		&i.ID,
@@ -352,6 +365,8 @@ func (q *Queries) MarkDocumentReady(ctx context.Context, arg MarkDocumentReadyPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UploadedAt,
+		&i.PageCount,
+		&i.OcrText,
 	)
 	return i, err
 }
@@ -360,7 +375,7 @@ const refreshPendingDocument = `-- name: RefreshPendingDocument :one
 UPDATE documents SET bill_id = $3, kind = $4, source = $5, file_name = $6,
     content_type = $7, size_bytes = $8, created_by = $9, created_at = now(), updated_at = now()
 WHERE id = $1 AND household_id = $2 AND status = 'pending'
-RETURNING id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at
+RETURNING id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text
 `
 
 type RefreshPendingDocumentParams struct {
@@ -405,6 +420,8 @@ func (q *Queries) RefreshPendingDocument(ctx context.Context, arg RefreshPending
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UploadedAt,
+		&i.PageCount,
+		&i.OcrText,
 	)
 	return i, err
 }
@@ -421,7 +438,7 @@ func (q *Queries) RemoveStorageDeletion(ctx context.Context, storageKey string) 
 const updateDocument = `-- name: UpdateDocument :one
 UPDATE documents SET bill_id = $3, kind = $4, updated_at = now()
 WHERE id = $1 AND household_id = $2
-RETURNING id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at
+RETURNING id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text
 `
 
 type UpdateDocumentParams struct {
@@ -455,6 +472,8 @@ func (q *Queries) UpdateDocument(ctx context.Context, arg UpdateDocumentParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UploadedAt,
+		&i.PageCount,
+		&i.OcrText,
 	)
 	return i, err
 }

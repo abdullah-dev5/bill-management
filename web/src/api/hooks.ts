@@ -14,6 +14,7 @@ export const keys = {
   bills: (filters: BillFilters) => ['bills', filters] as const,
   bill: (id: string) => ['bill', id] as const,
   document: (id: string) => ['document', id] as const,
+  extraction: (documentId: string) => ['extraction', documentId] as const,
 }
 
 export interface BillFilters {
@@ -244,3 +245,27 @@ export function useDeleteDocument() {
   })
 }
 
+
+// --- Extraction -------------------------------------------------------------------
+
+/** The latest extraction of a document; polls while it is queued or running. */
+export const useExtraction = (documentId: string | undefined) =>
+  useQuery({
+    queryKey: keys.extraction(documentId ?? ''),
+    queryFn: async () => {
+      const { data, response } = await api.GET('/documents/{id}/extraction', { params: { path: { id: documentId! } } })
+      if (response.status === 404) return null
+      if (!response.ok) throw new Error(response.statusText)
+      return data!
+    },
+    enabled: !!documentId,
+    refetchInterval: (q) => (q.state.data && ['queued', 'running'].includes(q.state.data.status) ? 1500 : false),
+  })
+
+export function useStartExtraction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (documentId: string) => unwrap(api.POST('/documents/{id}/extraction', { params: { path: { id: documentId } } })),
+    onSuccess: (data, documentId) => qc.setQueryData(keys.extraction(documentId), data),
+  })
+}

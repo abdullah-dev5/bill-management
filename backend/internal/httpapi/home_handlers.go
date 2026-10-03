@@ -150,6 +150,10 @@ func (s *Server) tick(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if _, err := s.db.FailAbandonedExtractions(ctx); err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	filesDeleted, err := s.drainStorageDeletions(ctx)
 	if err != nil {
 		s.fail(w, r, err)

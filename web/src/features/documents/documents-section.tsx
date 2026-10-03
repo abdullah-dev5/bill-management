@@ -9,6 +9,7 @@ import { Card, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { formatBytes } from '@/lib/image'
 import { CaptureSheet } from './capture-sheet'
+import { ExtractionPanel } from './extraction-panel'
 
 const isPdfDoc = (d: Doc) => d.contentType === 'application/pdf'
 
@@ -126,6 +127,7 @@ function DocumentViewer({ id, billId, readOnly, onClose }: { id?: string; billId
             ) : (
               d.viewUrl && <img src={d.viewUrl} alt={d.fileName} className="max-h-[60dvh] w-full rounded-field bg-card-muted object-contain" />
             )}
+            {d.kind === 'bill' && <ExtractionPanel documentId={d.id} />}
             <div className="flex flex-wrap gap-2">
               {d.viewUrl && isPdfDoc(d) && (
                 <a href={d.viewUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-full bg-featured px-4 text-sm font-semibold text-on-featured">

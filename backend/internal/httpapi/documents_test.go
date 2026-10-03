@@ -13,12 +13,13 @@ import (
 	"time"
 
 	"github.com/abdullah-dev5/bill-management/backend/internal/apigen"
+	"github.com/abdullah-dev5/bill-management/backend/internal/extract/extracttest"
 	"github.com/abdullah-dev5/bill-management/backend/internal/storage"
 )
 
 var (
 	fakeJPEG = append([]byte("\xff\xd8\xff\xe0\x00\x10JFIF\x00"), bytes.Repeat([]byte{7}, 2000)...)
-	fakePDF  = []byte("%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n")
+	fakePDF  = extracttest.TextPDF([]string{"Receipt", "Paid Rs 2,500"}, 1)
 )
 
 func sha(b []byte) string {

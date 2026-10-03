@@ -1,0 +1,133 @@
+HESC HESCO GST NO: 01-01-2716-002-55
+www.hesco.gov.pk
+Say No To Corruption
+HYDERABAD ELECTRIC SUPPLY COMPANY
+YOUR BETTER SERVICE – OUR PRIDE
+ELECTRICITY CONSUMER BILL
+☰ CONSUMER DETAIL
+والہمر NO REFERENCE
+09123450012345
+یومرمر ID CONSUMER
+1234567890
+NAME & ADDRESS ہ
+امو
+Test Customer, Sample
+Street, Example Town
+Sindh
+ارمر TRANSFORMER
+ؕراس
+200 Kva Example Town 03
+ؕ ر FEEDER
+061209 Example Colony
+Classfication Code : 00101
+SUB DIVISION
+Example
+م CATEGORY
+Protected
+ؕر STATUS
+Pro-Rata Consumption
+Outstanding Units : 20
+TARIFF CATEGORY م
+Domestic
+SAN LOAD ؕ
+2
+ؕیر TARIFF
+A-1A(01)
+⏳ METER INFO
+ؕرمر NO METER
+S-P 000001
+ور MF
+
+
+1
+PREVIOUS READING
+ ہ
+سا
+ریؕ گ
+18690
+PRESENT READING
+وودہ
+ریؕ گ
+18854
+یو UNITS
+164
+BILL CHARGES BREAKDOWN (RS.)
+Total Electricity Charges 5885 کلار
+3428 رای Subsidies
+Net Electricity Charges 83.83 %
+یار
+ 2457
+یکس % 16.17 Taxes
+474 کلؕ
+2931 وودہل Bill Current
+یاا Arrears
+ا
+ 0
+0 سط Installment
+Adjustments
+0 ایؕ
+W.E Credit 0
+Lock Open Credit 0
+Total FPA 335
+3266 کلواا Total Grand
+BILL HISTORY
+HESCO
+Consumer
+MONTH STATUS UNITS BILL (RS.) PAYMENT (RS.)
+Sep25 145 1710 1710
+Oct25 155 1862 1862
+Nov25 145 1804 1804
+Dec25 95 1259 1259
+Jan26 SS 0 89 89
+Feb26 72 1007 0
+Deferred Amount
+یااساط .Install Outstanding
+ہ ل MONTH BILL
+SEP 26
+READING DATE
+ ریؕ گ
+ی
+ار
+18 SEP 26
+ISSUE DATE
+اراء
+ی
+ار
+18 SEP 26
+⚠ DUE DATE
+ی
+ار
+ررہ
+05 OCT 26
+PAYABLE WITHIN
+DUE DATE
+کوااادا
+ار
+ررہ
+3266
+L.P
+SURCHARGE
+ی سرار
+PAYABLE
+AFTER DUE
+DATE
+123
+Till 08-OCT-26
+3,389
+246
+After 08-OCT-26
+3,512
+MONTH STATUS UNITS BILL (RS.) PAYMENT (RS.)
+Mar26 126 3529 3632
+Apr26 121 2532 2532
+May26 160 3054 3054
+Jun26 119 2453 2549
+Jul26 136 2341 2341
+Aug26 EX 161 2727 2727
+HYDERABAD ELECTRIC SUPPLY COMPANY
+ELECTRICITY CONSUMER BILL
+SEP 26 - 09 12345 0012345 - 000003266 - 05 OCT 26 - 000003389 - 081026 - 6
+یومرمر ID CONSUMER
+1234567890
+09123450012345 والہمر NO REFERENCE
+BANK STAMP

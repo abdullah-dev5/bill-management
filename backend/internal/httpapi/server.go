@@ -15,6 +15,7 @@ import (
 
 	"github.com/abdullah-dev5/bill-management/backend/internal/apigen"
 	"github.com/abdullah-dev5/bill-management/backend/internal/config"
+	"github.com/abdullah-dev5/bill-management/backend/internal/extract"
 	"github.com/abdullah-dev5/bill-management/backend/internal/mail"
 	"github.com/abdullah-dev5/bill-management/backend/internal/ratelimit"
 	"github.com/abdullah-dev5/bill-management/backend/internal/secure"
@@ -33,6 +34,9 @@ type Server struct {
 	keys  *secure.Keys
 	files storage.Store
 	now   func() time.Time
+
+	extractor *extract.Chain
+	wake      chan struct{} // nudges idle extraction workers
 
 	loginByEmail *ratelimit.Limiter
 	loginByIP    *ratelimit.Limiter
@@ -54,6 +58,8 @@ func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, 
 		keys:         keys,
 		files:        files,
 		now:          time.Now,
+		extractor:    NewExtractionChain(cfg),
+		wake:         make(chan struct{}, 1),
 		loginByEmail: ratelimit.New(5, 15*time.Minute),
 		loginByIP:    ratelimit.New(30, 15*time.Minute),
 		signupByIP:   ratelimit.New(10, time.Hour),

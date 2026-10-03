@@ -21,6 +21,10 @@ services:
         generateValue: true
       - key: DATA_ENCRYPTION_KEY
         generateValue: true # copy it to your password manager: without it, encrypted data can't be read
+      - key: GEMINI_API_KEY
+        sync: false # optional: AI extraction (docs/setup-external-services.md)
+      - key: OCRSPACE_API_KEY
+        sync: false # optional: OCR fallback
       - key: S3_ENDPOINT
         sync: false # https://<project>.supabase.co/storage/v1/s3
       - key: S3_REGION

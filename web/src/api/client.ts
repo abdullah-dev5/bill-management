@@ -21,6 +21,8 @@ export type HomeSummary = Schemas['HomeSummary']
 export type Doc = Schemas['Document']
 export type DocumentKind = Schemas['DocumentKind']
 export type DocumentSource = Schemas['DocumentSource']
+export type Extraction = Schemas['Extraction']
+export type ExtractedField = Schemas['ExtractedField']
 export type ApiErrorBody = Schemas['Error']
 
 /** An error response from the API, with its machine code and per-field messages. */

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -20,12 +21,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/abdullah-dev5/bill-management/backend/internal/apigen"
+	"github.com/abdullah-dev5/bill-management/backend/internal/extract"
 	"github.com/abdullah-dev5/bill-management/backend/internal/storage"
 	"github.com/abdullah-dev5/bill-management/backend/internal/store"
 )
 
 const (
 	maxDocumentBytes  = 10 << 20
+	maxPDFPages       = 5
 	linkTTL           = 5 * time.Minute
 	stalePendingAfter = 24 * time.Hour
 	filesPath         = "/api/files/"
@@ -188,7 +191,8 @@ func (s *Server) CompleteDocument(w http.ResponseWriter, r *http.Request, id api
 		return
 	}
 
-	if problem, err := s.verifyStoredFile(ctx, doc); err != nil {
+	pages, problem, err := s.verifyStoredFile(ctx, doc)
+	if err != nil {
 		s.fail(w, r, err)
 		return
 	} else if problem != "" {
@@ -201,7 +205,7 @@ func (s *Server) CompleteDocument(w http.ResponseWriter, r *http.Request, id api
 	}
 
 	err = s.db.InTx(ctx, func(q *store.Queries) error {
-		doc, err = q.MarkDocumentReady(ctx, store.MarkDocumentReadyParams{ID: doc.ID, HouseholdID: a.HouseholdID})
+		doc, err = q.MarkDocumentReady(ctx, store.MarkDocumentReadyParams{ID: doc.ID, HouseholdID: a.HouseholdID, PageCount: pages})
 		if err != nil || doc.BillID == nil {
 			return err
 		}
@@ -214,31 +218,41 @@ func (s *Server) CompleteDocument(w http.ResponseWriter, r *http.Request, id api
 	s.writeDocument(w, r, http.StatusOK, doc)
 }
 
-// verifyStoredFile returns a user-facing problem when the upload is missing or doesn't match.
-func (s *Server) verifyStoredFile(ctx context.Context, doc store.Document) (string, error) {
+// verifyStoredFile returns a user-facing problem when the upload is missing or doesn't match,
+// and the page count for PDFs.
+func (s *Server) verifyStoredFile(ctx context.Context, doc store.Document) (*int32, string, error) {
 	rc, err := s.files.Open(ctx, doc.StorageKey)
 	if errors.Is(err, storage.ErrNotFound) {
-		return "The file didn't finish uploading. Please try again.", nil
+		return nil, "The file didn't finish uploading. Please try again.", nil
 	} else if err != nil {
-		return "", err
+		return nil, "", err
 	}
-	defer rc.Close()
-
-	h := sha256.New()
-	var head bytes.Buffer
-	n, err := io.Copy(io.MultiWriter(h, &limitedBuffer{buf: &head, max: 512}), io.LimitReader(rc, maxDocumentBytes+1))
+	data, err := io.ReadAll(io.LimitReader(rc, maxDocumentBytes+1))
+	rc.Close()
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
+	sum := sha256.Sum256(data)
 	switch {
-	case n != doc.SizeBytes:
-		return "The uploaded file is incomplete. Please try again.", nil
-	case !bytes.Equal(h.Sum(nil), doc.Sha256):
-		return "The uploaded file doesn't match. Please try again.", nil
-	case http.DetectContentType(head.Bytes()) != doc.ContentType:
-		return "This file isn't a valid JPG, PNG, WEBP or PDF.", nil
+	case int64(len(data)) != doc.SizeBytes:
+		return nil, "The uploaded file is incomplete. Please try again.", nil
+	case !bytes.Equal(sum[:], doc.Sha256):
+		return nil, "The uploaded file doesn't match. Please try again.", nil
+	case http.DetectContentType(data) != doc.ContentType:
+		return nil, "This file isn't a valid JPG, PNG, WEBP or PDF.", nil
 	}
-	return "", nil
+	if doc.ContentType != "application/pdf" {
+		return nil, "", nil
+	}
+	pages, err := extract.PDFPageCount(data)
+	switch {
+	case err != nil:
+		return nil, "This PDF can't be opened. It may be damaged or password-protected.", nil
+	case pages > maxPDFPages:
+		return nil, fmt.Sprintf("This PDF has %d pages; the limit is %d. Upload only the bill's pages.", pages, maxPDFPages), nil
+	}
+	n := int32(pages)
+	return &n, "", nil
 }
 
 func (s *Server) UpdateDocument(w http.ResponseWriter, r *http.Request, id apigen.Id) {
@@ -347,7 +361,7 @@ func (s *Server) toDocument(ctx context.Context, d store.Document) (apigen.Docum
 	out := apigen.Document{
 		Id: d.ID, BillId: d.BillID, Kind: apigen.DocumentKind(d.Kind), Source: apigen.DocumentSource(d.Source),
 		Status: apigen.DocumentStatus(d.Status), FileName: d.FileName, ContentType: d.ContentType,
-		SizeBytes: d.SizeBytes, CreatedAt: d.CreatedAt,
+		SizeBytes: d.SizeBytes, CreatedAt: d.CreatedAt, PageCount: int32ToIntPtr(d.PageCount),
 	}
 	if d.Status != store.DocumentStatusReady {
 		return out, nil
@@ -509,18 +523,10 @@ func sameBill(a, b *uuid.UUID) bool {
 	return *a == *b
 }
 
-// limitedBuffer keeps only the first max bytes written to it.
-type limitedBuffer struct {
-	buf *bytes.Buffer
-	max int
-}
-
-func (l *limitedBuffer) Write(p []byte) (int, error) {
-	if room := l.max - l.buf.Len(); room > 0 {
-		if len(p) < room {
-			room = len(p)
-		}
-		l.buf.Write(p[:room])
+func int32ToIntPtr(v *int32) *int {
+	if v == nil {
+		return nil
 	}
-	return len(p), nil
+	n := int(*v)
+	return &n
 }

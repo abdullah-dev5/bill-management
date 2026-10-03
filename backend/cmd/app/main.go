@@ -97,7 +97,12 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger, keys *secur
 		log.Info("storing documents on local disk", "dir", cfg.StorageDir)
 	}
 
-	handler, err := httpapi.New(store.NewDB(pool), cfg, log, mailer, keys, files).Handler()
+	api := httpapi.New(store.NewDB(pool), cfg, log, mailer, keys, files)
+	api.StartWorkers(ctx, 2)
+	if cfg.GeminiAPIKey == "" && cfg.OCRSpaceAPIKey == "" {
+		log.Warn("no GEMINI_API_KEY or OCRSPACE_API_KEY: only text PDFs can be read automatically (see docs/setup-external-services.md)")
+	}
+	handler, err := api.Handler()
 	if err != nil {
 		return err
 	}

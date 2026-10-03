@@ -27,6 +27,14 @@ type Config struct {
 	S3                S3Config
 	DirectUploads     bool  // browser talks to S3 through presigned URLs instead of via the API
 	StorageQuotaBytes int64 // per household
+
+	// Extraction (docs/05). Empty keys disable a tier.
+	GeminiAPIKey         string
+	GeminiModel          string
+	OCRSpaceAPIKey       string
+	GeminiDailyLimit     int // calls per day across all households (free-tier guard)
+	OCRSpaceDailyLimit   int
+	ExtractionDailyLimit int // extractions per household per day
 }
 
 type S3Config struct {
@@ -39,6 +47,9 @@ const devDataKey = "development-only-data-key-do-not-use-in-production"
 func (c Config) IsProduction() bool { return c.Env == "production" }
 
 func Load() (Config, error) {
+	if err := loadDotEnv(".env"); err != nil {
+		return Config{}, err
+	}
 	c := Config{
 		Env:          getenv("APP_ENV", "development"),
 		DatabaseURL:  os.Getenv("DATABASE_URL"),
@@ -86,6 +97,25 @@ func Load() (Config, error) {
 	}
 	c.StorageQuotaBytes = quotaMB << 20
 
+	c.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
+	c.GeminiModel = getenv("GEMINI_MODEL", "gemini-2.5-flash")
+	c.OCRSpaceAPIKey = os.Getenv("OCRSPACE_API_KEY")
+	for _, lim := range []struct {
+		env string
+		def int
+		dst *int
+	}{
+		{"GEMINI_DAILY_LIMIT", 200, &c.GeminiDailyLimit},
+		{"OCRSPACE_DAILY_LIMIT", 800, &c.OCRSpaceDailyLimit},
+		{"EXTRACTION_DAILY_LIMIT", 50, &c.ExtractionDailyLimit},
+	} {
+		n, err := strconv.Atoi(getenv(lim.env, strconv.Itoa(lim.def)))
+		if err != nil || n < 0 {
+			return c, fmt.Errorf("%s must be a whole number", lim.env)
+		}
+		*lim.dst = n
+	}
+
 	var problems []error
 	if c.DatabaseURL == "" {
 		problems = append(problems, errors.New("DATABASE_URL is required"))
@@ -127,4 +157,36 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// loadDotEnv sets variables from a local .env file (development convenience).
+// Variables already set in the environment win; a missing file is not an error.
+func loadDotEnv(path string) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	for i, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			return fmt.Errorf("%s line %d: expected KEY=value", path, i+1)
+		}
+		key = strings.TrimSpace(strings.TrimPrefix(key, "export "))
+		value = strings.TrimSpace(value)
+		if len(value) >= 2 && (value[0] == '"' || value[0] == '\'') && value[len(value)-1] == value[0] {
+			value = value[1 : len(value)-1]
+		}
+		if _, set := os.LookupEnv(key); !set {
+			if err := os.Setenv(key, value); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

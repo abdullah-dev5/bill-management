@@ -468,6 +468,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{id}/extraction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description The latest extraction of this document. */
+        get: operations["getExtraction"];
+        put?: never;
+        /**
+         * @description Reads the document in the background (docs/05). Poll GET until the status is
+         *     `succeeded` or `failed`. If a run is already queued or running it is returned.
+         */
+        post: operations["startExtraction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{id}/complete": {
         parameters: {
             query?: never;
@@ -832,6 +855,65 @@ export interface components {
             downloadUrl?: string | null;
             /** Format: date-time */
             urlsExpireAt?: string | null;
+            pageCount?: number | null;
+        };
+        ExtractedField: {
+            /** @description Money in minor units, dates YYYY-MM-DD, months YYYY-MM, numbers as decimals */
+            value: string;
+            confidence: number;
+            /** @example pdf-text+pitc */
+            source: string;
+        };
+        Extraction: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            documentId: string;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed";
+            tiers: {
+                /** @example gemini */
+                tier: string;
+                /** @enum {string} */
+                outcome: "used" | "skipped" | "failed" | "not_needed";
+                message?: string;
+                /** Format: int64 */
+                ms: number;
+            }[];
+            fields: {
+                [key: string]: components["schemas"]["ExtractedField"];
+            };
+            lineItems: {
+                label: string;
+                /** Format: int64 */
+                amountMinor: number;
+            }[];
+            lateFees: {
+                /** Format: date */
+                until?: string;
+                /** Format: int64 */
+                amountMinor: number;
+            }[];
+            history: {
+                /** @example 2026-08 */
+                month: string;
+                units?: number;
+                /** Format: int64 */
+                billedMinor?: number;
+                /** Format: int64 */
+                paidMinor?: number;
+            }[];
+            warnings: {
+                field?: string;
+                message: string;
+            }[];
+            /** Format: uuid */
+            providerId?: string | null;
+            error?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            finishedAt?: string | null;
         };
         DocumentUploadInput: {
             fileName: string;
@@ -1879,6 +1961,54 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    getExtraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Extraction */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Extraction"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    startExtraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Extraction"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     completeDocument: {
