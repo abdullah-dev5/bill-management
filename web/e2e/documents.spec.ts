@@ -214,3 +214,64 @@ test('read a bill photo with Gemini', async ({ page }) => {
   await expect(fields.getByText('Rs 3,266').first()).toBeVisible()
   await shot(page, '06-gemini')
 })
+
+// Uses the real OCR.space API (needs OCRSPACE_API_KEY in backend/.env); AI extraction stays off.
+// Run with: E2E_OCR=1 pnpm exec playwright test -g OCR
+test('read a bill photo with OCR in privacy mode', async ({ page }) => {
+  test.skip(!process.env.E2E_OCR, 'set E2E_OCR=1 to call the real OCR.space API')
+  test.setTimeout(150_000)
+  await page.goto('/sign-up')
+  await page.getByLabel('Your name').fill('Zara Ahmed')
+  await page.getByLabel('Email').fill(`e2e-ocr-${test.info().project.name}-${Date.now()}@example.com`)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'I’ll do this later' }).click()
+  await expect(page.getByRole('heading', { name: 'Hello, Zara' })).toBeVisible()
+
+  // A photo of the bill: the masked HESCO text in two columns on a page-shaped canvas,
+  // so it stays readable after the phone-side resize to 2000 px.
+  const lines = hescoLines()
+  const photo = await page.evaluate((lines) => {
+    const half = Math.ceil(lines.length / 2)
+    const c = document.createElement('canvas')
+    c.width = 1600
+    c.height = 60 + half * 30
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.fillStyle = '#111'
+    ctx.font = '22px Arial, sans-serif'
+    lines.forEach((l, i) => ctx.fillText(l, i < half ? 30 : 830, 50 + (i % half) * 30, 760))
+    return c.toDataURL('image/jpeg', 0.85).split(',')[1]!
+  }, lines)
+
+  const billId = await page.evaluate(async () => {
+    const csrf = document.cookie.split('; ').find((c) => c.startsWith('bm_csrf='))!.slice(8)
+    const profiles = await (await fetch('/api/v1/profiles')).json()
+    const general = profiles.find((p: { isDefault: boolean }) => p.isDefault)
+    const res = await fetch('/api/v1/bills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify({ profileId: general.id, description: 'Photo for OCR', expenseDate: '2026-09-18', currentChargesMinor: 100 }),
+    })
+    return (await res.json()).id as string
+  })
+  await page.goto(`/bills/${billId}`)
+  const main = page.locator('#main')
+  await main.getByRole('button', { name: 'Add document' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Add a document' })
+  await sheet.getByTestId('file-input').setInputFiles({ name: 'hesco-ocr.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(photo, 'base64') })
+  await sheet.getByRole('button', { name: 'Use photo' }).click({ timeout: 15_000 })
+  await expect(page.getByText('Document added')).toBeVisible()
+
+  await main.getByRole('button', { name: /^hesco-ocr\.jpg/ }).click()
+  const viewer = page.getByRole('dialog', { name: 'hesco-ocr.jpg' })
+  await viewer.getByRole('button', { name: 'Read bill' }).click()
+  await expect(viewer.getByText('Read with OCR')).toBeVisible({ timeout: 120_000 })
+  const fields = viewer.locator('dl')
+  await expect(fields.getByText('HESCO')).toBeVisible()
+  await expect(fields.getByText('09123450012345')).toBeVisible()
+  await expect(fields.getByText('05 Oct 2026')).toBeVisible()
+  await expect(fields.getByText('Rs 3,266').first()).toBeVisible()
+  await shot(page, '07-ocr')
+})

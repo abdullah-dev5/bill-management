@@ -84,6 +84,13 @@ M2 ships in three phases. Each phase is committed and pushed; the branch is merg
 | Capture to saved < 30 s (median) | About 20 s in the end-to-end test, including sign-up; reading a text PDF takes under a second, a photo with Gemini 8–10 s |
 | No duplicate when the same bill is uploaded twice | Same file → the existing bill opens; same month → attach to the existing bill (tested in API and end-to-end tests) |
 
+### Live checks with real keys
+- **Gemini** (`gemini-3.8-flash`): every main field of the masked HESCO bill read correctly from a PDF and from a photo.
+- **OCR.space** (privacy mode, AI off): reference, month, issue and due dates, payable, after-due amount, arrears, the
+  12-month history and both late-fee steps read correctly from a photo. Values that didn't add up (meter readings)
+  were rejected by validation and left for the user, as designed.
+- Optional end-to-end tests call the real services: `E2E_GEMINI=1` / `E2E_OCR=1 pnpm exec playwright test -g "Gemini|OCR"`.
+
 ### Moved out of M2
 - On-device barcode reading → M5, with the offline Tesseract tier. The barcode line is already read from the PDF text and by Gemini.
 - Field conflicts between sources and "undo merge" stay in M6 as planned (attaching never overwrites values).

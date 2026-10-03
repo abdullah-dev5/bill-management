@@ -62,6 +62,9 @@ var (
 	latinWords  = regexp.MustCompile(`[A-Za-z][A-Za-z.,'\- ]{2,}`)
 )
 
+// maxMultiplyingFactor bounds plausible meter constants (homes use 1; large connections up to a few hundred).
+const maxMultiplyingFactor = 500
+
 func looksLikePITC(text string) bool {
 	return pitcBarcode.MatchString(text) || pitcDiscos.MatchString(strings.ToUpper(text))
 }
@@ -69,11 +72,26 @@ func looksLikePITC(text string) bool {
 // after finds the first number that follows label, skipping non-digit text between them.
 func after(text, label string, gap int) (string, bool) {
 	re := regexp.MustCompile(`(?i)` + label + `[^\d]{0,` + itoa(gap) + `}(-?\d[\d,]*(?:\.\d+)?)`)
-	m := re.FindStringSubmatch(text)
+	m := re.FindStringSubmatchIndex(text)
 	if m == nil {
 		return "", false
 	}
-	return m[1], true
+	// "SEP 26" on a following line is a month, not the value we're looking for.
+	if partOfMonth(text, m[2]) {
+		return "", false
+	}
+	return text[m[2]:m[3]], true
+}
+
+var monthBefore = regexp.MustCompile(`(?i)\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*[\s\-./']*$`)
+
+// partOfMonth reports whether the number starting at i is the year of a month like "SEP 26".
+func partOfMonth(text string, i int) bool {
+	start := i - 12
+	if start < 0 {
+		start = 0
+	}
+	return monthBefore.MatchString(text[start:i])
 }
 
 // before finds a number printed just before label on the same line.
@@ -136,7 +154,8 @@ func parsePITC(r *Result, text, source string) {
 		}
 	}
 	if v, ok := after(text, `\bMF\b`, 20); ok {
-		if n, ok := ParseNumber(v); ok && n > 0 {
+		// Multiplying factors are small; a large number here is a meter reading on the next line.
+		if n, ok := ParseNumber(v); ok && n > 0 && n <= maxMultiplyingFactor {
 			r.setNumber(FMultiplyingFactor, n, fromLabel, source)
 		}
 	}
@@ -259,6 +278,13 @@ var referenceToken = regexp.MustCompile(`[A-Z0-9][A-Z0-9\- ]{4,24}[A-Z0-9]`)
 func parseValue(s string, kind valueKind) (string, bool) {
 	switch kind {
 	case kindMoney:
+		// A line holding a month or a date ("SEP 26", "05-10-2026") isn't an amount.
+		if _, isMonth := ParseMonth(s); isMonth {
+			return "", false
+		}
+		if _, isDate := ParseDate(s); isDate {
+			return "", false
+		}
 		if v, ok := ParseMoney(s); ok {
 			return itoa64(v), true
 		}

@@ -151,3 +151,50 @@ func TestValidateLateSurchargesBecomeTotals(t *testing.T) {
 		t.Errorf("late fees %+v, after due %q", r.LateFees, r.Text(FPayableAfterDue))
 	}
 }
+
+// Real OCR.space output for a photo of the masked HESCO bill where OCR dropped lines.
+const hescoOCRText = `HESC HESCO GST NO: 01-01-2716-002-55
+HYDERABAD ELECTRIC SUPPLY COMPANY
+CONSUMER DETAIL
+1234567890
+TARIFF
+A-1A(01)
+MF
+18690
+18854
+UNITS
+164
+3428 Subsidies
+2457
+474
+Arrears
+PAYMENT (RS.)
+SEP 26
+3266
+L.P.
+123
+246
+3,512
+MONTH STATUS UNITS BILL (RS.) PAYMENT (RS.)
+Mar26 126 3529 3632
+Aug26 EX 161 2727 2727
+SEP 26 - 09 12345 0012345 - 000003266 - 05 OCT 26 - 000003389 - 081026 - 6
+09123450012345 NO REFERENCE`
+
+func TestParseOCRDoesNotMistakeNeighbours(t *testing.T) {
+	r := ParseText(hescoOCRText, catalogue, "ocrspace")
+	Validate(&r, Context{})
+	wantFields(t, r, map[string]string{
+		FReference: "09123450012345", FBillingMonth: "2026-09", FDueDate: "2026-10-05",
+		FPayable: "326600", FPayableAfterDue: "338900", FUnits: "164",
+	})
+	if v, ok := r.Fields[FMultiplyingFactor]; ok {
+		t.Errorf("a meter reading was taken as the multiplying factor: %+v", v)
+	}
+	if v, ok := r.Fields[FArrears]; ok && v.Value != "0" {
+		t.Errorf("the year in \"SEP 26\" was taken as arrears: %+v", v)
+	}
+	if r.Text(FCurrentCharges) != "326600" {
+		t.Errorf("current charges = %q, want the payable (no arrears)", r.Text(FCurrentCharges))
+	}
+}
