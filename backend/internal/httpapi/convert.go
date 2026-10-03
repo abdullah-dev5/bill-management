@@ -46,8 +46,11 @@ func clientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
-func toHousehold(h store.Household) apigen.Household {
-	return apigen.Household{Id: h.ID, Name: h.Name, Currency: h.Currency, Timezone: h.Timezone}
+func toHousehold(h store.Household, usage apigen.StorageUsage) apigen.Household {
+	return apigen.Household{
+		Id: h.ID, Name: h.Name, Currency: h.Currency, Timezone: h.Timezone,
+		AiExtractionConsent: h.AiExtractionConsent, Storage: usage,
+	}
 }
 
 func toBillType(c store.Category) apigen.BillType {
@@ -77,7 +80,7 @@ func toProvider(p store.Provider) apigen.Provider {
 	}
 }
 
-func toProfile(p store.BillProfile, summary apigen.ProfileSummary) apigen.Profile {
+func toProfile(p store.BillProfile, reference *string, summary apigen.ProfileSummary) apigen.Profile {
 	out := apigen.Profile{
 		Id:                  p.ID,
 		Name:                p.Name,
@@ -87,7 +90,7 @@ func toProfile(p store.BillProfile, summary apigen.ProfileSummary) apigen.Profil
 		Color:               int(p.Color),
 		PropertyId:          p.PropertyID,
 		ProviderId:          p.ProviderID,
-		ReferenceNumber:     p.ReferenceDisplay,
+		ReferenceNumber:     reference,
 		MeterNumber:         p.MeterNumber,
 		MultiplyingFactor:   p.MultiplyingFactor,
 		ConsumptionUnit:     p.ConsumptionUnit,
@@ -147,7 +150,7 @@ func toBill(v billView) apigen.Bill {
 	}
 }
 
-func toBillDetail(v billView, payments []store.Payment, history []store.ListAuditEventsRow) apigen.BillDetail {
+func toBillDetail(v billView, payments []store.Payment, history []store.ListAuditEventsRow, documents []apigen.Document) apigen.BillDetail {
 	b := toBill(v)
 	d := apigen.BillDetail{
 		Id: b.Id, ProfileId: b.ProfileId, TypeId: b.TypeId, Description: b.Description, BillNumber: b.BillNumber,
@@ -158,8 +161,9 @@ func toBillDetail(v billView, payments []store.Payment, history []store.ListAudi
 		PaidMinor: b.PaidMinor, OutstandingMinor: b.OutstandingMinor, IsEstimated: b.IsEstimated,
 		Cancelled: b.Cancelled, Notes: b.Notes, Tags: b.Tags, Archived: b.Archived,
 		CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
-		Payments: make([]apigen.Payment, 0, len(payments)),
-		History:  make([]apigen.AuditEvent, 0, len(history)),
+		Payments:  make([]apigen.Payment, 0, len(payments)),
+		History:   make([]apigen.AuditEvent, 0, len(history)),
+		Documents: documents,
 	}
 	for _, p := range payments {
 		d.Payments = append(d.Payments, toPayment(p))

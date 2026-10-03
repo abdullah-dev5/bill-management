@@ -6,6 +6,7 @@
 # Go
 /backend/bin/
 /backend/tmp/
+/backend/var/
 *.exe
 *.test
 coverage.out

@@ -170,13 +170,17 @@ Each way this bill's data arrived.
 | id | uuid | |
 | household_id | uuid | |
 | bill_id / payment_id | uuid null | the owner |
-| kind | enum | bill_scan, bill_official, receipt, other |
-| storage_key | text | object-storage key; never a public URL |
-| mime_type, size_bytes, page_count | | |
-| sha256 | char(64) | detects re-uploads of the same file |
-| derived_key | text null | the compressed/normalised image used for OCR |
-| ocr_text | text null | for full-text search |
-| search_vector | tsvector | generated column |
+| kind | enum | bill, receipt, other |
+| source | enum | camera, upload (official and email arrive in M6/M7) |
+| status | enum | pending (upload started) → ready (verified by the API) |
+| storage_key | text | random object-storage key; never a public URL |
+| file_name, content_type, size_bytes | | content type is checked against the file's real bytes |
+| sha256 | bytea | unique per household: the same file is stored once |
+| ocr_text | text null | for full-text search (added with extraction, M2 phase 2) |
+
+Photos are compressed on the phone before upload, so the stored image *is* the processed derivative
+(≤ 1 MB); PDFs are stored unchanged. Deleting a document (directly, or through a deleted bill or
+household) queues its object in `storage_deletions`, which the tick drains.
 
 ### ExtractionJob
 `id, document_id, status (see §3), attempts, provider_chain text[], current_provider, result jsonb, error text, started_at, finished_at`

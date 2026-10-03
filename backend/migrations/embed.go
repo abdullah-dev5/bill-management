@@ -10,13 +10,20 @@ import (
 	"os"
 
 	"github.com/pressly/goose/v3"
+
+	"github.com/abdullah-dev5/bill-management/backend/internal/secure"
 )
 
 //go:embed *.sql
 var FS embed.FS
 
+// runKeys is available to Go migrations that encrypt or decrypt data.
+var runKeys *secure.Keys
+
 // Run applies ("up"), rolls back one ("down") or prints ("status") migrations.
-func Run(ctx context.Context, db *sql.DB, direction string) error {
+// keys may be nil when there is no existing data to encrypt.
+func Run(ctx context.Context, db *sql.DB, direction string, keys *secure.Keys) error {
+	runKeys = keys
 	goose.SetBaseFS(FS)
 	goose.SetLogger(goose.NopLogger())
 	if err := goose.SetDialect("postgres"); err != nil {

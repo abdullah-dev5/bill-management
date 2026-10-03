@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  api, unwrap, type BillCreate, type BillInput, type BillStatus, type PaymentInput, type ProfileInput, type Schemas,
+  api, unwrap, type BillCreate, type DocumentKind, type BillInput, type BillStatus, type PaymentInput, type ProfileInput, type Schemas,
 } from './client'
 
 export const keys = {
@@ -13,6 +13,7 @@ export const keys = {
   profile: (id: string) => ['profile', id] as const,
   bills: (filters: BillFilters) => ['bills', filters] as const,
   bill: (id: string) => ['bill', id] as const,
+  document: (id: string) => ['document', id] as const,
 }
 
 export interface BillFilters {
@@ -62,6 +63,7 @@ export const useProfile = (id: string) =>
   useQuery({
     queryKey: keys.profile(id),
     queryFn: () => unwrap(api.GET('/profiles/{id}', { params: { path: { id } } })),
+    enabled: !!id,
   })
 
 export async function fetchBillsPage(filters: BillFilters, cursor?: string) {
@@ -202,3 +204,43 @@ export function useArchiveType() {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.types }),
   })
 }
+
+// --- Documents ------------------------------------------------------------------
+
+/** Fresh signed links each time a document is opened (they expire after 5 minutes). */
+export const useDocument = (id: string | undefined) =>
+  useQuery({
+    queryKey: keys.document(id ?? ''),
+    queryFn: () => unwrap(api.GET('/documents/{id}', { params: { path: { id: id! } } })),
+    enabled: !!id,
+    staleTime: 0,
+  })
+
+/** Refreshes everything that shows documents; call after an upload finishes. */
+export function useInvalidateDocuments() {
+  const qc = useQueryClient()
+  return () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['bill'] }),
+      qc.invalidateQueries({ queryKey: ['document'] }),
+      qc.invalidateQueries({ queryKey: keys.household }),
+    ])
+}
+
+export function useUpdateDocument() {
+  const invalidate = useInvalidateDocuments()
+  return useMutation({
+    mutationFn: ({ id, billId, kind }: { id: string; billId: string | null; kind: DocumentKind }) =>
+      unwrap(api.PUT('/documents/{id}', { params: { path: { id } }, body: { billId, kind } })),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteDocument() {
+  const invalidate = useInvalidateDocuments()
+  return useMutation({
+    mutationFn: (id: string) => unwrap(api.DELETE('/documents/{id}', { params: { path: { id } } })),
+    onSuccess: invalidate,
+  })
+}
+

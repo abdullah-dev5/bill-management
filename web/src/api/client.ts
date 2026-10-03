@@ -18,6 +18,9 @@ export type Payment = Schemas['Payment']
 export type PaymentInput = Schemas['PaymentInput']
 export type PaymentMethod = Schemas['PaymentMethod']
 export type HomeSummary = Schemas['HomeSummary']
+export type Doc = Schemas['Document']
+export type DocumentKind = Schemas['DocumentKind']
+export type DocumentSource = Schemas['DocumentSource']
 export type ApiErrorBody = Schemas['Error']
 
 /** An error response from the API, with its machine code and per-field messages. */

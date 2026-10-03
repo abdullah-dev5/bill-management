@@ -68,7 +68,8 @@ RETURNING *;
 SELECT * FROM households WHERE id = $1;
 
 -- name: UpdateHousehold :one
-UPDATE households SET name = $2, currency = $3, timezone = $4, updated_at = now()
+UPDATE households SET name = $2, currency = $3, timezone = $4,
+    ai_extraction_consent = $5, updated_at = now()
 WHERE id = $1
 RETURNING *;
 

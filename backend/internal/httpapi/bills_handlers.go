@@ -564,7 +564,17 @@ func (s *Server) writeBillDetail(w http.ResponseWriter, r *http.Request, status 
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, status, toBillDetail(billView(row), payments, history))
+	docs, err := s.db.ListBillDocuments(ctx, store.ListBillDocumentsParams{HouseholdID: a.HouseholdID, BillID: &id})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	documents, err := s.toDocuments(ctx, docs)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, status, toBillDetail(billView(row), payments, history, documents))
 }
 
 func encodeCursor(d time.Time, id uuid.UUID) string {

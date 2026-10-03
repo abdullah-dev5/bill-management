@@ -20,6 +20,7 @@ tags:
   - name: profiles
   - name: bills
   - name: payments
+  - name: documents
   - name: home
 
 paths:
@@ -498,6 +499,108 @@ paths:
         '204': { description: Deleted }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /documents:
+    get:
+      tags: [documents]
+      operationId: listDocuments
+      description: Ready documents of a bill, or documents not attached to any bill yet.
+      parameters:
+        - name: billId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: unattached
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+    post:
+      tags: [documents]
+      operationId: createDocument
+      description: |
+        Starts an upload. Returns where to PUT the file; call `complete` afterwards.
+        If the household already has this exact file (same SHA-256), the existing
+        document is returned with `duplicate: true` and no upload is needed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentUploadInput' }
+      responses:
+        '200':
+          description: Same file already stored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentUpload' }
+        '201':
+          description: Upload started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentUpload' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /documents/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [documents]
+      operationId: getDocument
+      description: Includes fresh signed links (valid for 5 minutes).
+      responses:
+        '200':
+          description: Document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [documents]
+      operationId: updateDocument
+      description: Attach to a bill, detach (billId null) or change the kind.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentUpdate' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [documents]
+      operationId: deleteDocument
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{id}/complete:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [documents]
+      operationId: completeDocument
+      description: Verifies the uploaded file (type, size, SHA-256) and makes it available.
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     cookieAuth:
@@ -579,12 +682,24 @@ components:
 
     Household:
       type: object
-      required: [id, name, currency, timezone]
+      required: [id, name, currency, timezone, aiExtractionConsent, storage]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         currency: { type: string, example: PKR }
         timezone: { type: string, example: Asia/Karachi }
+        aiExtractionConsent:
+          type: boolean
+          description: Bill images may be sent to a third-party AI service to read them (docs/08 §5)
+        storage: { $ref: '#/components/schemas/StorageUsage' }
+
+    StorageUsage:
+      type: object
+      required: [usedBytes, quotaBytes, documentCount]
+      properties:
+        usedBytes: { type: integer, format: int64 }
+        quotaBytes: { type: integer, format: int64 }
+        documentCount: { type: integer }
 
     HouseholdInput:
       type: object
@@ -593,6 +708,7 @@ components:
         name: { type: string, minLength: 1, maxLength: 80 }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         timezone: { type: string }
+        aiExtractionConsent: { type: boolean, description: Unchanged when omitted }
 
     Me:
       type: object
@@ -848,7 +964,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/Bill'
         - type: object
-          required: [payments, history]
+          required: [payments, history, documents]
           properties:
             payments:
               type: array
@@ -856,6 +972,9 @@ components:
             history:
               type: array
               items: { $ref: '#/components/schemas/AuditEvent' }
+            documents:
+              type: array
+              items: { $ref: '#/components/schemas/Document' }
 
     PaymentMethod:
       type: string
@@ -883,6 +1002,67 @@ components:
         method: { $ref: '#/components/schemas/PaymentMethod' }
         reference: { type: string, maxLength: 80, nullable: true }
         notes: { type: string, maxLength: 500, nullable: true }
+
+    DocumentKind:
+      type: string
+      enum: [bill, receipt, other]
+
+    DocumentSource:
+      type: string
+      enum: [camera, upload]
+
+    Document:
+      type: object
+      required: [id, kind, source, status, fileName, contentType, sizeBytes, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        billId: { type: string, format: uuid, nullable: true }
+        kind: { $ref: '#/components/schemas/DocumentKind' }
+        source: { $ref: '#/components/schemas/DocumentSource' }
+        status: { type: string, enum: [pending, ready] }
+        fileName: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        viewUrl: { type: string, nullable: true, description: Signed link for showing the file inline }
+        downloadUrl: { type: string, nullable: true, description: Signed link that downloads the file }
+        urlsExpireAt: { type: string, format: date-time, nullable: true }
+
+    DocumentUploadInput:
+      type: object
+      required: [fileName, contentType, sizeBytes, sha256, kind, source]
+      properties:
+        fileName: { type: string, minLength: 1, maxLength: 200 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp, application/pdf] }
+        sizeBytes: { type: integer, format: int64, minimum: 1, maximum: 10485760 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        kind: { $ref: '#/components/schemas/DocumentKind' }
+        source: { $ref: '#/components/schemas/DocumentSource' }
+        billId: { type: string, format: uuid }
+
+    DocumentUpload:
+      type: object
+      required: [document, duplicate]
+      properties:
+        document: { $ref: '#/components/schemas/Document' }
+        duplicate: { type: boolean }
+        upload:
+          type: object
+          nullable: true
+          required: [url, method, headers]
+          properties:
+            url: { type: string }
+            method: { type: string, enum: [PUT] }
+            headers:
+              type: object
+              additionalProperties: { type: string }
+
+    DocumentUpdate:
+      type: object
+      required: [kind]
+      properties:
+        billId: { type: string, format: uuid, nullable: true }
+        kind: { $ref: '#/components/schemas/DocumentKind' }
 
     AuditEvent:
       type: object

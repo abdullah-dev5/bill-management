@@ -50,6 +50,6 @@ Bills are sensitive. They contain **full name, home address, reference/consumer 
 
 ## 8. Security checklist per milestone
 - [ ] M1: auth, sessions, CSRF, household scoping tests, rate limits, secret management, dependency scanning (Dependabot)
-- [ ] M2: upload validation, signed URLs, AI consent, redaction
+- [ ] M2: upload validation ✓, signed URLs ✓, AI consent ✓, reference-number encryption ✓, redaction (phase 2)
 - [ ] M4: export access control (owner/editor only), export links expire
 - [ ] M6: connector sandboxing (timeouts, response size caps), outbound allowlist

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/subtle"
 	"net/http"
 	"strings"
@@ -72,7 +73,7 @@ func (s *Server) GetHome(w http.ResponseWriter, r *http.Request, params apigen.G
 	}
 	for _, p := range profiles {
 		if p.Pinned {
-			out.Pinned = append(out.Pinned, toProfile(p, summaries.get(p.ID)))
+			out.Pinned = append(out.Pinned, toProfile(p, s.refDisplay(ctx, p), summaries.get(p.ID)))
 		}
 	}
 
@@ -144,8 +145,40 @@ func (s *Server) tick(w http.ResponseWriter, r *http.Request) {
 		}
 		s.log.InfoContext(ctx, "purged account after deletion grace period", "user_id", userID)
 	}
+	stale, err := s.db.DeleteStalePendingDocuments(ctx, s.now().Add(-stalePendingAfter))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	filesDeleted, err := s.drainStorageDeletions(ctx)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	s.lastTick.Store(s.now().Unix())
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sessionsDeleted": sessions, "resetTokensDeleted": tokens, "accountsPurged": len(due),
+		"staleUploadsDeleted": stale, "filesDeleted": filesDeleted,
 	})
+}
+
+// drainStorageDeletions removes objects queued by deleted documents (including cascades).
+// A failed delete stays queued for the next tick.
+func (s *Server) drainStorageDeletions(ctx context.Context) (int, error) {
+	keys, err := s.db.ListStorageDeletions(ctx, 200)
+	if err != nil {
+		return 0, err
+	}
+	done := 0
+	for _, key := range keys {
+		if err := s.files.Delete(ctx, key); err != nil {
+			s.log.WarnContext(ctx, "storage delete failed; will retry", "err", err)
+			continue
+		}
+		if err := s.db.RemoveStorageDeletion(ctx, key); err != nil {
+			return done, err
+		}
+		done++
+	}
+	return done, nil
 }

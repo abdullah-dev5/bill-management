@@ -24,6 +24,8 @@ import (
 	"github.com/abdullah-dev5/bill-management/backend/internal/config"
 	"github.com/abdullah-dev5/bill-management/backend/internal/httpapi"
 	"github.com/abdullah-dev5/bill-management/backend/internal/mail"
+	"github.com/abdullah-dev5/bill-management/backend/internal/secure"
+	"github.com/abdullah-dev5/bill-management/backend/internal/storage"
 	"github.com/abdullah-dev5/bill-management/backend/internal/store"
 	"github.com/abdullah-dev5/bill-management/backend/migrations"
 )
@@ -41,6 +43,10 @@ func run(args []string) error {
 		return err
 	}
 	log := newLogger(cfg)
+	keys, err := secure.New(cfg.DataKey)
+	if err != nil {
+		return fmt.Errorf("DATA_ENCRYPTION_KEY: %w", err)
+	}
 
 	cmd := "serve"
 	if len(args) > 0 {
@@ -51,22 +57,22 @@ func run(args []string) error {
 
 	switch cmd {
 	case "serve":
-		if err := migrate(ctx, cfg.DatabaseURL, "up"); err != nil {
+		if err := migrate(ctx, cfg.DatabaseURL, "up", keys); err != nil {
 			return fmt.Errorf("migrate: %w", err)
 		}
-		return serve(ctx, cfg, log)
+		return serve(ctx, cfg, log, keys)
 	case "migrate":
 		direction := "up"
 		if len(args) > 1 {
 			direction = args[1]
 		}
-		return migrate(ctx, cfg.DatabaseURL, direction)
+		return migrate(ctx, cfg.DatabaseURL, direction, keys)
 	default:
 		return fmt.Errorf("unknown command %q (want serve or migrate)", cmd)
 	}
 }
 
-func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
+func serve(ctx context.Context, cfg config.Config, log *slog.Logger, keys *secure.Keys) error {
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -80,7 +86,18 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		log.Warn("RESEND_API_KEY not set: emails will only be logged")
 	}
 
-	handler, err := httpapi.New(store.NewDB(pool), cfg, log, mailer).Handler()
+	var files storage.Store
+	switch cfg.StorageDriver {
+	case "s3":
+		files = storage.NewS3(storage.S3Config(cfg.S3))
+	default:
+		if files, err = storage.NewLocal(cfg.StorageDir); err != nil {
+			return err
+		}
+		log.Info("storing documents on local disk", "dir", cfg.StorageDir)
+	}
+
+	handler, err := httpapi.New(store.NewDB(pool), cfg, log, mailer, keys, files).Handler()
 	if err != nil {
 		return err
 	}
@@ -111,14 +128,14 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-func migrate(ctx context.Context, databaseURL, direction string) error {
+func migrate(ctx context.Context, databaseURL, direction string, keys *secure.Keys) error {
 	poolCfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return err
 	}
 	db := stdlib.OpenDB(*poolCfg.ConnConfig)
 	defer db.Close()
-	return migrations.Run(ctx, db, direction)
+	return migrations.Run(ctx, db, direction, keys)
 }
 
 func newLogger(cfg config.Config) *slog.Logger {

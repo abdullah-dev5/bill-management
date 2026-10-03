@@ -15,7 +15,7 @@ SELECT (coalesce(max(sort_order), 0) + 1)::integer FROM bill_profiles WHERE hous
 -- name: CreateProfile :one
 INSERT INTO bill_profiles (
     id, household_id, property_id, category_id, kind, name, icon, color,
-    provider_id, reference_number, reference_display, meter_number, multiplying_factor,
+    provider_id, reference_hash, reference_enc, meter_number, multiplying_factor,
     consumption_unit, billing_cycle, typical_issue_day, typical_due_day,
     expected_amount_minor, auto_create_bill, is_default, pinned, sort_order
 ) VALUES (
@@ -29,7 +29,7 @@ RETURNING *;
 -- name: UpdateProfile :one
 UPDATE bill_profiles SET
     category_id = $3, kind = $4, name = $5, icon = $6, color = $7,
-    provider_id = $8, reference_number = $9, reference_display = $10, meter_number = $11,
+    provider_id = $8, reference_hash = $9, reference_enc = $10, meter_number = $11,
     multiplying_factor = $12, consumption_unit = $13, billing_cycle = $14,
     typical_issue_day = $15, typical_due_day = $16, expected_amount_minor = $17,
     auto_create_bill = $18, pinned = $19, updated_at = now()

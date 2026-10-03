@@ -76,6 +76,183 @@ func AllBillingCycleValues() []BillingCycle {
 	}
 }
 
+type DocumentKind string
+
+const (
+	DocumentKindBill    DocumentKind = "bill"
+	DocumentKindReceipt DocumentKind = "receipt"
+	DocumentKindOther   DocumentKind = "other"
+)
+
+func (e *DocumentKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DocumentKind(s)
+	case string:
+		*e = DocumentKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DocumentKind: %T", src)
+	}
+	return nil
+}
+
+type NullDocumentKind struct {
+	DocumentKind DocumentKind
+	Valid        bool // Valid is true if DocumentKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDocumentKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.DocumentKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DocumentKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDocumentKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DocumentKind), nil
+}
+
+func (e DocumentKind) Valid() bool {
+	switch e {
+	case DocumentKindBill,
+		DocumentKindReceipt,
+		DocumentKindOther:
+		return true
+	}
+	return false
+}
+
+func AllDocumentKindValues() []DocumentKind {
+	return []DocumentKind{
+		DocumentKindBill,
+		DocumentKindReceipt,
+		DocumentKindOther,
+	}
+}
+
+type DocumentSource string
+
+const (
+	DocumentSourceCamera DocumentSource = "camera"
+	DocumentSourceUpload DocumentSource = "upload"
+)
+
+func (e *DocumentSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DocumentSource(s)
+	case string:
+		*e = DocumentSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DocumentSource: %T", src)
+	}
+	return nil
+}
+
+type NullDocumentSource struct {
+	DocumentSource DocumentSource
+	Valid          bool // Valid is true if DocumentSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDocumentSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.DocumentSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DocumentSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDocumentSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DocumentSource), nil
+}
+
+func (e DocumentSource) Valid() bool {
+	switch e {
+	case DocumentSourceCamera,
+		DocumentSourceUpload:
+		return true
+	}
+	return false
+}
+
+func AllDocumentSourceValues() []DocumentSource {
+	return []DocumentSource{
+		DocumentSourceCamera,
+		DocumentSourceUpload,
+	}
+}
+
+type DocumentStatus string
+
+const (
+	DocumentStatusPending DocumentStatus = "pending"
+	DocumentStatusReady   DocumentStatus = "ready"
+)
+
+func (e *DocumentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DocumentStatus(s)
+	case string:
+		*e = DocumentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DocumentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullDocumentStatus struct {
+	DocumentStatus DocumentStatus
+	Valid          bool // Valid is true if DocumentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDocumentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.DocumentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DocumentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDocumentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DocumentStatus), nil
+}
+
+func (e DocumentStatus) Valid() bool {
+	switch e {
+	case DocumentStatusPending,
+		DocumentStatusReady:
+		return true
+	}
+	return false
+}
+
+func AllDocumentStatusValues() []DocumentStatus {
+	return []DocumentStatus{
+		DocumentStatusPending,
+		DocumentStatusReady,
+	}
+}
+
 type MemberRole string
 
 const (
@@ -387,8 +564,6 @@ type BillProfile struct {
 	Icon                string
 	Color               int16
 	ProviderID          *uuid.UUID
-	ReferenceNumber     *string
-	ReferenceDisplay    *string
 	MeterNumber         *string
 	MultiplyingFactor   *float64
 	ConsumptionUnit     *string
@@ -404,6 +579,8 @@ type BillProfile struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	ArchivedAt          *time.Time
+	ReferenceHash       []byte
+	ReferenceEnc        []byte
 }
 
 type Category struct {
@@ -418,6 +595,24 @@ type Category struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	ArchivedAt  *time.Time
+}
+
+type Document struct {
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+	BillID      *uuid.UUID
+	Kind        DocumentKind
+	Source      DocumentSource
+	Status      DocumentStatus
+	StorageKey  string
+	FileName    string
+	ContentType string
+	SizeBytes   int64
+	Sha256      []byte
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	UploadedAt  *time.Time
 }
 
 type Household struct {
@@ -495,6 +690,11 @@ type Session struct {
 	CreatedAt  time.Time
 	LastSeenAt time.Time
 	ExpiresAt  time.Time
+}
+
+type StorageDeletion struct {
+	StorageKey string
+	EnqueuedAt time.Time
 }
 
 type User struct {

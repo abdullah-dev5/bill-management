@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/abdullah-dev5/bill-management/backend/internal/secure"
 	"github.com/abdullah-dev5/bill-management/backend/internal/store"
 )
 
@@ -80,14 +81,15 @@ func billSnapshot(b store.Bill) snapshot {
 	return normalizeSnapshot(s)
 }
 
-func profileSnapshot(p store.BillProfile) snapshot {
+// profileSnapshot takes the decrypted reference number; maskReference must run on the diff before it is stored.
+func profileSnapshot(p store.BillProfile, reference *string) snapshot {
 	s := snapshot{
 		"name":            p.Name,
 		"typeId":          p.CategoryID.String(),
 		"kind":            string(p.Kind),
 		"icon":            p.Icon,
 		"color":           int(p.Color),
-		"referenceNumber": deref(p.ReferenceDisplay),
+		"referenceNumber": deref(reference),
 		"meterNumber":     deref(p.MeterNumber),
 		"consumptionUnit": deref(p.ConsumptionUnit),
 		"autoCreateBill":  p.AutoCreateBill,
@@ -136,4 +138,23 @@ func deref[T any](p *T) T {
 		return zero
 	}
 	return *p
+}
+
+// maskReference hides all but the last four characters of reference numbers in a diff,
+// so audit history never stores them in plain text (docs/08 §4).
+func maskReference(changes map[string]any) map[string]any {
+	pair, ok := changes["referenceNumber"].([]any)
+	if !ok {
+		return changes
+	}
+	masked := make([]any, len(pair))
+	for i, v := range pair {
+		if str, ok := v.(string); ok && str != "" {
+			masked[i] = secure.Mask(str)
+		} else {
+			masked[i] = v
+		}
+	}
+	changes["referenceNumber"] = masked
+	return changes
 }
