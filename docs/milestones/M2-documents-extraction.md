@@ -7,7 +7,7 @@ M2 ships in three phases. Each phase is committed and pushed; the branch is merg
 |---|---|---|
 | 1 — Documents | Upload, storage, signed links, attach to bills, AI-consent setting, encrypted reference numbers | **Done** |
 | 2 — Extraction engine | Job queue, extractor chain (PDF text, Gemini, OCR.space + parsers), validation, redaction | **Done** |
-| 3 — Verification & duplicates | Verification screen, profile matching, FR-RECO-01…03, bill history on the profile dashboard, corrections log | Next |
+| 3 — Verification & duplicates | Verification screen, profile matching, FR-RECO-01…03, bill history on the profile dashboard, stepped late fees, corrections log | **Done** |
 
 ## Phase 1 — Documents (delivered)
 | Area | What's in | Requirements |
@@ -65,6 +65,28 @@ M2 ships in three phases. Each phase is committed and pushed; the branch is merg
   [setup-external-services.md](../setup-external-services.md).
 - Real bills for local testing go in `samples/` (git-ignored). Committed fixtures are masked copies.
 - On-device barcode reading moves to phase 3 with the scan flow (the PDF text and Gemini already read the barcode line).
+
+## Phase 3 — Verification & duplicates (delivered)
+| Area | What's in | Requirements |
+|---|---|---|
+| Scan flow | ＋ → "Scan or upload a bill" → photo or PDF → review page; reading starts by itself, "Enter it myself" skips it | FR-EXTR-01/05 |
+| Verification screen | The document next to the bill form, filled in from the extraction; values read with low confidence are highlighted with "Please check"; unreliable values are left empty; nothing is saved until the user presses Save | FR-EXTR-08 |
+| Profile matching | The extracted reference number is matched to an existing profile; otherwise a new profile is proposed, pre-filled with the provider, bill type, name and reference number | FR-EXTR-09 |
+| Duplicates | Same file → the saved bill opens. Same profile + billing month (or bill number) → "attach the document to the existing bill". Close issue dates or the same amount → "attach" or "keep separate". Nothing is overwritten | FR-RECO-01…03 |
+| Bill history | The months printed on a bill are saved to the profile (optional switch) and shown on its dashboard as a chart and table, merged with the profile's own bills | — |
+| Stepped late fees | Bills store a second late amount and the date it starts; status, the amount owed and "already paid" use the right amount for each date; a bill paid within the first step stays paid | FR-PAY-04 |
+| Corrections log | What extraction read vs what the user saved, per field (reference numbers masked), for accuracy measurement | FR-EXTR-14 |
+
+### Exit criteria
+| Criterion | Result |
+|---|---|
+| ≥ 90% of fields correct before review, on the fixture set | 100% of the main fields on the masked HESCO bill, by the PDF parser and by Gemini (live). A larger fixture set needs more masked real bills |
+| Capture to saved < 30 s (median) | About 20 s in the end-to-end test, including sign-up; reading a text PDF takes under a second, a photo with Gemini 8–10 s |
+| No duplicate when the same bill is uploaded twice | Same file → the existing bill opens; same month → attach to the existing bill (tested in API and end-to-end tests) |
+
+### Moved out of M2
+- On-device barcode reading → M5, with the offline Tesseract tier. The barcode line is already read from the PDF text and by Gemini.
+- Field conflicts between sources and "undo merge" stay in M6 as planned (attaching never overwrites values).
 
 ### Needs your action before going live
 A Supabase storage bucket and S3 key, and the new Render variables: see [deploy.md](../deploy.md).

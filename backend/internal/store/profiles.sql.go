@@ -183,14 +183,16 @@ func (q *Queries) GetProfile(ctx context.Context, arg GetProfileParams) (BillPro
 
 const latestBillPerProfile = `-- name: LatestBillPerProfile :many
 SELECT DISTINCT ON (bills.profile_id)
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor,
     bill_status(
         bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
-        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor, $1::date
+        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
+        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, $1::date
     )::text AS status,
     bill_outstanding(
         bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
-        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor, $1::date
+        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
+        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, $1::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE bills.household_id = $2 AND bills.archived_at IS NULL
@@ -252,6 +254,9 @@ func (q *Queries) LatestBillPerProfile(ctx context.Context, arg LatestBillPerPro
 			&i.Bill.CreatedAt,
 			&i.Bill.UpdatedAt,
 			&i.Bill.ArchivedAt,
+			&i.Bill.LateStepUntil,
+			&i.Bill.PayableFinalMinor,
+			&i.Bill.PaidByStepMinor,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -364,7 +369,8 @@ SELECT
     count(b.id)::bigint AS bill_count,
     coalesce(sum(bill_outstanding(
         b.cancelled, b.verified_at IS NOT NULL, b.due_date, b.payable_minor,
-        b.payable_after_due_minor, b.paid_minor, b.paid_on_time_minor, $1::date
+        b.payable_after_due_minor, b.paid_minor, b.paid_on_time_minor,
+        b.late_step_until, b.payable_final_minor, b.paid_by_step_minor, $1::date
     )), 0)::bigint AS outstanding_minor,
     coalesce(sum(b.current_charges_minor + b.adjustments_minor) FILTER (
         WHERE NOT b.cancelled AND b.verified_at IS NOT NULL

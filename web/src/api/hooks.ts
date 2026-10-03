@@ -269,3 +269,27 @@ export function useStartExtraction() {
     onSuccess: (data, documentId) => qc.setQueryData(keys.extraction(documentId), data),
   })
 }
+
+// --- Scanned bills & profile history ----------------------------------------------
+
+export const useProfileHistory = (profileId: string) =>
+  useQuery({
+    queryKey: ['profileHistory', profileId] as const,
+    queryFn: () => unwrap(api.GET('/profiles/{id}/history', { params: { path: { id: profileId } } })),
+    enabled: !!profileId,
+  })
+
+export function useSaveScannedBill(documentId: string) {
+  const invalidate = useInvalidateAll()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: Schemas['ScannedBillInput']) => unwrap(api.POST('/documents/{id}/bill', { params: { path: { id: documentId } }, body })),
+    onSuccess: async () => {
+      await invalidate()
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['profileHistory'] }),
+        qc.invalidateQueries({ queryKey: ['document'] }),
+      ])
+    },
+  })
+}

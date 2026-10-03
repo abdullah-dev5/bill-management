@@ -106,6 +106,7 @@ func (s *Server) CreateBill(w http.ResponseWriter, r *http.Request) {
 			Currency: hh.Currency, IsEstimated: f.IsEstimated, Cancelled: f.Cancelled,
 			// Manual entries are verified by the person typing them (FR-EXTR-08 applies to extracted bills).
 			VerifiedAt: &now, VerifiedBy: &a.UserID, Notes: f.Notes, Tags: f.Tags, CreatedBy: &a.UserID,
+			LateStepUntil: f.LateStepUntil, PayableFinalMinor: f.PayableFinal,
 		}); err != nil {
 			if store.UniqueViolation(err) == "bills_profile_period_uniq" {
 				return checkDuplicate(ctx, s.db.Queries, f, uuid.Nil)
@@ -167,6 +168,7 @@ func (s *Server) UpdateBill(w http.ResponseWriter, r *http.Request, id apigen.Id
 			ExpenseDate: f.ExpenseDate, CurrentChargesMinor: f.Current, ArrearsMinor: f.Arrears,
 			AdjustmentsMinor: f.Adjustments, PayableMinor: f.Payable, PayableAfterDueMinor: f.PayableAfterDue,
 			IsEstimated: f.IsEstimated, Cancelled: f.Cancelled, Notes: f.Notes, Tags: f.Tags,
+			LateStepUntil: f.LateStepUntil, PayableFinalMinor: f.PayableFinal,
 		}); err != nil {
 			if store.UniqueViolation(err) == "bills_profile_period_uniq" {
 				return checkDuplicate(ctx, s.db.Queries, f, id)
@@ -346,14 +348,26 @@ func recordFullPayment(ctx context.Context, q *store.Queries, a authInfo, b stor
 	if paid.PaidOn.Time.After(today.AddDate(0, 0, 1)) {
 		return errField("paidNow.paidOn", "The payment date can't be in the future.")
 	}
-	amount := b.PayableMinor
-	if b.DueDate != nil && paid.PaidOn.Time.After(*b.DueDate) && b.PayableAfterDueMinor != nil {
-		amount = *b.PayableAfterDueMinor
-	}
+	amount := amountDueOn(b, paid.PaidOn.Time)
 	if amount <= 0 {
 		return nil
 	}
 	return addPayment(ctx, q, a, b.ID, paid.PaidOn.Time, amount, store.PaymentMethod(paid.Method), nil, nil)
+}
+
+// amountDueOn is the full amount payable on a given date: within the due date, after it,
+// or after the late-fee step date.
+func amountDueOn(b store.Bill, on time.Time) int64 {
+	if b.DueDate == nil || !on.After(*b.DueDate) {
+		return b.PayableMinor
+	}
+	if b.LateStepUntil != nil && b.PayableFinalMinor != nil && on.After(*b.LateStepUntil) {
+		return *b.PayableFinalMinor
+	}
+	if b.PayableAfterDueMinor != nil {
+		return *b.PayableAfterDueMinor
+	}
+	return b.PayableMinor
 }
 
 // --- Building & validating bills -------------------------------------------------
@@ -374,6 +388,8 @@ type billFields struct {
 	Adjustments     int64
 	Payable         int64
 	PayableAfterDue *int64
+	LateStepUntil   *time.Time
+	PayableFinal    *int64
 	IsEstimated     bool
 	Cancelled       bool
 	Notes           *string
@@ -486,6 +502,19 @@ func buildBill(ctx context.Context, q *store.Queries, a authInfo, today time.Tim
 		}
 		f.PayableAfterDue = in.PayableAfterDueMinor
 	}
+	f.LateStepUntil = fromDatePtr(in.LateStepUntil)
+	f.PayableFinal = in.PayableFinalMinor
+	switch {
+	case f.LateStepUntil == nil && f.PayableFinal == nil:
+	case f.LateStepUntil == nil || f.PayableFinal == nil:
+		fields.Add("lateStepUntil", "Give both the date and the higher amount after it.")
+	case f.PayableAfterDue == nil:
+		fields.Add("payableAfterDueMinor", "Enter the amount payable after the due date first.")
+	case f.DueDate == nil || f.LateStepUntil.Before(*f.DueDate):
+		fields.Add("lateStepUntil", "Must be on or after the due date.")
+	case *f.PayableFinal < *f.PayableAfterDue:
+		fields.Add("payableFinalMinor", "Should be at least the amount payable after the due date.")
+	}
 
 	if fields.Any() {
 		return f, errValidation(fields)
@@ -526,6 +555,7 @@ func createToInput(c apigen.BillCreate) apigen.BillInput {
 		Cancelled: c.Cancelled, CurrentChargesMinor: c.CurrentChargesMinor, Description: c.Description,
 		DueDate: c.DueDate, ExpenseDate: c.ExpenseDate, IsEstimated: c.IsEstimated, IssueDate: c.IssueDate,
 		Notes: c.Notes, PayableAfterDueMinor: c.PayableAfterDueMinor, PayableMinor: c.PayableMinor,
+		LateStepUntil: c.LateStepUntil, PayableFinalMinor: c.PayableFinalMinor,
 		PeriodEnd: c.PeriodEnd, PeriodKey: c.PeriodKey, PeriodStart: c.PeriodStart, ProfileId: c.ProfileId,
 		Tags: c.Tags, TypeId: c.TypeId,
 	}

@@ -13,7 +13,7 @@ import { applyServerErrors } from '@/lib/forms'
 import { formatMoney } from '@/lib/money'
 import { METHODS } from './payment-sheet'
 
-interface Values {
+export interface BillFormValues {
   periodKey: string
   issueDate: string
   dueDate: string
@@ -25,6 +25,8 @@ interface Values {
   adjustmentsMinor: number | null
   payableMinor: number | null
   payableAfterDueMinor: number | null
+  lateStepUntil: string
+  payableFinalMinor: number | null
   billNumber: string
   isEstimated: boolean
   cancelled: boolean
@@ -36,7 +38,7 @@ interface Values {
 
 const valid = (n: number | null | undefined): n is number => n != null && !Number.isNaN(n)
 
-function toValues(profile: Profile, bill?: BillDetail): Values {
+function toValues(profile: Profile, bill?: BillDetail): BillFormValues {
   const expenseLog = profile.kind === 'expense_log'
   return {
     periodKey: bill?.periodKey ?? (expenseLog ? '' : currentMonthKey()),
@@ -50,6 +52,8 @@ function toValues(profile: Profile, bill?: BillDetail): Values {
     adjustmentsMinor: bill?.adjustmentsMinor || null,
     payableMinor: bill ? bill.payableMinor : null,
     payableAfterDueMinor: bill?.payableAfterDueMinor ?? null,
+    lateStepUntil: bill?.lateStepUntil ?? '',
+    payableFinalMinor: bill?.payableFinalMinor ?? null,
     billNumber: bill?.billNumber ?? '',
     isEstimated: bill?.isEstimated ?? false,
     cancelled: bill?.cancelled ?? false,
@@ -61,21 +65,45 @@ function toValues(profile: Profile, bill?: BillDetail): Values {
   }
 }
 
+/** Review mode: values read from a document, with how sure the extractor was of each. */
+export interface BillReview {
+  values: Partial<BillFormValues>
+  /** Form field name → confidence 0–1; fields not listed weren't read. */
+  confidence: Partial<Record<keyof BillFormValues, number>>
+  submitLabel: string
+}
+
 interface BillFormProps {
   profile: Profile
   bill?: BillDetail
+  review?: BillReview
   onSubmit: (body: BillCreate) => Promise<unknown>
   onCancel: () => void
 }
 
-export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
+const CHECK_BELOW = 0.85
+
+export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillFormProps) {
   const { t } = useTranslation()
   const { data: types } = useTypes()
   const expenseLog = profile.kind === 'expense_log'
-  const form = useForm<Values>({ defaultValues: toValues(profile, bill) })
+  const form = useForm<BillFormValues>({
+    defaultValues: { ...toValues(profile, bill), ...review?.values, ...(review ? { paidNow: false } : {}) },
+  })
   const { register, control, watch, formState } = form
   const { errors } = formState
-  const [more, setMore] = useState(Boolean(bill && (bill.arrearsMinor || bill.adjustmentsMinor || bill.billNumber || bill.notes)))
+  const initial = { ...toValues(profile, bill), ...review?.values }
+  const [more, setMore] = useState(
+    Boolean((bill || review) && (initial.arrearsMinor || initial.adjustmentsMinor || initial.billNumber || initial.notes)),
+  )
+
+  /** In review mode: a hint and highlight for values read with low confidence. */
+  const check = (name: keyof BillFormValues): { hint?: string; className?: string } => {
+    const c = review?.confidence[name]
+    if (c == null || c >= CHECK_BELOW) return {}
+    return { hint: t('scan.checkThis'), className: 'rounded-field ring-2 ring-[var(--st-soon-fg)]/40 ring-offset-4 ring-offset-card' }
+  }
+  const afterDue = watch('payableAfterDueMinor')
   const [duplicateId, setDuplicateId] = useState<string>()
 
   const subCategories = useMemo(() => (types ?? []).filter((ty) => ty.parentId === profile.typeId && !ty.archived), [types, profile.typeId])
@@ -90,7 +118,7 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
       form.setError('currentChargesMinor', { message: t('validation.amount') })
       return
     }
-    for (const k of ['arrearsMinor', 'adjustmentsMinor', 'payableMinor', 'payableAfterDueMinor'] as const) {
+    for (const k of ['arrearsMinor', 'adjustmentsMinor', 'payableMinor', 'payableAfterDueMinor', 'payableFinalMinor'] as const) {
       if (v[k] != null && Number.isNaN(v[k])) {
         form.setError(k, { message: t('validation.amount') })
         return
@@ -103,6 +131,8 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
       adjustmentsMinor: v.adjustmentsMinor ?? 0,
       payableMinor: valid(v.payableMinor) ? v.payableMinor : null,
       payableAfterDueMinor: valid(v.payableAfterDueMinor) ? v.payableAfterDueMinor : null,
+      lateStepUntil: valid(v.payableAfterDueMinor) && v.lateStepUntil ? v.lateStepUntil : null,
+      payableFinalMinor: valid(v.payableAfterDueMinor) && v.lateStepUntil && valid(v.payableFinalMinor) ? v.payableFinalMinor : null,
       billNumber: v.billNumber.trim() || null,
       notes: v.notes.trim() || null,
       isEstimated: v.isEstimated,
@@ -118,7 +148,7 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
       body.issueDate = v.issueDate || null
       body.dueDate = v.dueDate || null
     }
-    if (!bill && v.paidNow) body.paidNow = { paidOn: v.paidOn, method: v.method }
+    if (!bill && !review && v.paidNow) body.paidNow = { paidOn: v.paidOn, method: v.method }
     try {
       await onSubmit(body)
     } catch (err) {
@@ -127,7 +157,10 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
     }
   })
 
-  const money = (name: 'currentChargesMinor' | 'arrearsMinor' | 'adjustmentsMinor' | 'payableMinor' | 'payableAfterDueMinor', allowNegative = false) =>
+  const money = (
+    name: 'currentChargesMinor' | 'arrearsMinor' | 'adjustmentsMinor' | 'payableMinor' | 'payableAfterDueMinor' | 'payableFinalMinor',
+    allowNegative = false,
+  ) =>
     function MoneyField(p: { id: string }) {
       return (
         <Controller
@@ -181,24 +214,39 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
       ) : (
         <>
           <div className="grid gap-5 sm:grid-cols-3">
-            <Field label={t('bills.month')} error={errors.periodKey?.message}>
+            <Field label={t('bills.month')} error={errors.periodKey?.message} {...check('periodKey')}>
               {(p) => <Input {...p} type="month" {...register('periodKey', { required: t('validation.required') })} />}
             </Field>
-            <Field label={t('bills.issueDate')} error={errors.issueDate?.message} optional>
+            <Field label={t('bills.issueDate')} error={errors.issueDate?.message} optional {...check('issueDate')}>
               {(p) => <Input {...p} type="date" {...register('issueDate')} />}
             </Field>
-            <Field label={t('bills.dueDate')} error={errors.dueDate?.message} optional>
+            <Field label={t('bills.dueDate')} error={errors.dueDate?.message} optional {...check('dueDate')}>
               {(p) => <Input {...p} type="date" {...register('dueDate')} />}
             </Field>
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label={t('bills.currentCharges')} hint={t('bills.currentChargesHint')} error={errors.currentChargesMinor?.message}>
+            <Field
+              label={t('bills.currentCharges')}
+              hint={t('bills.currentChargesHint')}
+              error={errors.currentChargesMinor?.message}
+              {...check('currentChargesMinor')}
+            >
               {money('currentChargesMinor')}
             </Field>
-            <Field label={t('bills.payableAfterDue')} error={errors.payableAfterDueMinor?.message} optional>
+            <Field label={t('bills.payableAfterDue')} error={errors.payableAfterDueMinor?.message} optional {...check('payableAfterDueMinor')}>
               {money('payableAfterDueMinor')}
             </Field>
           </div>
+          {valid(afterDue) && (
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field label={t('bills.lateStepUntil')} hint={t('bills.lateStepHint')} error={errors.lateStepUntil?.message} optional>
+                {(p) => <Input {...p} type="date" {...register('lateStepUntil')} />}
+              </Field>
+              <Field label={t('bills.payableFinal')} error={errors.payableFinalMinor?.message} optional>
+                {money('payableFinalMinor')}
+              </Field>
+            </div>
+          )}
         </>
       )}
 
@@ -212,7 +260,7 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
           {!expenseLog && (
             <>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label={t('bills.arrears')} error={errors.arrearsMinor?.message} optional>
+                <Field label={t('bills.arrears')} error={errors.arrearsMinor?.message} optional {...check('arrearsMinor')}>
                   {money('arrearsMinor')}
                 </Field>
                 <Field label={t('bills.adjustments')} hint={t('bills.adjustmentsHint')} error={errors.adjustmentsMinor?.message} optional>
@@ -227,7 +275,7 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
               >
                 {money('payableMinor')}
               </Field>
-              <Field label={t('bills.billNumber')} error={errors.billNumber?.message} optional>
+              <Field label={t('bills.billNumber')} error={errors.billNumber?.message} optional {...check('billNumber')}>
                 {(p) => <Input {...p} autoComplete="off" {...register('billNumber')} />}
               </Field>
               <Controller control={control} name="isEstimated" render={({ field }) => <Toggle label={t('bills.estimated')} checked={field.value} onChange={field.onChange} />} />
@@ -242,7 +290,7 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
         </div>
       )}
 
-      {!bill && (
+      {!bill && !review && (
         <div className="flex flex-col gap-4 rounded-card bg-card-muted/60 p-4 sm:p-5">
           <Controller control={control} name="paidNow" render={({ field }) => <Toggle label={t('bills.alreadyPaid')} checked={field.value} onChange={field.onChange} />} />
           {paidNow && (
@@ -271,7 +319,7 @@ export function BillForm({ profile, bill, onSubmit, onCancel }: BillFormProps) {
           {t('common.cancel')}
         </Button>
         <Button type="submit" loading={formState.isSubmitting}>
-          {t('common.save')}
+          {review?.submitLabel ?? t('common.save')}
         </Button>
       </div>
     </form>

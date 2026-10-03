@@ -614,6 +614,53 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+  /documents/{id}/bill:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [documents]
+      operationId: saveScannedBill
+      description: |
+        Saves a checked (verified) bill from a scanned or uploaded document and attaches the document
+        (FR-EXTR-08, FR-RECO-01…03). If the profile already has this bill (same billing month or bill
+        number) the response is 409 `duplicate_bill`; a bill that looks the same gives 409
+        `probable_duplicate`. Repeat the request with `duplicate` set to attach the document to that
+        bill, or (for probable duplicates) to keep the new bill separate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScannedBillInput' }
+      responses:
+        '200':
+          description: Document attached to the existing bill
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '201':
+          description: Bill created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/DuplicateBill' }
+  /profiles/{id}/history:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [profiles]
+      operationId: getProfileHistory
+      description: Month by month, from the profile's bills and from history printed on its bills.
+      responses:
+        '200':
+          description: Months, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HistoryMonth' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /documents/{id}/complete:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -923,6 +970,12 @@ components:
         adjustmentsMinor: { type: integer, format: int64 }
         payableMinor: { type: integer, format: int64 }
         payableAfterDueMinor: { type: integer, format: int64, nullable: true }
+        lateStepUntil:
+          type: string
+          format: date
+          nullable: true
+          description: The after-due amount applies until this date; payableFinalMinor applies after it
+        payableFinalMinor: { type: integer, format: int64, nullable: true }
         currency: { type: string }
         status: { $ref: '#/components/schemas/BillStatus' }
         paidMinor: { type: integer, format: int64 }
@@ -956,6 +1009,8 @@ components:
         adjustmentsMinor: { type: integer, format: int64 }
         payableMinor: { type: integer, format: int64, minimum: 0, nullable: true, description: Defaults to current charges + arrears + adjustments }
         payableAfterDueMinor: { type: integer, format: int64, minimum: 0, nullable: true }
+        lateStepUntil: { type: string, format: date, nullable: true }
+        payableFinalMinor: { type: integer, format: int64, minimum: 0, nullable: true }
         isEstimated: { type: boolean }
         cancelled: { type: boolean }
         notes: { type: string, maxLength: 2000, nullable: true }
@@ -971,6 +1026,44 @@ components:
           properties:
             paidNow:
               $ref: '#/components/schemas/PaidNow'
+
+    ScannedBillInput:
+      type: object
+      required: [bill]
+      properties:
+        bill: { $ref: '#/components/schemas/BillInput' }
+        extractionId:
+          type: string
+          format: uuid
+          description: The extraction the values came from, to record corrections
+        history:
+          type: array
+          description: Bill history printed on the document, saved to the profile
+          items: { $ref: '#/components/schemas/HistoryEntry' }
+        duplicate:
+          type: string
+          enum: [attach, keep_separate]
+          description: How to handle a duplicate reported by a previous attempt
+
+    HistoryEntry:
+      type: object
+      required: [month]
+      properties:
+        month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        units: { type: number, nullable: true }
+        billedMinor: { type: integer, format: int64, nullable: true }
+        paidMinor: { type: integer, format: int64, nullable: true }
+
+    HistoryMonth:
+      type: object
+      required: [month, source]
+      properties:
+        month: { type: string, example: '2026-08' }
+        units: { type: number, nullable: true }
+        billedMinor: { type: integer, format: int64, nullable: true, description: Spend for the month (excludes arrears for bills) }
+        paidMinor: { type: integer, format: int64, nullable: true }
+        source: { type: string, enum: [bill, printed] }
+        billId: { type: string, format: uuid, nullable: true }
 
     PaidNow:
       type: object

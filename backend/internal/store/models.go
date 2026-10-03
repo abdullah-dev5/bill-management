@@ -616,6 +616,9 @@ type Bill struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	ArchivedAt           *time.Time
+	LateStepUntil        *time.Time
+	PayableFinalMinor    *int64
+	PaidByStepMinor      int64
 }
 
 type BillProfile struct {
@@ -697,6 +700,18 @@ type Extraction struct {
 	FinishedAt  *time.Time
 }
 
+type ExtractionCorrection struct {
+	ID           uuid.UUID
+	HouseholdID  uuid.UUID
+	ExtractionID uuid.UUID
+	Field        string
+	Extracted    *string
+	Confirmed    *string
+	Source       *string
+	Confidence   *float64
+	CreatedAt    time.Time
+}
+
 type Household struct {
 	ID                  uuid.UUID
 	Name                string
@@ -734,6 +749,17 @@ type Payment struct {
 	Notes       *string
 	CreatedBy   *uuid.UUID
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ProfileHistory struct {
+	ProfileID   uuid.UUID
+	HouseholdID uuid.UUID
+	PeriodKey   string
+	Units       *float64
+	BilledMinor *int64
+	PaidMinor   *int64
+	DocumentID  *uuid.UUID
 	UpdatedAt   time.Time
 }
 

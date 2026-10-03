@@ -491,6 +491,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{id}/bill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Saves a checked (verified) bill from a scanned or uploaded document and attaches the document
+         *     (FR-EXTR-08, FR-RECO-01…03). If the profile already has this bill (same billing month or bill
+         *     number) the response is 409 `duplicate_bill`; a bill that looks the same gives 409
+         *     `probable_duplicate`. Repeat the request with `duplicate` set to attach the document to that
+         *     bill, or (for probable duplicates) to keep the new bill separate.
+         */
+        post: operations["saveScannedBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Month by month, from the profile's bills and from history printed on its bills. */
+        get: operations["getProfileHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{id}/complete": {
         parameters: {
             query?: never;
@@ -731,6 +775,13 @@ export interface components {
             payableMinor: number;
             /** Format: int64 */
             payableAfterDueMinor?: number | null;
+            /**
+             * Format: date
+             * @description The after-due amount applies until this date; payableFinalMinor applies after it
+             */
+            lateStepUntil?: string | null;
+            /** Format: int64 */
+            payableFinalMinor?: number | null;
             currency: string;
             status: components["schemas"]["BillStatus"];
             /** Format: int64 */
@@ -781,6 +832,10 @@ export interface components {
             payableMinor?: number | null;
             /** Format: int64 */
             payableAfterDueMinor?: number | null;
+            /** Format: date */
+            lateStepUntil?: string | null;
+            /** Format: int64 */
+            payableFinalMinor?: number | null;
             isEstimated?: boolean;
             cancelled?: boolean;
             notes?: string | null;
@@ -788,6 +843,45 @@ export interface components {
         };
         BillCreate: components["schemas"]["BillInput"] & {
             paidNow?: components["schemas"]["PaidNow"];
+        };
+        ScannedBillInput: {
+            bill: components["schemas"]["BillInput"];
+            /**
+             * Format: uuid
+             * @description The extraction the values came from, to record corrections
+             */
+            extractionId?: string;
+            /** @description Bill history printed on the document, saved to the profile */
+            history?: components["schemas"]["HistoryEntry"][];
+            /**
+             * @description How to handle a duplicate reported by a previous attempt
+             * @enum {string}
+             */
+            duplicate?: "attach" | "keep_separate";
+        };
+        HistoryEntry: {
+            month: string;
+            units?: number | null;
+            /** Format: int64 */
+            billedMinor?: number | null;
+            /** Format: int64 */
+            paidMinor?: number | null;
+        };
+        HistoryMonth: {
+            /** @example 2026-08 */
+            month: string;
+            units?: number | null;
+            /**
+             * Format: int64
+             * @description Spend for the month (excludes arrears for bills)
+             */
+            billedMinor?: number | null;
+            /** Format: int64 */
+            paidMinor?: number | null;
+            /** @enum {string} */
+            source: "bill" | "printed";
+            /** Format: uuid */
+            billId?: string | null;
         };
         /** @description Records a full payment in the same step ("Already paid?") */
         PaidNow: {
@@ -2009,6 +2103,67 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             429: components["responses"]["TooManyRequests"];
+        };
+    };
+    saveScannedBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScannedBillInput"];
+            };
+        };
+        responses: {
+            /** @description Document attached to the existing bill */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillDetail"];
+                };
+            };
+            /** @description Bill created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillDetail"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["DuplicateBill"];
+        };
+    };
+    getProfileHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Months, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryMonth"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     completeDocument: {

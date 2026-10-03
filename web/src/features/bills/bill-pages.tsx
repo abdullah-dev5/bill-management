@@ -233,6 +233,15 @@ export function BillDetailPage() {
           {b.arrearsMinor !== 0 && <Row label={t('bills.arrears')} value={money(b.arrearsMinor)} />}
           {b.adjustmentsMinor !== 0 && <Row label={t('bills.adjustments')} value={money(b.adjustmentsMinor)} />}
           {b.periodKey && <Row label={t('bills.payable')} value={money(b.payableMinor)} strong />}
+          {b.payableAfterDueMinor != null && (
+            <Row
+              label={b.lateStepUntil ? t('bills.afterDueUntil', { date: formatDate(b.lateStepUntil) }) : t('bills.payableAfterDue')}
+              value={money(b.payableAfterDueMinor)}
+            />
+          )}
+          {b.lateStepUntil && b.payableFinalMinor != null && (
+            <Row label={t('bills.afterDate', { date: formatDate(b.lateStepUntil) })} value={money(b.payableFinalMinor)} />
+          )}
           <Row label={t('bills.paidLabel')} value={money(b.paidMinor)} />
           {isOpen(b) && <Row label={t('bills.outstanding')} value={money(b.outstandingMinor)} strong />}
           {b.issueDate && <Row label={t('bills.issueDate')} value={formatDate(b.issueDate)} />}

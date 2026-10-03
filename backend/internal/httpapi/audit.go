@@ -78,6 +78,10 @@ func billSnapshot(b store.Bill) snapshot {
 	if b.PayableAfterDueMinor != nil {
 		s["payableAfterDueMinor"] = *b.PayableAfterDueMinor
 	}
+	addDate(s, "lateStepUntil", b.LateStepUntil)
+	if b.PayableFinalMinor != nil {
+		s["payableFinalMinor"] = *b.PayableFinalMinor
+	}
 	return normalizeSnapshot(s)
 }
 

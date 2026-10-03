@@ -219,6 +219,24 @@ func (e ExtractionTiersOutcome) Valid() bool {
 	}
 }
 
+// Defines values for HistoryMonthSource.
+const (
+	HistoryMonthSourceBill    HistoryMonthSource = "bill"
+	HistoryMonthSourcePrinted HistoryMonthSource = "printed"
+)
+
+// Valid indicates whether the value is a known member of the HistoryMonthSource enum.
+func (e HistoryMonthSource) Valid() bool {
+	switch e {
+	case HistoryMonthSourceBill:
+		return true
+	case HistoryMonthSourcePrinted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PaymentMethod.
 const (
 	PaymentMethodBankTransfer PaymentMethod = "bank_transfer"
@@ -294,6 +312,24 @@ func (e Role) Valid() bool {
 	}
 }
 
+// Defines values for ScannedBillInputDuplicate.
+const (
+	Attach       ScannedBillInputDuplicate = "attach"
+	KeepSeparate ScannedBillInputDuplicate = "keep_separate"
+)
+
+// Valid indicates whether the value is a known member of the ScannedBillInputDuplicate enum.
+func (e ScannedBillInputDuplicate) Valid() bool {
+	switch e {
+	case Attach:
+		return true
+	case KeepSeparate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TypeGroup.
 const (
 	TypeGroupHousehold TypeGroup = "household"
@@ -327,24 +363,28 @@ type AuditEvent struct {
 
 // Bill defines model for Bill.
 type Bill struct {
-	AdjustmentsMinor     int64               `json:"adjustmentsMinor"`
-	Archived             bool                `json:"archived"`
-	ArrearsMinor         int64               `json:"arrearsMinor"`
-	BillNumber           *string             `json:"billNumber,omitempty"`
-	Cancelled            bool                `json:"cancelled"`
-	CreatedAt            time.Time           `json:"createdAt"`
-	Currency             string              `json:"currency"`
-	CurrentChargesMinor  int64               `json:"currentChargesMinor"`
-	Description          *string             `json:"description,omitempty"`
-	DueDate              *openapi_types.Date `json:"dueDate,omitempty"`
-	ExpenseDate          openapi_types.Date  `json:"expenseDate"`
-	Id                   openapi_types.UUID  `json:"id"`
-	IsEstimated          bool                `json:"isEstimated"`
-	IssueDate            *openapi_types.Date `json:"issueDate,omitempty"`
+	AdjustmentsMinor    int64               `json:"adjustmentsMinor"`
+	Archived            bool                `json:"archived"`
+	ArrearsMinor        int64               `json:"arrearsMinor"`
+	BillNumber          *string             `json:"billNumber,omitempty"`
+	Cancelled           bool                `json:"cancelled"`
+	CreatedAt           time.Time           `json:"createdAt"`
+	Currency            string              `json:"currency"`
+	CurrentChargesMinor int64               `json:"currentChargesMinor"`
+	Description         *string             `json:"description,omitempty"`
+	DueDate             *openapi_types.Date `json:"dueDate,omitempty"`
+	ExpenseDate         openapi_types.Date  `json:"expenseDate"`
+	Id                  openapi_types.UUID  `json:"id"`
+	IsEstimated         bool                `json:"isEstimated"`
+	IssueDate           *openapi_types.Date `json:"issueDate,omitempty"`
+
+	// LateStepUntil The after-due amount applies until this date; payableFinalMinor applies after it
+	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
 	Notes                *string             `json:"notes,omitempty"`
 	OutstandingMinor     int64               `json:"outstandingMinor"`
 	PaidMinor            int64               `json:"paidMinor"`
 	PayableAfterDueMinor *int64              `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64              `json:"payableFinalMinor,omitempty"`
 	PayableMinor         int64               `json:"payableMinor"`
 	PeriodEnd            *openapi_types.Date `json:"periodEnd,omitempty"`
 
@@ -370,11 +410,13 @@ type BillCreate struct {
 	ExpenseDate         *openapi_types.Date `json:"expenseDate,omitempty"`
 	IsEstimated         *bool               `json:"isEstimated,omitempty"`
 	IssueDate           *openapi_types.Date `json:"issueDate,omitempty"`
+	LateStepUntil       *openapi_types.Date `json:"lateStepUntil,omitempty"`
 	Notes               *string             `json:"notes,omitempty"`
 
 	// PaidNow Records a full payment in the same step ("Already paid?")
 	PaidNow              *PaidNow `json:"paidNow,omitempty"`
 	PayableAfterDueMinor *int64   `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64   `json:"payableFinalMinor,omitempty"`
 
 	// PayableMinor Defaults to current charges + arrears + adjustments
 	PayableMinor *int64              `json:"payableMinor,omitempty"`
@@ -390,26 +432,30 @@ type BillCreate struct {
 
 // BillDetail defines model for BillDetail.
 type BillDetail struct {
-	AdjustmentsMinor     int64               `json:"adjustmentsMinor"`
-	Archived             bool                `json:"archived"`
-	ArrearsMinor         int64               `json:"arrearsMinor"`
-	BillNumber           *string             `json:"billNumber,omitempty"`
-	Cancelled            bool                `json:"cancelled"`
-	CreatedAt            time.Time           `json:"createdAt"`
-	Currency             string              `json:"currency"`
-	CurrentChargesMinor  int64               `json:"currentChargesMinor"`
-	Description          *string             `json:"description,omitempty"`
-	Documents            []Document          `json:"documents"`
-	DueDate              *openapi_types.Date `json:"dueDate,omitempty"`
-	ExpenseDate          openapi_types.Date  `json:"expenseDate"`
-	History              []AuditEvent        `json:"history"`
-	Id                   openapi_types.UUID  `json:"id"`
-	IsEstimated          bool                `json:"isEstimated"`
-	IssueDate            *openapi_types.Date `json:"issueDate,omitempty"`
+	AdjustmentsMinor    int64               `json:"adjustmentsMinor"`
+	Archived            bool                `json:"archived"`
+	ArrearsMinor        int64               `json:"arrearsMinor"`
+	BillNumber          *string             `json:"billNumber,omitempty"`
+	Cancelled           bool                `json:"cancelled"`
+	CreatedAt           time.Time           `json:"createdAt"`
+	Currency            string              `json:"currency"`
+	CurrentChargesMinor int64               `json:"currentChargesMinor"`
+	Description         *string             `json:"description,omitempty"`
+	Documents           []Document          `json:"documents"`
+	DueDate             *openapi_types.Date `json:"dueDate,omitempty"`
+	ExpenseDate         openapi_types.Date  `json:"expenseDate"`
+	History             []AuditEvent        `json:"history"`
+	Id                  openapi_types.UUID  `json:"id"`
+	IsEstimated         bool                `json:"isEstimated"`
+	IssueDate           *openapi_types.Date `json:"issueDate,omitempty"`
+
+	// LateStepUntil The after-due amount applies until this date; payableFinalMinor applies after it
+	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
 	Notes                *string             `json:"notes,omitempty"`
 	OutstandingMinor     int64               `json:"outstandingMinor"`
 	PaidMinor            int64               `json:"paidMinor"`
 	PayableAfterDueMinor *int64              `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64              `json:"payableFinalMinor,omitempty"`
 	PayableMinor         int64               `json:"payableMinor"`
 	Payments             []Payment           `json:"payments"`
 	PeriodEnd            *openapi_types.Date `json:"periodEnd,omitempty"`
@@ -436,8 +482,10 @@ type BillInput struct {
 	ExpenseDate          *openapi_types.Date `json:"expenseDate,omitempty"`
 	IsEstimated          *bool               `json:"isEstimated,omitempty"`
 	IssueDate            *openapi_types.Date `json:"issueDate,omitempty"`
+	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
 	Notes                *string             `json:"notes,omitempty"`
 	PayableAfterDueMinor *int64              `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64              `json:"payableFinalMinor,omitempty"`
 
 	// PayableMinor Defaults to current charges + arrears + adjustments
 	PayableMinor *int64              `json:"payableMinor,omitempty"`
@@ -617,6 +665,31 @@ type ExtractionStatus string
 
 // ExtractionTiersOutcome defines model for Extraction.Tiers.Outcome.
 type ExtractionTiersOutcome string
+
+// HistoryEntry defines model for HistoryEntry.
+type HistoryEntry struct {
+	BilledMinor *int64   `json:"billedMinor,omitempty"`
+	Month       string   `json:"month"`
+	PaidMinor   *int64   `json:"paidMinor,omitempty"`
+	Units       *float32 `json:"units,omitempty"`
+}
+
+// HistoryMonth defines model for HistoryMonth.
+type HistoryMonth struct {
+	BillId *openapi_types.UUID `json:"billId,omitempty"`
+
+	// BilledMinor Spend for the month (excludes arrears for bills)
+	BilledMinor *int64 `json:"billedMinor,omitempty"`
+
+	// Month Example: 2026-08
+	Month     string             `json:"month"`
+	PaidMinor *int64             `json:"paidMinor,omitempty"`
+	Source    HistoryMonthSource `json:"source"`
+	Units     *float32           `json:"units,omitempty"`
+}
+
+// HistoryMonthSource defines model for HistoryMonth.Source.
+type HistoryMonthSource string
 
 // HomeSummary defines model for HomeSummary.
 type HomeSummary struct {
@@ -806,6 +879,23 @@ type ProviderInput struct {
 // Role defines model for Role.
 type Role string
 
+// ScannedBillInput defines model for ScannedBillInput.
+type ScannedBillInput struct {
+	Bill BillInput `json:"bill"`
+
+	// Duplicate How to handle a duplicate reported by a previous attempt
+	Duplicate *ScannedBillInputDuplicate `json:"duplicate,omitempty"`
+
+	// ExtractionId The extraction the values came from, to record corrections
+	ExtractionId *openapi_types.UUID `json:"extractionId,omitempty"`
+
+	// History Bill history printed on the document, saved to the profile
+	History *[]HistoryEntry `json:"history,omitempty"`
+}
+
+// ScannedBillInputDuplicate How to handle a duplicate reported by a previous attempt
+type ScannedBillInputDuplicate string
+
 // SignupRequest defines model for SignupRequest.
 type SignupRequest struct {
 	DisplayName string              `json:"displayName"`
@@ -914,6 +1004,9 @@ type CreateDocumentJSONRequestBody = DocumentUploadInput
 // UpdateDocumentJSONRequestBody defines body for UpdateDocument for application/json ContentType.
 type UpdateDocumentJSONRequestBody = DocumentUpdate
 
+// SaveScannedBillJSONRequestBody defines body for SaveScannedBill for application/json ContentType.
+type SaveScannedBillJSONRequestBody = ScannedBillInput
+
 // UpdateHouseholdJSONRequestBody defines body for UpdateHousehold for application/json ContentType.
 type UpdateHouseholdJSONRequestBody = HouseholdInput
 
@@ -1001,6 +1094,9 @@ type ServerInterface interface {
 	// (PUT /documents/{id})
 	UpdateDocument(w http.ResponseWriter, r *http.Request, id Id)
 
+	// (POST /documents/{id}/bill)
+	SaveScannedBill(w http.ResponseWriter, r *http.Request, id Id)
+
 	// (POST /documents/{id}/complete)
 	CompleteDocument(w http.ResponseWriter, r *http.Request, id Id)
 
@@ -1039,6 +1135,9 @@ type ServerInterface interface {
 
 	// (POST /profiles/{id}/archive)
 	ArchiveProfile(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (GET /profiles/{id}/history)
+	GetProfileHistory(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (POST /profiles/{id}/restore)
 	RestoreProfile(w http.ResponseWriter, r *http.Request, id Id)
@@ -1171,6 +1270,11 @@ func (_ Unimplemented) UpdateDocument(w http.ResponseWriter, r *http.Request, id
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (POST /documents/{id}/bill)
+func (_ Unimplemented) SaveScannedBill(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (POST /documents/{id}/complete)
 func (_ Unimplemented) CompleteDocument(w http.ResponseWriter, r *http.Request, id Id) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -1233,6 +1337,11 @@ func (_ Unimplemented) UpdateProfile(w http.ResponseWriter, r *http.Request, id 
 
 // (POST /profiles/{id}/archive)
 func (_ Unimplemented) ArchiveProfile(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /profiles/{id}/history)
+func (_ Unimplemented) GetProfileHistory(w http.ResponseWriter, r *http.Request, id Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1811,6 +1920,32 @@ func (siw *ServerInterfaceWrapper) UpdateDocument(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// SaveScannedBill operation middleware
+func (siw *ServerInterfaceWrapper) SaveScannedBill(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SaveScannedBill(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CompleteDocument operation middleware
 func (siw *ServerInterfaceWrapper) CompleteDocument(w http.ResponseWriter, r *http.Request) {
 
@@ -2106,6 +2241,32 @@ func (siw *ServerInterfaceWrapper) ArchiveProfile(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ArchiveProfile(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProfileHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetProfileHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProfileHistory(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2502,6 +2663,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/documents/{id}/extraction", wrapper.StartExtraction)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/documents/{id}/bill", wrapper.SaveScannedBill)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/profiles/{id}/history", wrapper.GetProfileHistory)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/documents/{id}/complete", wrapper.CompleteDocument)
 	})
 
@@ -2513,100 +2680,110 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"pKpX1/3/DgA=",
+	"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",
+	"HqUGSKragj7+7wA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

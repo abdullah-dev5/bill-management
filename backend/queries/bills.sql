@@ -5,12 +5,14 @@ INSERT INTO bills (
     id, household_id, profile_id, category_id, description, bill_number,
     period_key, period_start, period_end, issue_date, due_date, expense_date,
     current_charges_minor, arrears_minor, adjustments_minor, payable_minor, payable_after_due_minor,
-    currency, is_estimated, cancelled, verified_at, verified_by, notes, tags, created_by
+    currency, is_estimated, cancelled, verified_at, verified_by, notes, tags, created_by,
+    late_step_until, payable_final_minor
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12,
     $13, $14, $15, $16, $17,
-    $18, $19, $20, $21, $22, $23, $24, $25
+    $18, $19, $20, $21, $22, $23, $24, $25,
+    $26, $27
 )
 RETURNING id;
 
@@ -20,7 +22,7 @@ UPDATE bills SET
     period_key = $7, period_start = $8, period_end = $9, issue_date = $10, due_date = $11,
     expense_date = $12, current_charges_minor = $13, arrears_minor = $14, adjustments_minor = $15,
     payable_minor = $16, payable_after_due_minor = $17, is_estimated = $18, cancelled = $19,
-    notes = $20, tags = $21, updated_at = now()
+    notes = $20, tags = $21, late_step_until = $22, payable_final_minor = $23, updated_at = now()
 WHERE id = $1 AND household_id = $2;
 
 -- name: GetBill :one
@@ -28,11 +30,13 @@ SELECT
     sqlc.embed(bills),
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
     )::text AS status,
     bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE id = sqlc.arg(id) AND household_id = sqlc.arg(household_id);
@@ -47,11 +51,13 @@ SELECT
     sqlc.embed(bills),
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
     )::text AS status,
     bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE household_id = sqlc.arg(household_id)
@@ -61,7 +67,8 @@ WHERE household_id = sqlc.arg(household_id)
   AND (sqlc.narg(to_date)::date IS NULL OR expense_date <= sqlc.narg(to_date)::date)
   AND (sqlc.narg(statuses)::text[] IS NULL OR bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
       ) = ANY (sqlc.narg(statuses)::text[]))
   AND (sqlc.narg(cursor_date)::date IS NULL
        OR (expense_date, id) < (sqlc.narg(cursor_date)::date, sqlc.narg(cursor_id)::uuid))
@@ -86,6 +93,10 @@ UPDATE bills b SET
     paid_on_time_minor = (
         SELECT coalesce(sum(p.amount_minor), 0) FROM payments p
         WHERE p.bill_id = b.id AND (b.due_date IS NULL OR p.paid_on <= b.due_date)
+    ),
+    paid_by_step_minor = (
+        SELECT coalesce(sum(p.amount_minor), 0) FROM payments p
+        WHERE p.bill_id = b.id AND b.late_step_until IS NOT NULL AND p.paid_on <= b.late_step_until
     ),
     updated_at = now()
 WHERE b.id = $1;
@@ -132,7 +143,8 @@ WHERE p.household_id = $1 AND b.archived_at IS NULL
 -- name: TotalOutstanding :one
 SELECT coalesce(sum(bill_outstanding(
     cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-    payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+    payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
 )), 0)::bigint
 FROM bills
 WHERE household_id = sqlc.arg(household_id) AND archived_at IS NULL;
@@ -142,18 +154,21 @@ SELECT
     sqlc.embed(bills),
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
     )::text AS status,
     bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE household_id = sqlc.arg(household_id) AND archived_at IS NULL AND NOT cancelled
   AND verified_at IS NOT NULL AND due_date IS NOT NULL AND due_date <= sqlc.arg(until)::date
   AND bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
       ) > 0
 ORDER BY due_date, id
 LIMIT 20;
@@ -163,13 +178,32 @@ SELECT
     sqlc.embed(bills),
     bill_status(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
     )::text AS status,
     bill_outstanding(
         cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor, sqlc.arg(today)::date
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, sqlc.arg(today)::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE household_id = sqlc.arg(household_id) AND archived_at IS NULL
 ORDER BY created_at DESC
 LIMIT 5;
+
+-- name: FindProbableBill :one
+-- A bill of the same profile that looks like the same bill (FR-RECO-03): issue dates within
+-- 10 days, or the same payable with due dates within 3 days.
+SELECT id FROM bills
+WHERE profile_id = sqlc.arg(profile_id) AND archived_at IS NULL
+  AND ((sqlc.narg(issue_date)::date IS NOT NULL AND issue_date IS NOT NULL
+        AND abs(issue_date - sqlc.narg(issue_date)::date) <= 10)
+    OR (sqlc.narg(due_date)::date IS NOT NULL AND due_date IS NOT NULL
+        AND payable_minor = sqlc.arg(payable_minor) AND abs(due_date - sqlc.narg(due_date)::date) <= 3))
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: FindBillByNumber :one
+SELECT id FROM bills
+WHERE profile_id = $1 AND bill_number = $2 AND archived_at IS NULL
+LIMIT 1;
