@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Schemas } from '@/api/client'
 import { useProfileHistory } from '@/api/hooks'
 import { Card, Chip, SectionTitle, Skeleton } from '@/components/ui/misc'
+import { Link } from '@tanstack/react-router'
 import { cn } from '@/lib/cn'
 import { formatMonthShort } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
@@ -10,6 +11,10 @@ import { formatMoney } from '@/lib/money'
 type Month = Schemas['HistoryMonth']
 
 const SHOWN = 12
+
+const STATUS_KEY = {
+  paid: 'paid', unpaid: 'unpaid', overdue: 'overdue', partially_paid: 'partial', draft: 'review', cancelled: 'cancelled',
+} as const
 
 export type Metric = 'amount' | 'units'
 
@@ -89,15 +94,27 @@ export function HistoryCard({ profileId, unit }: { profileId: string; unit?: str
               {hasUnits && <th className="py-1.5 text-right font-medium">{t('extraction.units')}</th>}
               <th className="py-1.5 text-right font-medium">{t('extraction.billed')}</th>
               <th className="py-1.5 text-right font-medium">{t('extraction.paid')}</th>
+              <th className="py-1.5 text-right font-medium">{t('profiles.historyStatus')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
             {recent.map((m) => (
               <tr key={m.month}>
-                <td className="py-1.5 text-ink">{formatMonthShort(m.month)}</td>
+                <td className="py-1.5 text-ink">
+                  {m.billId ? (
+                    <Link to="/bills/$billId" params={{ billId: m.billId }} className="underline-offset-4 hover:underline">
+                      {formatMonthShort(m.month)}
+                    </Link>
+                  ) : (
+                    formatMonthShort(m.month)
+                  )}
+                </td>
                 {hasUnits && <td className="py-1.5 text-right">{m.units ?? '—'}</td>}
                 <td className="py-1.5 text-right text-ink">{m.billedMinor != null ? formatMoney(m.billedMinor) : '—'}</td>
                 <td className="py-1.5 text-right">{m.paidMinor != null ? formatMoney(m.paidMinor) : '—'}</td>
+                <td className={cn('py-1.5 text-right text-xs', m.status === 'paid' && 'text-[var(--st-paid-fg)]', m.status === 'overdue' && 'text-[var(--st-overdue-fg)]')}>
+                  {m.status ? t(`status.${STATUS_KEY[m.status]}`) : t('profiles.historyPrintedShort')}
+                </td>
               </tr>
             ))}
           </tbody>

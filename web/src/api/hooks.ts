@@ -101,6 +101,9 @@ function useInvalidateAll() {
       qc.invalidateQueries({ queryKey: ['profile'] }),
       qc.invalidateQueries({ queryKey: ['bills'] }),
       qc.invalidateQueries({ queryKey: ['bill'] }),
+      qc.invalidateQueries({ queryKey: ['profilePayments'] }),
+      qc.invalidateQueries({ queryKey: ['profileDocuments'] }),
+      qc.invalidateQueries({ queryKey: ['profileHistory'] }),
     ])
 }
 
@@ -225,6 +228,7 @@ export function useInvalidateDocuments() {
       qc.invalidateQueries({ queryKey: ['bill'] }),
       qc.invalidateQueries({ queryKey: ['document'] }),
       qc.invalidateQueries({ queryKey: keys.household }),
+      qc.invalidateQueries({ queryKey: ['profileDocuments'] }),
     ])
 }
 
@@ -293,3 +297,16 @@ export function useSaveScannedBill(documentId: string) {
     },
   })
 }
+
+export const useProfilePayments = (profileId: string) =>
+  useQuery({
+    queryKey: ['profilePayments', profileId] as const,
+    queryFn: () => unwrap(api.GET('/profiles/{id}/payments', { params: { path: { id: profileId } } })),
+  })
+
+export const useProfileDocuments = (profileId: string) =>
+  useQuery({
+    queryKey: ['profileDocuments', profileId] as const,
+    queryFn: () => unwrap(api.GET('/profiles/{id}/documents', { params: { path: { id: profileId } } })),
+    staleTime: 60_000,
+  })

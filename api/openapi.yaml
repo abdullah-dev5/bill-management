@@ -365,8 +365,9 @@ paths:
         - name: status
           in: query
           required: false
+          description: Repeat for several statuses (status=unpaid&status=overdue)
           style: form
-          explode: false
+          explode: true
           schema:
             type: array
             items: { $ref: '#/components/schemas/BillStatus' }
@@ -645,6 +646,38 @@ paths:
         '400': { $ref: '#/components/responses/ValidationError' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/DuplicateBill' }
+  /profiles/{id}/payments:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [profiles]
+      operationId: listProfilePayments
+      description: Payments made towards the profile's bills, newest first.
+      responses:
+        '200':
+          description: Payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProfilePayment' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /profiles/{id}/documents:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [profiles]
+      operationId: listProfileDocuments
+      description: Documents attached to the profile's bills, newest first (with fresh signed links).
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /profiles/{id}/history:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -1070,10 +1103,28 @@ components:
         billedMinor: { type: integer, format: int64, nullable: true }
         paidMinor: { type: integer, format: int64, nullable: true }
 
+    ProfilePayment:
+      type: object
+      required: [id, billId, paidOn, amountMinor, method, createdAt, billExpenseDate]
+      properties:
+        id: { type: string, format: uuid }
+        billId: { type: string, format: uuid }
+        paidOn: { type: string, format: date }
+        amountMinor: { type: integer, format: int64 }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        reference: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        receiptDocumentId: { type: string, format: uuid, nullable: true }
+        billPeriodKey: { type: string, nullable: true }
+        billDescription: { type: string, nullable: true }
+        billExpenseDate: { type: string, format: date }
+
     HistoryMonth:
       type: object
       required: [month, source]
       properties:
+        status: { allOf: [{ $ref: '#/components/schemas/BillStatus' }], nullable: true, description: Status of the month's bill (bills only) }
         month: { type: string, example: '2026-08' }
         units: { type: number, format: double, nullable: true }
         billedMinor: { type: integer, format: int64, nullable: true, description: Spend for the month (excludes arrears for bills) }

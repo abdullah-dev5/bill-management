@@ -516,6 +516,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profiles/{id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Payments made towards the profile's bills, newest first. */
+        get: operations["listProfilePayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Documents attached to the profile's bills, newest first (with fresh signed links). */
+        get: operations["listProfileDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profiles/{id}/history": {
         parameters: {
             query?: never;
@@ -903,7 +941,30 @@ export interface components {
             /** Format: int64 */
             paidMinor?: number | null;
         };
+        ProfilePayment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            billId: string;
+            /** Format: date */
+            paidOn: string;
+            /** Format: int64 */
+            amountMinor: number;
+            method: components["schemas"]["PaymentMethod"];
+            reference?: string | null;
+            notes?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            receiptDocumentId?: string | null;
+            billPeriodKey?: string | null;
+            billDescription?: string | null;
+            /** Format: date */
+            billExpenseDate: string;
+        };
         HistoryMonth: {
+            /** @description Status of the month's bill (bills only) */
+            status?: components["schemas"]["BillStatus"] | null;
             /** @example 2026-08 */
             month: string;
             /** Format: double */
@@ -1807,6 +1868,7 @@ export interface operations {
         parameters: {
             query?: {
                 profileId?: string;
+                /** @description Repeat for several statuses (status=unpaid&status=overdue) */
                 status?: components["schemas"]["BillStatus"][];
                 from?: string;
                 to?: string;
@@ -2240,6 +2302,52 @@ export interface operations {
             400: components["responses"]["ValidationError"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["DuplicateBill"];
+        };
+    };
+    listProfilePayments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Payments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePayment"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listProfileDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Documents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     getProfileHistory: {
