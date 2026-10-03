@@ -132,8 +132,8 @@ Unique: (household_id, lower(name)) and (household_id, provider_id, reference_nu
 | payable_minor | bigint | payable within due date |
 | payable_after_due_minor | bigint null | |
 | currency | char(3) | |
-| status | enum | see §3 |
 | paid_minor | bigint | denormalised sum of payments |
+| paid_on_time_minor | bigint | payments dated on/before the due date (decides on-time vs late) |
 | is_estimated | bool | estimated/average bill |
 | verified_at / verified_by | | set when the user confirms the verification screen |
 | field_meta | jsonb | per field: `{source, confidence, document_id}` |
@@ -221,17 +221,17 @@ stateDiagram-v2
     Paid --> Unpaid : payment deleted
 ```
 
-**Status derivation (single function, deterministic):**
+**Status derivation (single SQL function `bill_status()`, deterministic, evaluated on every read):**
 ```
-if archived or cancelled            → Cancelled
-if not verified and source ≠ manual → Draft
-applicable = payable_after_due if (today > due_date and payable_after_due != null) else payable
-if paid ≥ applicable                → Paid
-if today > due_date                 → Overdue
-if paid > 0                         → PartiallyPaid
-else                                → Unpaid
+if cancelled                                    → Cancelled
+if not verified                                 → Draft      (manual entries are verified on save)
+if paid_on_time ≥ payable                       → Paid       (paid in full by the due date)
+if paid ≥ (payable_after_due ?? payable)        → Paid       (paid in full, late amount)
+if today > due_date                             → Overdue    (partial payments stay Overdue)
+if paid > 0                                     → PartiallyPaid
+else                                            → Unpaid
 ```
-A daily job re-derives status for bills whose `due_date` was yesterday. Payment writes re-derive it immediately.
+`paid` and `paid_on_time` (payments dated on or before the due date) are denormalised on the bill and recalculated in the same transaction as every payment write and every due-date change. Status is **never stored**: it is computed from these facts and the household's "today", so it can't go stale and no daily job is needed. `bill_outstanding()` follows the same rules for the amount still owed. Archived bills keep their status but are excluded from lists and totals.
 
 Arrears rule: when bill *N+1* includes bill *N*'s unpaid amount as arrears, and the user then pays bill *N+1* in full, bill *N* is marked **Paid (settled via later bill)**. This happens automatically when bill *N+1*'s `arrears_minor` equals bill *N*'s outstanding amount; otherwise the user is prompted.
 

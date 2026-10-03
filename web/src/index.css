@@ -1,0 +1,140 @@
+@import 'tailwindcss';
+@import '@fontsource/red-hat-display/400.css';
+@import '@fontsource/red-hat-display/500.css';
+@import '@fontsource/red-hat-display/600.css';
+
+/* Design tokens — docs/10-design-system.md §2–4 */
+:root {
+  color-scheme: light;
+  --bg: #ecebe8;
+  --card: #f8f8f8;
+  --card-muted: #e4e4e0;
+  --featured: #2d2d2d;
+  --on-featured: #ffffff;
+  --text: #000000;
+  --text-body: #29303d;
+  --text-muted: #5a5f68;
+  --border: #d0cfcc;
+  --accent: #e3ef7a;
+  --on-accent: #2d2d2d;
+  --focus: #2d2d2d;
+  --danger: #9b1c1c;
+  --shadow-float: 0 8px 24px rgb(0 0 0 / 0.12);
+
+  /* Status pairs: text / background (§2.2) */
+  --st-paid-fg: #1f6b3a;      --st-paid-bg: #dcefd9;
+  --st-unpaid-fg: #29303d;    --st-unpaid-bg: #e4e4e0;
+  --st-soon-fg: #7a4a00;      --st-soon-bg: #f6e3b8;
+  --st-overdue-fg: #9b1c1c;   --st-overdue-bg: #f6d6d3;
+  --st-partial-fg: #1e4e8c;   --st-partial-bg: #dce6f5;
+  --st-review-fg: #2d2d2d;    --st-review-bg: #e3ef7a;
+  --st-cancel-fg: #5a5f68;    --st-cancel-bg: #e4e4e0;
+
+  /* Profile palette (§2.4) */
+  --p1: #2a78d6; --p2: #eb6834; --p3: #1baf7a; --p4: #eda100;
+  --p5: #e87ba4; --p6: #008300; --p7: #4a3aa7; --p8: #e34948;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f0f10;
+  --card: #1d1d1e;
+  --card-muted: #29292a;
+  --featured: #303031;
+  --text: #f7f7f7;
+  --text-body: #e2e2e2;
+  --text-muted: #9f9f9f;
+  --border: #353536;
+  --focus: #e3ef7a;
+  --danger: #f28b82;
+  --shadow-float: 0 0 0 1px #353536;
+  --st-paid-fg: #7bd88f;      --st-paid-bg: #1f3325;
+  --st-unpaid-fg: #c9c9c9;    --st-unpaid-bg: #2a2a2b;
+  --st-soon-fg: #f2c46b;      --st-soon-bg: #3a2e14;
+  --st-overdue-fg: #f28b82;   --st-overdue-bg: #3d1f1e;
+  --st-partial-fg: #8ab4f8;   --st-partial-bg: #1d2b40;
+  --st-review-fg: #e3ef7a;    --st-review-bg: #33361a;
+  --st-cancel-fg: #9f9f9f;    --st-cancel-bg: #2a2a2b;
+  --p1: #3987e5; --p2: #d95926; --p3: #199e70; --p4: #c98500;
+  --p5: #d55181; --p6: #008300; --p7: #9085e9; --p8: #e66767;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #0f0f10;
+    --card: #1d1d1e;
+    --card-muted: #29292a;
+    --featured: #303031;
+    --text: #f7f7f7;
+    --text-body: #e2e2e2;
+    --text-muted: #9f9f9f;
+    --border: #353536;
+    --focus: #e3ef7a;
+    --danger: #f28b82;
+    --shadow-float: 0 0 0 1px #353536;
+    --st-paid-fg: #7bd88f;      --st-paid-bg: #1f3325;
+    --st-unpaid-fg: #c9c9c9;    --st-unpaid-bg: #2a2a2b;
+    --st-soon-fg: #f2c46b;      --st-soon-bg: #3a2e14;
+    --st-overdue-fg: #f28b82;   --st-overdue-bg: #3d1f1e;
+    --st-partial-fg: #8ab4f8;   --st-partial-bg: #1d2b40;
+    --st-review-fg: #e3ef7a;    --st-review-bg: #33361a;
+    --st-cancel-fg: #9f9f9f;    --st-cancel-bg: #2a2a2b;
+    --p1: #3987e5; --p2: #d95926; --p3: #199e70; --p4: #c98500;
+    --p5: #d55181; --p6: #008300; --p7: #9085e9; --p8: #e66767;
+  }
+}
+
+@theme inline {
+  --font-sans: 'Red Hat Display', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-muted: var(--card-muted);
+  --color-featured: var(--featured);
+  --color-on-featured: var(--on-featured);
+  --color-ink: var(--text);
+  --color-body: var(--text-body);
+  --color-muted: var(--text-muted);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-focus: var(--focus);
+  --color-danger: var(--danger);
+  --radius-card: 24px;
+  --radius-field: 14px;
+  --radius-tile: 12px;
+  --shadow-float: var(--shadow-float);
+  --text-amount-hero: 2.5rem;
+  --text-amount-hero--line-height: 1.1;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-body antialiased;
+    min-height: 100dvh;
+  }
+  h1, h2, h3 {
+    @apply text-ink;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  /* Inputs at 16px stop iOS zooming in. */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

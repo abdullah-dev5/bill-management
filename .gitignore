@@ -24,3 +24,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+
+# Playwright
+/web/e2e/.results/
+/web/e2e/.screenshots/
+/web/playwright-report/

@@ -40,6 +40,7 @@ flowchart TB
 ## 3. Design decisions
 - **Modular monolith.** One Go codebase with clear internal modules: auth, profiles, bills, extraction, reconciliation, payments, analytics, notifications, retrieval. Render's free tier runs one web service, so the **API and the job workers run in the same process** (`app serve`). The same binary can later run as separate `app api` / `app worker` processes without code changes.
 - **Postgres is the job queue** (River, using `SKIP LOCKED`) **and the search engine** (`tsvector`). No Redis, RabbitMQ or Elasticsearch.
+- **Same-origin API:** a Cloudflare Pages Function proxies `/api/*` to Render, so the app and API share one origin and the session cookie stays first-party (`SameSite=Lax`, no third-party-cookie blocking). In development, the Vite dev server proxies the same way.
 - **Direct-to-storage uploads** through presigned URLs, so large files never pass through the small API instance.
 - **API contract first:** `api/openapi.yaml` generates the Go server interfaces (oapi-codegen) and the TypeScript client types.
 - **External tick:** **cron-job.org** (free, no card) calls the authenticated `POST /internal/tick` every 10 minutes. (It is not run on GitHub Actions: the repo is private, and 4,300+ runs a month would exceed the 2,000 free minutes.) The tick runs due reminders, expected-bill checks and scheduled jobs. It also keeps the Render instance awake and stops Supabase pausing the project for inactivity.
