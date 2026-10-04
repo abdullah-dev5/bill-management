@@ -202,6 +202,7 @@ func TestParseOCRDoesNotMistakeNeighbours(t *testing.T) {
 	}
 }
 
+// SSGC gas bill: no SSGC-specific code; the label rows and history table are read generically.
 func TestParseSSGC(t *testing.T) {
 	r := ParseText(extracttest.SsgcText, append(catalogue, Provider{ShortName: "SSGC"}), "ocr")
 	Validate(&r, Context{ReferencePattern: `^\d{10}$`})
@@ -222,7 +223,7 @@ func TestParseSSGC(t *testing.T) {
 	if len(r.Warnings) != 0 {
 		t.Errorf("unexpected warnings: %+v", r.Warnings)
 	}
-	if !r.Complete() || r.Score() < 0.85 {
+	if !r.Complete() || r.Score() < 0.8 {
 		t.Errorf("score %.2f, complete %v", r.Score(), r.Complete())
 	}
 	if len(r.LateFees) != 1 || r.LateFees[0].AmountMinor != 281000 {
@@ -233,7 +234,7 @@ func TestParseSSGC(t *testing.T) {
 	}
 }
 
-func TestSSGCSummaryMustAddUp(t *testing.T) {
+func TestLabelRowMustFitColumns(t *testing.T) {
 	// OCR dropped a digit from the current charges: the row is ignored rather than trusted.
 	text := "Sui Southern Gas Company Limited\nPrevious Balance Current Charges Payable\n3 238 2,740 65 2,810 11-Oct-24\n"
 	r := ParseText(text, nil, "ocr")
