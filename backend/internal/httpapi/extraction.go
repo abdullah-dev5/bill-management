@@ -173,7 +173,7 @@ func (s *Server) StartWorkers(ctx context.Context, n int) {
 // runNextExtraction claims and runs one queued extraction. It reports whether a job ran.
 func (s *Server) runNextExtraction(ctx context.Context) (bool, error) {
 	lock := s.now().Add(extractionLock)
-	job, err := s.db.ClaimExtraction(ctx, &lock)
+	job, err := s.db.ClaimExtraction(ctx, store.ClaimExtractionParams{LockedUntil: &lock, Now: s.now()})
 	if store.IsNotFound(err) {
 		return false, nil
 	} else if err != nil {

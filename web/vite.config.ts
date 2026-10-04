@@ -13,6 +13,8 @@ export default defineConfig({
     port: 5173,
     // Same-origin API in development, mirroring the Cloudflare Pages proxy in production.
     proxy: { '/api': 'http://localhost:8080' },
+    // Playwright writes traces and screenshots here; watching them reloads open pages mid-test.
+    watch: { ignored: ['**/e2e/.results/**', '**/e2e/.screenshots/**', '**/playwright-report/**'] },
   },
   test: {
     environment: 'jsdom',

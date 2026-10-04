@@ -112,8 +112,9 @@ const profileRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/profiles/$profileId',
   component: ProfilePage,
-  validateSearch: (s: Record<string, unknown>): { tab?: 'bills' | 'settings' } => ({
-    tab: s.tab === 'bills' || s.tab === 'settings' ? s.tab : undefined,
+  validateSearch: (s: Record<string, unknown>): { tab?: 'bills' | 'payments' | 'documents' | 'settings'; status?: string } => ({
+    tab: s.tab === 'bills' || s.tab === 'payments' || s.tab === 'documents' || s.tab === 'settings' ? s.tab : undefined,
+    status: str(s.status),
   }),
 })
 

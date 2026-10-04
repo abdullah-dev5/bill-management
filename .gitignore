@@ -33,3 +33,6 @@ Thumbs.db
 
 # Real bills for local extraction tests (contain personal data; never commit)
 /samples/
+
+# Personal brainstorming notes (not part of the repo)
+/IDEAS.md

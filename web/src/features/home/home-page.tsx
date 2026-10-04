@@ -4,11 +4,11 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHome, useMe, useProfiles } from '@/api/hooks'
 import { Button } from '@/components/ui/button'
-import { Card, EmptyState, ErrorNotice, SectionTitle, Skeleton, Stat } from '@/components/ui/misc'
+import { Card, EmptyState, ErrorNotice, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { currentMonthKey, formatMonth, shiftMonth } from '@/lib/dates'
-import { formatMoney } from '@/lib/money'
 import { BillRow } from '../bills/bill-row'
 import { ProfileTile } from '../profiles/profile-pages'
+import { MonthProfiles, MonthTotalCard } from './month-total'
 
 export function HomePage() {
   const { t } = useTranslation()
@@ -18,7 +18,6 @@ export function HomePage() {
   const { data: profiles } = useProfiles()
   const byId = useMemo(() => new Map((profiles ?? []).map((p) => [p.id, p])), [profiles])
   const currency = me?.household.currency ?? 'PKR'
-  const money = (v: number) => formatMoney(v, currency)
   const hasRealProfiles = (profiles ?? []).some((p) => !p.isDefault)
 
   return (
@@ -54,11 +53,12 @@ export function HomePage() {
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-12">
-            <Card className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:col-span-12">
-              <Stat label={t('home.billed')} value={money(home.data.billedMinor)} />
-              <Stat label={t('home.paid')} value={money(home.data.paidMinor)} />
-              <Stat label={t('home.outstanding')} value={money(home.data.outstandingMinor)} />
-            </Card>
+            <div className="lg:col-span-7">
+              <MonthTotalCard month={month} total={home.data.monthTotal} currency={currency} />
+            </div>
+            <div className="lg:col-span-5">
+              <MonthProfiles total={home.data.monthTotal} currency={currency} />
+            </div>
           </div>
 
           {!hasRealProfiles && profiles && (

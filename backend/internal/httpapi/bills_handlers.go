@@ -3,7 +3,10 @@ package httpapi
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +110,8 @@ func (s *Server) CreateBill(w http.ResponseWriter, r *http.Request) {
 			// Manual entries are verified by the person typing them (FR-EXTR-08 applies to extracted bills).
 			VerifiedAt: &now, VerifiedBy: &a.UserID, Notes: f.Notes, Tags: f.Tags, CreatedBy: &a.UserID,
 			LateStepUntil: f.LateStepUntil, PayableFinalMinor: f.PayableFinal,
+			PreviousReading: f.PreviousReading, CurrentReading: f.CurrentReading, Units: f.Units,
+			MultiplyingFactor: f.MultiplyingFactor, MeterReplaced: f.MeterReplaced,
 		}); err != nil {
 			if store.UniqueViolation(err) == "bills_profile_period_uniq" {
 				return checkDuplicate(ctx, s.db.Queries, f, uuid.Nil)
@@ -121,9 +126,11 @@ func (s *Server) CreateBill(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if in.PaidNow != nil && !f.Cancelled {
-			return recordFullPayment(ctx, q, a, created.Bill, *in.PaidNow, today)
+			if err := recordFullPayment(ctx, q, a, created.Bill, *in.PaidNow, today); err != nil {
+				return err
+			}
 		}
-		return nil
+		return s.settleArrears(ctx, q, a, id, today)
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -169,6 +176,8 @@ func (s *Server) UpdateBill(w http.ResponseWriter, r *http.Request, id apigen.Id
 			AdjustmentsMinor: f.Adjustments, PayableMinor: f.Payable, PayableAfterDueMinor: f.PayableAfterDue,
 			IsEstimated: f.IsEstimated, Cancelled: f.Cancelled, Notes: f.Notes, Tags: f.Tags,
 			LateStepUntil: f.LateStepUntil, PayableFinalMinor: f.PayableFinal,
+			PreviousReading: f.PreviousReading, CurrentReading: f.CurrentReading, Units: f.Units,
+			MultiplyingFactor: f.MultiplyingFactor, MeterReplaced: f.MeterReplaced,
 		}); err != nil {
 			if store.UniqueViolation(err) == "bills_profile_period_uniq" {
 				return checkDuplicate(ctx, s.db.Queries, f, id)
@@ -177,6 +186,9 @@ func (s *Server) UpdateBill(w http.ResponseWriter, r *http.Request, id apigen.Id
 		}
 		// The due date decides which payments were on time.
 		if err := q.RecalcBillPaid(ctx, id); err != nil {
+			return err
+		}
+		if err := s.settleArrears(ctx, q, a, id, today); err != nil {
 			return err
 		}
 		after, err := q.GetBill(ctx, store.GetBillParams{ID: id, HouseholdID: a.HouseholdID, Today: today})
@@ -290,8 +302,23 @@ func (s *Server) CreatePayment(w http.ResponseWriter, r *http.Request, id apigen
 		if in.PaidOn.Time.After(today.AddDate(0, 0, 1)) {
 			return errField("paidOn", "The payment date can't be in the future.")
 		}
-		return addPayment(ctx, q, a, bill.Bill.ID, in.PaidOn.Time, in.AmountMinor, store.PaymentMethod(in.Method),
+		paymentID, err := addPayment(ctx, q, a, bill.Bill.ID, in.PaidOn.Time, in.AmountMinor, store.PaymentMethod(in.Method),
 			domain.CleanText(in.Reference), domain.CleanText(in.Notes))
+		if err != nil {
+			return err
+		}
+		if in.ReceiptDocumentId != nil {
+			n, err := q.SetDocumentPayment(ctx, store.SetDocumentPaymentParams{
+				ID: *in.ReceiptDocumentId, HouseholdID: a.HouseholdID, BillID: &bill.Bill.ID, PaymentID: &paymentID,
+			})
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return errField("receiptDocumentId", "The receipt must be a document of this bill.")
+			}
+		}
+		return s.settleArrears(ctx, q, a, bill.Bill.ID, today)
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -316,9 +343,16 @@ func (s *Server) DeletePayment(w http.ResponseWriter, r *http.Request, id apigen
 		if err := q.RecalcBillPaid(ctx, p.BillID); err != nil {
 			return err
 		}
-		return audit(ctx, q, a, "bill", p.BillID, "payment_deleted", map[string]any{
+		if err := audit(ctx, q, a, "bill", p.BillID, "payment_deleted", map[string]any{
 			"amountMinor": p.AmountMinor, "paidOn": dateString(p.PaidOn), "method": string(p.Method),
-		})
+		}); err != nil {
+			return err
+		}
+		hh, err := q.GetHousehold(ctx, a.HouseholdID)
+		if err != nil {
+			return err
+		}
+		return s.settleArrears(ctx, q, a, p.BillID, s.today(hh.Timezone))
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -328,17 +362,18 @@ func (s *Server) DeletePayment(w http.ResponseWriter, r *http.Request, id apigen
 }
 
 func addPayment(ctx context.Context, q *store.Queries, a authInfo, billID uuid.UUID, paidOn time.Time, amount int64,
-	method store.PaymentMethod, reference, notes *string) error {
+	method store.PaymentMethod, reference, notes *string) (uuid.UUID, error) {
+	id := uuid.Must(uuid.NewV7())
 	if _, err := q.CreatePayment(ctx, store.CreatePaymentParams{
-		ID: uuid.Must(uuid.NewV7()), HouseholdID: a.HouseholdID, BillID: billID, PaidOn: paidOn,
+		ID: id, HouseholdID: a.HouseholdID, BillID: billID, PaidOn: paidOn,
 		AmountMinor: amount, Method: method, Reference: reference, Notes: notes, CreatedBy: &a.UserID,
 	}); err != nil {
-		return err
+		return uuid.Nil, err
 	}
 	if err := q.RecalcBillPaid(ctx, billID); err != nil {
-		return err
+		return uuid.Nil, err
 	}
-	return audit(ctx, q, a, "bill", billID, "payment_added", map[string]any{
+	return id, audit(ctx, q, a, "bill", billID, "payment_added", map[string]any{
 		"amountMinor": amount, "paidOn": dateString(paidOn), "method": string(method),
 	})
 }
@@ -352,7 +387,8 @@ func recordFullPayment(ctx context.Context, q *store.Queries, a authInfo, b stor
 	if amount <= 0 {
 		return nil
 	}
-	return addPayment(ctx, q, a, b.ID, paid.PaidOn.Time, amount, store.PaymentMethod(paid.Method), nil, nil)
+	_, err := addPayment(ctx, q, a, b.ID, paid.PaidOn.Time, amount, store.PaymentMethod(paid.Method), nil, nil)
+	return err
 }
 
 // amountDueOn is the full amount payable on a given date: within the due date, after it,
@@ -390,10 +426,16 @@ type billFields struct {
 	PayableAfterDue *int64
 	LateStepUntil   *time.Time
 	PayableFinal    *int64
-	IsEstimated     bool
-	Cancelled       bool
-	Notes           *string
-	Tags            []string
+
+	PreviousReading   *float64
+	CurrentReading    *float64
+	Units             *float64
+	MultiplyingFactor *float64
+	MeterReplaced     bool
+	IsEstimated       bool
+	Cancelled         bool
+	Notes             *string
+	Tags              []string
 }
 
 // buildBill validates a bill against its profile's kind (FR-BILL-01/02/04). existing is nil on create.
@@ -516,10 +558,61 @@ func buildBill(ctx context.Context, q *store.Queries, a authInfo, today time.Tim
 		fields.Add("payableFinalMinor", "Should be at least the amount payable after the due date.")
 	}
 
+	if profile.Kind == store.ProfileKindMetered {
+		applyReadings(&f, in, profile, fields)
+	}
+
 	if fields.Any() {
 		return f, errValidation(fields)
 	}
 	return f, nil
+}
+
+// applyReadings validates meter readings and works out the consumption (FR-CONS-01…04):
+// units = (current − previous) × multiplying factor, unless the meter was replaced, when the
+// printed units are used.
+func applyReadings(f *billFields, in apigen.BillInput, profile store.BillProfile, fields domain.FieldErrors) {
+	f.PreviousReading, f.CurrentReading, f.Units = in.PreviousReading, in.CurrentReading, in.Units
+	f.MeterReplaced = deref(in.MeterReplaced)
+	if f.PreviousReading == nil && f.CurrentReading == nil && f.Units == nil {
+		return
+	}
+	mf := 1.0
+	switch {
+	case in.MultiplyingFactor != nil:
+		mf = *in.MultiplyingFactor
+	case profile.MultiplyingFactor != nil:
+		mf = *profile.MultiplyingFactor
+	}
+	f.MultiplyingFactor = &mf
+
+	if (f.PreviousReading == nil) != (f.CurrentReading == nil) {
+		missing := "previousReading"
+		if f.CurrentReading == nil {
+			missing = "currentReading"
+		}
+		fields.Add(missing, "Enter both readings, or neither.")
+		return
+	}
+	if f.PreviousReading == nil {
+		return // units only
+	}
+	if f.MeterReplaced {
+		if f.Units == nil {
+			fields.Add("units", "The meter was replaced: enter the units printed on the bill.")
+		}
+		return
+	}
+	if *f.CurrentReading < *f.PreviousReading {
+		fields.Add("currentReading", "Lower than the previous reading. If the meter was replaced, tick “Meter replaced”.")
+		return
+	}
+	computed := math.Round((*f.CurrentReading-*f.PreviousReading)*mf*100) / 100
+	if f.Units == nil {
+		f.Units = &computed
+	} else if math.Abs(*f.Units-computed) > 1 {
+		fields.Add("units", fmt.Sprintf("The readings give %s units. Check the readings or the units.", strconv.FormatFloat(computed, 'f', -1, 64)))
+	}
 }
 
 // checkDuplicate enforces one bill per profile per billing month (FR-RECO-01 for manual entry).
@@ -556,6 +649,8 @@ func createToInput(c apigen.BillCreate) apigen.BillInput {
 		DueDate: c.DueDate, ExpenseDate: c.ExpenseDate, IsEstimated: c.IsEstimated, IssueDate: c.IssueDate,
 		Notes: c.Notes, PayableAfterDueMinor: c.PayableAfterDueMinor, PayableMinor: c.PayableMinor,
 		LateStepUntil: c.LateStepUntil, PayableFinalMinor: c.PayableFinalMinor,
+		PreviousReading: c.PreviousReading, CurrentReading: c.CurrentReading, Units: c.Units,
+		MultiplyingFactor: c.MultiplyingFactor, MeterReplaced: c.MeterReplaced,
 		PeriodEnd: c.PeriodEnd, PeriodKey: c.PeriodKey, PeriodStart: c.PeriodStart, ProfileId: c.ProfileId,
 		Tags: c.Tags, TypeId: c.TypeId,
 	}

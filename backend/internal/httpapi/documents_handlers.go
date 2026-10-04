@@ -361,7 +361,7 @@ func (s *Server) toDocument(ctx context.Context, d store.Document) (apigen.Docum
 	out := apigen.Document{
 		Id: d.ID, BillId: d.BillID, Kind: apigen.DocumentKind(d.Kind), Source: apigen.DocumentSource(d.Source),
 		Status: apigen.DocumentStatus(d.Status), FileName: d.FileName, ContentType: d.ContentType,
-		SizeBytes: d.SizeBytes, CreatedAt: d.CreatedAt, PageCount: int32ToIntPtr(d.PageCount),
+		SizeBytes: d.SizeBytes, CreatedAt: d.CreatedAt, PageCount: int32ToIntPtr(d.PageCount), PaymentId: d.PaymentID,
 	}
 	if d.Status != store.DocumentStatusReady {
 		return out, nil
@@ -435,7 +435,7 @@ func (s *Server) putFile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errField("Content-Type", "Must be "+doc.ContentType+"."))
 		return
 	}
-	_ = http.NewResponseController(w).SetReadDeadline(s.now().Add(5 * time.Minute))
+	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(5 * time.Minute)) // real time: network deadlines, not the app clock
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, doc.SizeBytes))
 	if err != nil || int64(len(body)) != doc.SizeBytes {
 		writeError(w, errField("body", "The file size doesn't match."))
@@ -485,7 +485,7 @@ func (s *Server) getFile(w http.ResponseWriter, r *http.Request) {
 		// Browsers' PDF viewers don't run in a sandbox; images never need scripts.
 		h.Set("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox")
 	}
-	_ = http.NewResponseController(w).SetWriteDeadline(s.now().Add(5 * time.Minute))
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(5 * time.Minute)) // real time: network deadlines, not the app clock
 	_, _ = io.Copy(w, rc)
 }
 

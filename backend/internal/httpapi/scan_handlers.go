@@ -88,6 +88,8 @@ func (s *Server) SaveScannedBill(w http.ResponseWriter, r *http.Request, id apig
 				// The user checked every value on the verification screen.
 				VerifiedAt: &now, VerifiedBy: &a.UserID, Notes: f.Notes, Tags: f.Tags, CreatedBy: &a.UserID,
 				LateStepUntil: f.LateStepUntil, PayableFinalMinor: f.PayableFinal,
+				PreviousReading: f.PreviousReading, CurrentReading: f.CurrentReading, Units: f.Units,
+				MultiplyingFactor: f.MultiplyingFactor, MeterReplaced: f.MeterReplaced,
 			}); err != nil {
 				if store.UniqueViolation(err) == "bills_profile_period_uniq" {
 					return checkDuplicate(ctx, s.db.Queries, f, uuid.Nil)
@@ -115,6 +117,9 @@ func (s *Server) SaveScannedBill(w http.ResponseWriter, r *http.Request, id apig
 			if err := saveHistory(ctx, q, a, f.ProfileID, doc.ID, *in.History); err != nil {
 				return err
 			}
+		}
+		if err := s.settleArrears(ctx, q, a, billID, today); err != nil {
+			return err
 		}
 		if in.ExtractionId != nil {
 			return s.recordCorrections(ctx, q, a, *in.ExtractionId, f)
@@ -163,11 +168,7 @@ func saveHistory(ctx context.Context, q *store.Queries, a authInfo, profileID, d
 		if !domain.ValidPeriodKey(h.Month) {
 			return errField("history", "Invalid month "+h.Month+".")
 		}
-		var units *float64
-		if h.Units != nil {
-			u := float64(*h.Units)
-			units = &u
-		}
+		units := h.Units
 		if err := q.UpsertProfileHistory(ctx, store.UpsertProfileHistoryParams{
 			ProfileID: profileID, HouseholdID: a.HouseholdID, PeriodKey: h.Month,
 			Units: units, BilledMinor: h.BilledMinor, PaidMinor: h.PaidMinor, DocumentID: &documentID,
@@ -198,6 +199,13 @@ func (s *Server) recordCorrections(ctx context.Context, q *store.Queries, a auth
 		}
 		return money(*v)
 	}
+	num := func(v *float64) *string {
+		if v == nil {
+			return nil
+		}
+		s := strconv.FormatFloat(*v, 'f', -1, 64)
+		return &s
+	}
 	date := func(t *time.Time) *string {
 		if t == nil {
 			return nil
@@ -217,6 +225,9 @@ func (s *Server) recordCorrections(ctx context.Context, q *store.Queries, a auth
 		extract.FAdjustments:     money(f.Adjustments),
 		extract.FPayable:         money(f.Payable),
 		extract.FPayableAfterDue: moneyPtr(f.PayableAfterDue),
+		extract.FPreviousReading: num(f.PreviousReading),
+		extract.FCurrentReading:  num(f.CurrentReading),
+		extract.FUnits:           num(f.Units),
 	}
 	if f.BillNumber != nil {
 		n := domain.NormalizeReference(*f.BillNumber)
@@ -284,7 +295,12 @@ func (s *Server) GetProfileHistory(w http.ResponseWriter, r *http.Request, id ap
 		s.fail(w, r, err)
 		return
 	}
-	bills, err := s.db.ListProfileBillMonths(ctx, store.ListProfileBillMonthsParams{ProfileID: id, HouseholdID: a.HouseholdID})
+	hh, err := s.db.GetHousehold(ctx, a.HouseholdID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	bills, err := s.db.ListProfileBillMonths(ctx, store.ListProfileBillMonthsParams{ProfileID: id, HouseholdID: a.HouseholdID, Today: s.today(hh.Timezone)})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -292,10 +308,7 @@ func (s *Server) GetProfileHistory(w http.ResponseWriter, r *http.Request, id ap
 	months := map[string]*apigen.HistoryMonth{}
 	for _, p := range printed {
 		m := &apigen.HistoryMonth{Month: p.PeriodKey, Source: apigen.HistoryMonthSourcePrinted, BilledMinor: p.BilledMinor, PaidMinor: p.PaidMinor}
-		if p.Units != nil {
-			u := float32(*p.Units)
-			m.Units = &u
-		}
+		m.Units = p.Units
 		months[p.PeriodKey] = m
 	}
 	for _, b := range bills {
@@ -305,13 +318,71 @@ func (s *Server) GetProfileHistory(w http.ResponseWriter, r *http.Request, id ap
 			m = &apigen.HistoryMonth{Month: b.PeriodKey}
 			months[b.PeriodKey] = m
 		}
+		if b.Units != nil {
+			m.Units = b.Units
+		}
 		// The bill itself wins over printed history; printed units are kept until readings exist (M3).
-		m.Source, m.BilledMinor, m.PaidMinor, m.BillId = apigen.HistoryMonthSourceBill, &billed, &paid, &billID
+		status := apigen.BillStatus(b.Status)
+		m.Source, m.BilledMinor, m.PaidMinor, m.BillId, m.Status = apigen.HistoryMonthSourceBill, &billed, &paid, &billID, &status
 	}
 	out := make([]apigen.HistoryMonth, 0, len(months))
 	for _, m := range months {
 		out = append(out, *m)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Month < out[j].Month })
+	writeJSON(w, http.StatusOK, out)
+}
+
+// ensureProfile checks the profile belongs to the household.
+func (s *Server) ensureProfile(w http.ResponseWriter, r *http.Request, id uuid.UUID) bool {
+	_, err := s.db.GetProfile(r.Context(), store.GetProfileParams{ID: id, HouseholdID: mustAuth(r).HouseholdID})
+	if store.IsNotFound(err) {
+		s.fail(w, r, errNotFound("profile"))
+		return false
+	} else if err != nil {
+		s.fail(w, r, err)
+		return false
+	}
+	return true
+}
+
+// ListProfilePayments lists the payments made towards a profile's bills (profile dashboard).
+func (s *Server) ListProfilePayments(w http.ResponseWriter, r *http.Request, id apigen.Id) {
+	if !s.ensureProfile(w, r, id) {
+		return
+	}
+	rows, err := s.db.ListProfilePayments(r.Context(), store.ListProfilePaymentsParams{ProfileID: id, HouseholdID: mustAuth(r).HouseholdID})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out := make([]apigen.ProfilePayment, 0, len(rows))
+	for _, p := range rows {
+		out = append(out, apigen.ProfilePayment{
+			Id: p.ID, BillId: p.BillID, PaidOn: toDate(p.PaidOn), AmountMinor: p.AmountMinor,
+			Method: apigen.PaymentMethod(p.Method), Reference: p.Reference, Notes: p.Notes, CreatedAt: p.CreatedAt,
+			ReceiptDocumentId: p.ReceiptDocumentID, BillPeriodKey: p.PeriodKey, BillDescription: p.Description,
+			BillExpenseDate: toDate(p.ExpenseDate),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// ListProfileDocuments lists the documents of a profile's bills (profile dashboard).
+func (s *Server) ListProfileDocuments(w http.ResponseWriter, r *http.Request, id apigen.Id) {
+	if !s.ensureProfile(w, r, id) {
+		return
+	}
+	ctx := r.Context()
+	rows, err := s.db.ListProfileDocuments(ctx, store.ListProfileDocumentsParams{ProfileID: id, HouseholdID: mustAuth(r).HouseholdID})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out, err := s.toDocuments(ctx, rows)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, out)
 }

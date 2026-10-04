@@ -29,6 +29,11 @@ export interface BillFormValues {
   payableFinalMinor: number | null
   billNumber: string
   isEstimated: boolean
+  previousReading: string
+  currentReading: string
+  units: string
+  multiplyingFactor: string
+  meterReplaced: boolean
   cancelled: boolean
   notes: string
   paidNow: boolean
@@ -37,6 +42,21 @@ export interface BillFormValues {
 }
 
 const valid = (n: number | null | undefined): n is number => n != null && !Number.isNaN(n)
+
+const numText = (n: number | null | undefined) => (n == null ? '' : String(n))
+
+/** Parses a reading or unit count; empty is null, garbage is NaN. */
+export const parseNumber = (s: string): number | null => {
+  const t = s.replace(/,/g, '').trim()
+  if (t === '') return null
+  return /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN
+}
+
+/** Units from the readings: (present − previous) × multiplying factor. */
+export function unitsFromReadings(prev: number | null, cur: number | null, mf: number | null): number | null {
+  if (prev == null || cur == null || Number.isNaN(prev) || Number.isNaN(cur) || cur < prev) return null
+  return Math.round((cur - prev) * (mf && mf > 0 ? mf : 1) * 100) / 100
+}
 
 function toValues(profile: Profile, bill?: BillDetail): BillFormValues {
   const expenseLog = profile.kind === 'expense_log'
@@ -56,6 +76,12 @@ function toValues(profile: Profile, bill?: BillDetail): BillFormValues {
     payableFinalMinor: bill?.payableFinalMinor ?? null,
     billNumber: bill?.billNumber ?? '',
     isEstimated: bill?.isEstimated ?? false,
+    // A new bill starts from the profile's last present reading.
+    previousReading: numText(bill ? bill.previousReading : profile.summary?.lastReading),
+    currentReading: numText(bill?.currentReading),
+    units: numText(bill?.units),
+    multiplyingFactor: numText(bill?.multiplyingFactor ?? profile.multiplyingFactor ?? 1),
+    meterReplaced: bill?.meterReplaced ?? false,
     cancelled: bill?.cancelled ?? false,
     notes: bill?.notes ?? '',
     // Expense-log entries are usually paid on the spot.
@@ -104,6 +130,11 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
     return { hint: t('scan.checkThis'), className: 'rounded-field ring-2 ring-[var(--st-soon-fg)]/40 ring-offset-4 ring-offset-card' }
   }
   const afterDue = watch('payableAfterDueMinor')
+  const metered = profile.kind === 'metered'
+  const [prevReading, curReading, mfText, replaced] = watch(['previousReading', 'currentReading', 'multiplyingFactor', 'meterReplaced'])
+  const computedUnits = replaced ? null : unitsFromReadings(parseNumber(prevReading), parseNumber(curReading), parseNumber(mfText))
+  const unitLabel = profile.consumptionUnit || t('bills.unitsDefault')
+  const unitsFieldLabel = profile.consumptionUnit ? t('bills.unitsLabel', { unit: profile.consumptionUnit }) : t('bills.unitsPlain')
   const [duplicateId, setDuplicateId] = useState<string>()
 
   const subCategories = useMemo(() => (types ?? []).filter((ty) => ty.parentId === profile.typeId && !ty.archived), [types, profile.typeId])
@@ -124,7 +155,24 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
         return
       }
     }
+    const readings: Partial<BillCreate> = {}
+    if (metered) {
+      const nums = {
+        previousReading: parseNumber(v.previousReading),
+        currentReading: parseNumber(v.currentReading),
+        units: parseNumber(v.units),
+        multiplyingFactor: parseNumber(v.multiplyingFactor),
+      }
+      for (const [k, n] of Object.entries(nums)) {
+        if (n != null && Number.isNaN(n)) {
+          form.setError(k as keyof BillFormValues, { message: t('validation.number') })
+          return
+        }
+      }
+      Object.assign(readings, nums, { meterReplaced: v.meterReplaced })
+    }
     const body: BillCreate = {
+      ...readings,
       profileId: profile.id,
       currentChargesMinor: v.currentChargesMinor,
       arrearsMinor: v.arrearsMinor ?? 0,
@@ -237,6 +285,34 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
               {money('payableAfterDueMinor')}
             </Field>
           </div>
+          {metered && (
+            <div className="flex flex-col gap-3 rounded-field bg-card-muted/50 p-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field label={t('bills.previousReading')} error={errors.previousReading?.message} optional {...check('previousReading')}>
+                  {(p) => <Input {...p} inputMode="decimal" className="tabular" {...register('previousReading')} />}
+                </Field>
+                <Field label={t('bills.currentReading')} error={errors.currentReading?.message} optional {...check('currentReading')}>
+                  {(p) => <Input {...p} inputMode="decimal" className="tabular" {...register('currentReading')} />}
+                </Field>
+                <Field
+                  label={unitsFieldLabel}
+                  hint={computedUnits != null ? t('bills.unitsComputed', { units: computedUnits, unit: unitLabel }) : undefined}
+                  error={errors.units?.message}
+                  optional
+                  {...check('units')}
+                >
+                  {(p) => <Input {...p} inputMode="decimal" className="tabular" placeholder={computedUnits != null ? String(computedUnits) : ''} {...register('units')} />}
+                </Field>
+              </div>
+              <Controller
+                control={control}
+                name="meterReplaced"
+                render={({ field }) => (
+                  <Toggle label={t('bills.meterReplaced')} hint={t('bills.meterReplacedHint')} checked={field.value} onChange={field.onChange} />
+                )}
+              />
+            </div>
+          )}
           {valid(afterDue) && (
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label={t('bills.lateStepUntil')} hint={t('bills.lateStepHint')} error={errors.lateStepUntil?.message} optional>
@@ -278,6 +354,11 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
               <Field label={t('bills.billNumber')} error={errors.billNumber?.message} optional {...check('billNumber')}>
                 {(p) => <Input {...p} autoComplete="off" {...register('billNumber')} />}
               </Field>
+              {metered && (
+                <Field label={t('bills.multiplyingFactor')} hint={t('bills.multiplyingFactorHint')} error={errors.multiplyingFactor?.message}>
+                  {(p) => <Input {...p} inputMode="decimal" className="tabular sm:max-w-40" {...register('multiplyingFactor')} />}
+                </Field>
+              )}
               <Controller control={control} name="isEstimated" render={({ field }) => <Toggle label={t('bills.estimated')} checked={field.value} onChange={field.onChange} />} />
             </>
           )}

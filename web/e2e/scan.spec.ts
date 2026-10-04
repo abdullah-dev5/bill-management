@@ -41,14 +41,18 @@ test('scan a bill, check it, save it to a new profile with its history', async (
   await expect(main.getByLabel(/^That amount applies until/)).toHaveValue('2026-10-08')
   await expect(main.getByLabel(/^Payable after that date/)).toHaveValue('3,512')
   await expect(main.getByRole('switch', { name: /Save 12 months of bill history/ })).toHaveAttribute('aria-checked', 'true')
+  await expect(main.getByLabel(/^Previous reading/)).toHaveValue('18690')
+  await expect(main.getByLabel(/^Present reading/)).toHaveValue('18854')
+  await expect(main.getByLabel(/^Units \(kWh\)/)).toHaveValue('164')
   await shot(page, '01-review')
 
   await main.getByRole('button', { name: 'Save bill' }).click()
-  await expect(page.getByText('Bill saved')).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'September 2026', exact: true })).toBeVisible()
+  // The saved bill opens (checked rather than the short-lived toast).
+  await expect(page.getByRole('heading', { name: 'September 2026', exact: true })).toBeVisible({ timeout: 15_000 })
   await expect(main.getByRole('button', { name: /^hesco-sep-26\.pdf/ })).toBeVisible()
   await expect(main.getByText('After due date, until 08 Oct 2026')).toBeVisible()
   await expect(main.getByText('After 08 Oct 2026')).toBeVisible()
+  await expect(main.getByText('18,690 → 18,854 · 164 kWh')).toBeVisible()
   await shot(page, '02-bill')
 
   // The new profile's dashboard shows the printed history next to the bill.
@@ -57,6 +61,8 @@ test('scan a bill, check it, save it to a new profile with its history', async (
   await expect(main.getByRole('heading', { name: 'Bill history' })).toBeVisible()
   await expect(main.getByRole('img', { name: 'Bill amounts by month' })).toBeVisible()
   await expect(main.getByRole('cell', { name: 'Aug 2026' })).toBeVisible()
+  await main.getByRole('button', { name: 'Units' }).click()
+  await expect(main.getByRole('img', { name: 'Units used by month' })).toBeVisible()
   await shot(page, '03-profile-history')
 
   // Scanning the same file again finds the saved bill instead of creating a duplicate.

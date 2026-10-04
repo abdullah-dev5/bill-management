@@ -619,6 +619,12 @@ type Bill struct {
 	LateStepUntil        *time.Time
 	PayableFinalMinor    *int64
 	PaidByStepMinor      int64
+	SettledByBillID      *uuid.UUID
+	PreviousReading      *float64
+	CurrentReading       *float64
+	Units                *float64
+	MultiplyingFactor    *float64
+	MeterReplaced        bool
 }
 
 type BillProfile struct {
@@ -682,6 +688,7 @@ type Document struct {
 	UploadedAt  *time.Time
 	PageCount   *int32
 	OcrText     *string
+	PaymentID   *uuid.UUID
 }
 
 type Extraction struct {

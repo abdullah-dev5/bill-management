@@ -19,6 +19,7 @@ import { billTitle, BillsList } from '../bills/bill-row'
 import { PaymentSheet } from '../bills/payment-sheet'
 import { ProfileForm } from './profile-form'
 import { HistoryCard } from './history-card'
+import { ProfileBills, ProfileDocuments, ProfilePayments } from './profile-tabs'
 
 // --- Profile tile ----------------------------------------------------------------------
 
@@ -71,7 +72,7 @@ export function ProfilesPage() {
     const byType = new Map<string, Profile[]>()
     for (const p of visible) byType.set(p.typeId, [...(byType.get(p.typeId) ?? []), p])
     return [...byType.entries()]
-      .map(([typeId, items]) => ({ type: typeById.get(typeId), items }))
+      .map(([typeId, items]) => ({ typeId, type: typeById.get(typeId), items }))
       .sort((a, b) => (a.items[0]?.sortOrder ?? 0) - (b.items[0]?.sortOrder ?? 0))
   }, [profiles.data, typeById, group])
 
@@ -115,8 +116,8 @@ export function ProfilesPage() {
           />
         </Card>
       ) : (
-        sections.map(({ type, items }) => (
-          <section key={type?.id ?? 'unknown'}>
+        sections.map(({ typeId, type, items }) => (
+          <section key={typeId}>
             <h2 className="mb-2 px-1 text-xs font-semibold tracking-wide text-muted">
               {(type?.name ?? '').toUpperCase()} · {items.length}
             </h2>
@@ -161,13 +162,13 @@ export function NewProfilePage() {
 
 // --- Profile dashboard (S10) ----------------------------------------------------------------
 
-type Tab = 'overview' | 'bills' | 'settings'
+type Tab = 'overview' | 'bills' | 'payments' | 'documents' | 'settings'
 
 export function ProfilePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { profileId } = useParams({ from: '/app/profiles/$profileId' })
-  const { tab = 'overview' } = useSearch({ from: '/app/profiles/$profileId' })
+  const { tab = 'overview', status = 'all' } = useSearch({ from: '/app/profiles/$profileId' })
   const profile = useProfile(profileId)
   const { data: types } = useTypes()
 
@@ -183,6 +184,8 @@ export function ProfilePage() {
   const p = profile.data
   const type = types?.find((ty) => ty.id === p.typeId)
   const setTab = (next: Tab) => void navigate({ to: '/profiles/$profileId', params: { profileId }, search: { tab: next === 'overview' ? undefined : next }, replace: true })
+  const setStatus = (next: string | undefined) =>
+    void navigate({ to: '/profiles/$profileId', params: { profileId }, search: { tab: 'bills', status: next }, replace: true })
 
   return (
     <div className="flex flex-col gap-5">
@@ -209,7 +212,7 @@ export function ProfilePage() {
           )}
         </div>
         <div className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-bg/95 px-4 py-2 backdrop-blur sm:mx-0 sm:px-0" role="tablist">
-          {(['overview', 'bills', 'settings'] as const).map((key) => (
+          {(['overview', 'bills', 'payments', 'documents', 'settings'] as const).map((key) => (
             <button
               key={key}
               type="button"
@@ -230,9 +233,9 @@ export function ProfilePage() {
       {p.archived && <Card className="bg-card-muted text-sm font-medium">{t('profiles.archivedBanner')}</Card>}
 
       {tab === 'overview' && <ProfileOverview profile={p} onSeeAll={() => setTab('bills')} />}
-      {tab === 'bills' && (
-        <BillsList filters={{ profileId: p.id }} empty={<ProfileEmpty profile={p} />} />
-      )}
+      {tab === 'bills' && <ProfileBills profile={p} status={status} onStatus={setStatus} empty={<ProfileEmpty profile={p} />} />}
+      {tab === 'payments' && <ProfilePayments profile={p} />}
+      {tab === 'documents' && <ProfileDocuments profile={p} />}
       {tab === 'settings' && <ProfileSettings profile={p} />}
     </div>
   )
@@ -277,7 +280,7 @@ function ProfileOverview({ profile, onSeeAll }: { profile: Profile; onSeeAll: ()
       </Card>
       {profile.kind !== 'expense_log' && (
         <div className="lg:col-span-12">
-          <HistoryCard profileId={profile.id} />
+          <HistoryCard profileId={profile.id} unit={profile.consumptionUnit} />
         </div>
       )}
       <section className="lg:col-span-12">

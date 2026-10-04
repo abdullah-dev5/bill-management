@@ -79,6 +79,14 @@ func billSnapshot(b store.Bill) snapshot {
 		s["payableAfterDueMinor"] = *b.PayableAfterDueMinor
 	}
 	addDate(s, "lateStepUntil", b.LateStepUntil)
+	for k, v := range map[string]*float64{"previousReading": b.PreviousReading, "currentReading": b.CurrentReading, "units": b.Units} {
+		if v != nil {
+			s[k] = *v
+		}
+	}
+	if b.MeterReplaced {
+		s["meterReplaced"] = true
+	}
 	if b.PayableFinalMinor != nil {
 		s["payableFinalMinor"] = *b.PayableFinalMinor
 	}

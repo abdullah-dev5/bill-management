@@ -47,6 +47,7 @@ gantt
 
 ### M3 — Payments, consumption & history
 - Payments (partial, methods, receipts), quick "mark paid", late-fee logic, arrears settlement.
+- **Monthly bills total** (FR-DASH-07): what the household has to pay this month, by group and profile.
 - Meter readings, MF, replacement, estimated flag.
 - **Profile dashboards** (overview, bills, payments, documents): history table, spend chart, consumption chart; filters with URL state.
 - **Exit:** a full month of real household bills can be tracked end to end.

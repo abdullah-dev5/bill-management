@@ -1,7 +1,9 @@
+import { Paperclip } from 'lucide-react'
+import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { BillDetail, PaymentMethod } from '@/api/client'
+import type { BillDetail, Doc, PaymentMethod } from '@/api/client'
 import { useAddPayment } from '@/api/hooks'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select } from '@/components/ui/field'
@@ -9,6 +11,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { Sheet } from '@/components/ui/sheet'
 import { todayISO } from '@/lib/dates'
 import { applyServerErrors } from '@/lib/forms'
+import { CaptureSheet } from '@/features/documents/capture-sheet'
 
 export const METHODS: PaymentMethod[] = ['cash', 'bank_transfer', 'card', 'jazzcash', 'easypaisa', 'cheque', 'other']
 
@@ -40,6 +43,8 @@ export function PaymentSheet({ bill, open, onOpenChange }: { bill: BillDetail; o
   const form = useForm<Values>({
     values: { paidOn: todayISO(), amountMinor: amountDueOn(bill, todayISO()), method: lastMethod, reference: '' },
   })
+  const [receipt, setReceipt] = useState<Doc>()
+  const [capturing, setCapturing] = useState(false)
   const paidOn = form.watch('paidOn')
   const isLate = bill.dueDate != null && paidOn > bill.dueDate && bill.payableAfterDueMinor != null
 
@@ -49,8 +54,12 @@ export function PaymentSheet({ bill, open, onOpenChange }: { bill: BillDetail; o
       return
     }
     try {
-      await add.mutateAsync({ paidOn: v.paidOn, amountMinor: v.amountMinor, method: v.method, reference: v.reference.trim() || null })
+      await add.mutateAsync({
+        paidOn: v.paidOn, amountMinor: v.amountMinor, method: v.method, reference: v.reference.trim() || null,
+        receiptDocumentId: receipt?.id,
+      })
       toast.success(t('bills.paymentAdded'))
+      setReceipt(undefined)
       onOpenChange(false)
     } catch (err) {
       applyServerErrors(err, form.setError)
@@ -111,7 +120,32 @@ export function PaymentSheet({ bill, open, onOpenChange }: { bill: BillDetail; o
         <Field label={t('bills.reference')} optional>
           {(p) => <Input {...p} autoComplete="off" {...form.register('reference')} />}
         </Field>
+        <div className="flex flex-wrap items-center gap-3 rounded-field border border-dashed border-line p-3">
+          {receipt ? (
+            <>
+              <Paperclip className="size-4 text-muted" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-sm text-ink" data-testid="receipt-name">
+                {receipt.fileName}
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setReceipt(undefined)}>
+                {t('common.remove')}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="ghost" icon={<Paperclip className="size-4" />} onClick={() => setCapturing(true)}>
+              {t('bills.attachReceipt')}
+            </Button>
+          )}
+        </div>
       </form>
+      <CaptureSheet
+        open={capturing}
+        onOpenChange={setCapturing}
+        billId={bill.id}
+        defaultKind="receipt"
+        title={t('bills.attachReceipt')}
+        onUploaded={({ document }) => setReceipt(document)}
+      />
     </Sheet>
   )
 }

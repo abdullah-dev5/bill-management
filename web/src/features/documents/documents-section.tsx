@@ -74,7 +74,7 @@ export function DocumentsSection({ billId, documents, readOnly, onLinksExpired }
   )
 }
 
-function DocumentViewer({ id, billId, readOnly, onClose }: { id?: string; billId: string; readOnly?: boolean; onClose: () => void }) {
+export function DocumentViewer({ id, billId, readOnly, onClose }: { id?: string; billId: string; readOnly?: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const doc = useDocument(id)
   const remove = useDeleteDocument()

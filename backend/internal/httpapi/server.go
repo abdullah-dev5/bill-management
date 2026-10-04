@@ -62,7 +62,7 @@ func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, 
 		wake:         make(chan struct{}, 1),
 		loginByEmail: ratelimit.New(5, 15*time.Minute),
 		loginByIP:    ratelimit.New(30, 15*time.Minute),
-		signupByIP:   ratelimit.New(10, time.Hour),
+		signupByIP:   ratelimit.New(signupLimit(cfg), time.Hour),
 		resetByKey:   ratelimit.New(3, time.Hour),
 		uploadsByHH:  ratelimit.New(100, time.Hour),
 	}
@@ -128,4 +128,13 @@ func (s *Server) today(tz string) time.Time {
 	}
 	y, m, d := s.now().In(loc).Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+// signupLimit is 10 sign-ups per IP per hour, relaxed on a developer's machine where
+// end-to-end test runs create many accounts from one address.
+func signupLimit(cfg config.Config) int {
+	if cfg.Env == "development" {
+		return 500
+	}
+	return 10
 }

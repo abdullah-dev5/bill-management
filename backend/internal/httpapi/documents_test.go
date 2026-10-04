@@ -352,7 +352,7 @@ func TestDocumentStorageCleanup(t *testing.T) {
 	up, _ := cl.startUpload(other, "image/jpeg", nil)
 	cl.putBytes(up.Upload.Url, "image/jpeg", other)
 	key = storageKey(up.Document.Id.String())
-	if _, err := testDB.Pool.Exec(ctx, "UPDATE documents SET created_at = now() - interval '25 hours' WHERE id = $1", up.Document.Id); err != nil {
+	if _, err := testDB.Pool.Exec(ctx, "UPDATE documents SET created_at = $2 WHERE id = $1", up.Document.Id, e.server.now().Add(-25*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	tick()

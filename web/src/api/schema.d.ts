@@ -516,6 +516,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profiles/{id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Payments made towards the profile's bills, newest first. */
+        get: operations["listProfilePayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description Documents attached to the profile's bills, newest first (with fresh signed links). */
+        get: operations["listProfileDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profiles/{id}/history": {
         parameters: {
             query?: never;
@@ -716,6 +754,11 @@ export interface components {
              */
             thisYearMinor: number;
             latestBill?: components["schemas"]["Bill"];
+            /**
+             * Format: double
+             * @description The latest bill's present reading (next bill's previous reading)
+             */
+            lastReading?: number | null;
         };
         ProfileInput: {
             name: string;
@@ -782,12 +825,29 @@ export interface components {
             lateStepUntil?: string | null;
             /** Format: int64 */
             payableFinalMinor?: number | null;
+            /**
+             * Format: uuid
+             * @description Paid through a later bill that carried this bill's amount as arrears
+             */
+            settledByBillId?: string | null;
             currency: string;
             status: components["schemas"]["BillStatus"];
             /** Format: int64 */
             paidMinor: number;
             /** Format: int64 */
             outstandingMinor: number;
+            /** Format: double */
+            previousReading?: number | null;
+            /** Format: double */
+            currentReading?: number | null;
+            /**
+             * Format: double
+             * @description Consumption for the period (readings × multiplying factor
+             */
+            units?: number | null;
+            /** Format: double */
+            multiplyingFactor?: number | null;
+            meterReplaced: boolean;
             isEstimated: boolean;
             cancelled: boolean;
             notes?: string | null;
@@ -836,6 +896,19 @@ export interface components {
             lateStepUntil?: string | null;
             /** Format: int64 */
             payableFinalMinor?: number | null;
+            /** Format: double */
+            previousReading?: number | null;
+            /** Format: double */
+            currentReading?: number | null;
+            /**
+             * Format: double
+             * @description Consumption for the period (readings × multiplying factor
+             */
+            units?: number | null;
+            /** Format: double */
+            multiplyingFactor?: number | null;
+            /** @description The meter was replaced this period (readings restart) */
+            meterReplaced?: boolean;
             isEstimated?: boolean;
             cancelled?: boolean;
             notes?: string | null;
@@ -861,15 +934,40 @@ export interface components {
         };
         HistoryEntry: {
             month: string;
+            /** Format: double */
             units?: number | null;
             /** Format: int64 */
             billedMinor?: number | null;
             /** Format: int64 */
             paidMinor?: number | null;
         };
+        ProfilePayment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            billId: string;
+            /** Format: date */
+            paidOn: string;
+            /** Format: int64 */
+            amountMinor: number;
+            method: components["schemas"]["PaymentMethod"];
+            reference?: string | null;
+            notes?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            receiptDocumentId?: string | null;
+            billPeriodKey?: string | null;
+            billDescription?: string | null;
+            /** Format: date */
+            billExpenseDate: string;
+        };
         HistoryMonth: {
+            /** @description Status of the month's bill (bills only) */
+            status?: components["schemas"]["BillStatus"] | null;
             /** @example 2026-08 */
             month: string;
+            /** Format: double */
             units?: number | null;
             /**
              * Format: int64
@@ -914,6 +1012,8 @@ export interface components {
             notes?: string | null;
             /** Format: date-time */
             createdAt: string;
+            /** Format: uuid */
+            receiptDocumentId?: string | null;
         };
         PaymentInput: {
             /** Format: date */
@@ -923,6 +1023,11 @@ export interface components {
             method: components["schemas"]["PaymentMethod"];
             reference?: string | null;
             notes?: string | null;
+            /**
+             * Format: uuid
+             * @description A document of this bill to keep as the payment's receipt
+             */
+            receiptDocumentId?: string;
         };
         /** @enum {string} */
         DocumentKind: "bill" | "receipt" | "other";
@@ -950,6 +1055,11 @@ export interface components {
             /** Format: date-time */
             urlsExpireAt?: string | null;
             pageCount?: number | null;
+            /**
+             * Format: uuid
+             * @description Set when the document is a payment's receipt
+             */
+            paymentId?: string | null;
         };
         ExtractedField: {
             /** @description Money in minor units, dates YYYY-MM-DD, months YYYY-MM, numbers as decimals */
@@ -1050,7 +1160,57 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        MonthTotalGroup: {
+            group: components["schemas"]["TypeGroup"];
+            /** Format: int64 */
+            totalMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /** Format: int64 */
+            remainingMinor: number;
+            billCount: number;
+        };
+        MonthTotalProfile: {
+            /** Format: uuid */
+            profileId: string;
+            name: string;
+            icon: string;
+            color: number;
+            group: components["schemas"]["TypeGroup"];
+            /** Format: int64 */
+            totalMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /** Format: int64 */
+            remainingMinor: number;
+            billCount: number;
+        };
+        /** @description FR-DASH-07 — what the household has to pay for the month's bills. */
+        MonthTotal: {
+            /**
+             * Format: int64
+             * @description paid + remaining
+             */
+            totalMinor: number;
+            /** Format: int64 */
+            paidMinor: number;
+            /**
+             * Format: int64
+             * @description Still to pay at today's amounts (late fees included once due)
+             */
+            remainingMinor: number;
+            billCount: number;
+            /**
+             * Format: int64
+             * @description Still owed on earlier months' bills, not counting amounts this month's open bills already carry as arrears
+             */
+            earlierOutstandingMinor: number;
+            groups: components["schemas"]["MonthTotalGroup"][];
+            profiles: components["schemas"]["MonthTotalProfile"][];
+            nextDue?: components["schemas"]["Bill"] | null;
+        };
         HomeSummary: {
+            monthTotal: components["schemas"]["MonthTotal"];
             /** @example 2026-10 */
             month: string;
             /**
@@ -1708,6 +1868,7 @@ export interface operations {
         parameters: {
             query?: {
                 profileId?: string;
+                /** @description Repeat for several statuses (status=unpaid&status=overdue) */
                 status?: components["schemas"]["BillStatus"][];
                 from?: string;
                 to?: string;
@@ -2141,6 +2302,52 @@ export interface operations {
             400: components["responses"]["ValidationError"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["DuplicateBill"];
+        };
+    };
+    listProfilePayments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Payments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePayment"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listProfileDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Documents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     getProfileHistory: {

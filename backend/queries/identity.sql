@@ -28,7 +28,7 @@ VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: GetSessionByTokenHash :one
 SELECT id, user_id, expires_at, last_seen_at FROM sessions
-WHERE token_hash = $1 AND expires_at > now();
+WHERE token_hash = sqlc.arg(token_hash) AND expires_at > sqlc.arg(now)::timestamptz;
 
 -- name: TouchSession :exec
 UPDATE sessions SET last_seen_at = now(), expires_at = $2 WHERE id = $1;
@@ -40,7 +40,7 @@ DELETE FROM sessions WHERE token_hash = $1;
 DELETE FROM sessions WHERE user_id = $1;
 
 -- name: DeleteExpiredSessions :execrows
-DELETE FROM sessions WHERE expires_at <= now();
+DELETE FROM sessions WHERE expires_at <= sqlc.arg(now)::timestamptz;
 
 -- name: CreatePasswordResetToken :exec
 INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at)
@@ -48,7 +48,7 @@ VALUES ($1, $2, $3, $4);
 
 -- name: GetValidPasswordResetToken :one
 SELECT id, user_id FROM password_reset_tokens
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now();
+WHERE token_hash = sqlc.arg(token_hash) AND used_at IS NULL AND expires_at > sqlc.arg(now)::timestamptz;
 
 -- name: MarkPasswordResetTokenUsed :exec
 UPDATE password_reset_tokens SET used_at = now() WHERE id = $1;
@@ -57,7 +57,7 @@ UPDATE password_reset_tokens SET used_at = now() WHERE id = $1;
 DELETE FROM password_reset_tokens WHERE user_id = $1;
 
 -- name: DeleteExpiredPasswordResetTokens :execrows
-DELETE FROM password_reset_tokens WHERE expires_at <= now() OR used_at IS NOT NULL;
+DELETE FROM password_reset_tokens WHERE expires_at <= sqlc.arg(now)::timestamptz OR used_at IS NOT NULL;
 
 -- name: CreateHousehold :one
 INSERT INTO households (id, name, currency, timezone)

@@ -371,6 +371,7 @@ type Bill struct {
 	CreatedAt           time.Time           `json:"createdAt"`
 	Currency            string              `json:"currency"`
 	CurrentChargesMinor int64               `json:"currentChargesMinor"`
+	CurrentReading      *float64            `json:"currentReading,omitempty"`
 	Description         *string             `json:"description,omitempty"`
 	DueDate             *openapi_types.Date `json:"dueDate,omitempty"`
 	ExpenseDate         openapi_types.Date  `json:"expenseDate"`
@@ -380,6 +381,8 @@ type Bill struct {
 
 	// LateStepUntil The after-due amount applies until this date; payableFinalMinor applies after it
 	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
+	MeterReplaced        bool                `json:"meterReplaced"`
+	MultiplyingFactor    *float64            `json:"multiplyingFactor,omitempty"`
 	Notes                *string             `json:"notes,omitempty"`
 	OutstandingMinor     int64               `json:"outstandingMinor"`
 	PaidMinor            int64               `json:"paidMinor"`
@@ -389,13 +392,20 @@ type Bill struct {
 	PeriodEnd            *openapi_types.Date `json:"periodEnd,omitempty"`
 
 	// PeriodKey Example: 2026-09
-	PeriodKey   *string             `json:"periodKey,omitempty"`
-	PeriodStart *openapi_types.Date `json:"periodStart,omitempty"`
-	ProfileId   openapi_types.UUID  `json:"profileId"`
-	Status      BillStatus          `json:"status"`
-	Tags        []string            `json:"tags"`
-	TypeId      openapi_types.UUID  `json:"typeId"`
-	UpdatedAt   time.Time           `json:"updatedAt"`
+	PeriodKey       *string             `json:"periodKey,omitempty"`
+	PeriodStart     *openapi_types.Date `json:"periodStart,omitempty"`
+	PreviousReading *float64            `json:"previousReading,omitempty"`
+	ProfileId       openapi_types.UUID  `json:"profileId"`
+
+	// SettledByBillId Paid through a later bill that carried this bill's amount as arrears
+	SettledByBillId *openapi_types.UUID `json:"settledByBillId,omitempty"`
+	Status          BillStatus          `json:"status"`
+	Tags            []string            `json:"tags"`
+	TypeId          openapi_types.UUID  `json:"typeId"`
+
+	// Units Consumption for the period (readings × multiplying factor
+	Units     *float64  `json:"units,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // BillCreate defines model for BillCreate.
@@ -405,13 +415,18 @@ type BillCreate struct {
 	BillNumber          *string             `json:"billNumber,omitempty"`
 	Cancelled           *bool               `json:"cancelled,omitempty"`
 	CurrentChargesMinor int64               `json:"currentChargesMinor"`
+	CurrentReading      *float64            `json:"currentReading,omitempty"`
 	Description         *string             `json:"description,omitempty"`
 	DueDate             *openapi_types.Date `json:"dueDate,omitempty"`
 	ExpenseDate         *openapi_types.Date `json:"expenseDate,omitempty"`
 	IsEstimated         *bool               `json:"isEstimated,omitempty"`
 	IssueDate           *openapi_types.Date `json:"issueDate,omitempty"`
 	LateStepUntil       *openapi_types.Date `json:"lateStepUntil,omitempty"`
-	Notes               *string             `json:"notes,omitempty"`
+
+	// MeterReplaced The meter was replaced this period (readings restart)
+	MeterReplaced     *bool    `json:"meterReplaced,omitempty"`
+	MultiplyingFactor *float64 `json:"multiplyingFactor,omitempty"`
+	Notes             *string  `json:"notes,omitempty"`
 
 	// PaidNow Records a full payment in the same step ("Already paid?")
 	PaidNow              *PaidNow `json:"paidNow,omitempty"`
@@ -419,15 +434,19 @@ type BillCreate struct {
 	PayableFinalMinor    *int64   `json:"payableFinalMinor,omitempty"`
 
 	// PayableMinor Defaults to current charges + arrears + adjustments
-	PayableMinor *int64              `json:"payableMinor,omitempty"`
-	PeriodEnd    *openapi_types.Date `json:"periodEnd,omitempty"`
-	PeriodKey    *string             `json:"periodKey,omitempty"`
-	PeriodStart  *openapi_types.Date `json:"periodStart,omitempty"`
-	ProfileId    openapi_types.UUID  `json:"profileId"`
-	Tags         *[]string           `json:"tags,omitempty"`
+	PayableMinor    *int64              `json:"payableMinor,omitempty"`
+	PeriodEnd       *openapi_types.Date `json:"periodEnd,omitempty"`
+	PeriodKey       *string             `json:"periodKey,omitempty"`
+	PeriodStart     *openapi_types.Date `json:"periodStart,omitempty"`
+	PreviousReading *float64            `json:"previousReading,omitempty"`
+	ProfileId       openapi_types.UUID  `json:"profileId"`
+	Tags            *[]string           `json:"tags,omitempty"`
 
 	// TypeId Sub-category; defaults to the profile's type
 	TypeId *openapi_types.UUID `json:"typeId,omitempty"`
+
+	// Units Consumption for the period (readings × multiplying factor
+	Units *float64 `json:"units,omitempty"`
 }
 
 // BillDetail defines model for BillDetail.
@@ -440,6 +459,7 @@ type BillDetail struct {
 	CreatedAt           time.Time           `json:"createdAt"`
 	Currency            string              `json:"currency"`
 	CurrentChargesMinor int64               `json:"currentChargesMinor"`
+	CurrentReading      *float64            `json:"currentReading,omitempty"`
 	Description         *string             `json:"description,omitempty"`
 	Documents           []Document          `json:"documents"`
 	DueDate             *openapi_types.Date `json:"dueDate,omitempty"`
@@ -451,6 +471,8 @@ type BillDetail struct {
 
 	// LateStepUntil The after-due amount applies until this date; payableFinalMinor applies after it
 	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
+	MeterReplaced        bool                `json:"meterReplaced"`
+	MultiplyingFactor    *float64            `json:"multiplyingFactor,omitempty"`
 	Notes                *string             `json:"notes,omitempty"`
 	OutstandingMinor     int64               `json:"outstandingMinor"`
 	PaidMinor            int64               `json:"paidMinor"`
@@ -461,42 +483,58 @@ type BillDetail struct {
 	PeriodEnd            *openapi_types.Date `json:"periodEnd,omitempty"`
 
 	// PeriodKey Example: 2026-09
-	PeriodKey   *string             `json:"periodKey,omitempty"`
-	PeriodStart *openapi_types.Date `json:"periodStart,omitempty"`
-	ProfileId   openapi_types.UUID  `json:"profileId"`
-	Status      BillStatus          `json:"status"`
-	Tags        []string            `json:"tags"`
-	TypeId      openapi_types.UUID  `json:"typeId"`
-	UpdatedAt   time.Time           `json:"updatedAt"`
+	PeriodKey       *string             `json:"periodKey,omitempty"`
+	PeriodStart     *openapi_types.Date `json:"periodStart,omitempty"`
+	PreviousReading *float64            `json:"previousReading,omitempty"`
+	ProfileId       openapi_types.UUID  `json:"profileId"`
+
+	// SettledByBillId Paid through a later bill that carried this bill's amount as arrears
+	SettledByBillId *openapi_types.UUID `json:"settledByBillId,omitempty"`
+	Status          BillStatus          `json:"status"`
+	Tags            []string            `json:"tags"`
+	TypeId          openapi_types.UUID  `json:"typeId"`
+
+	// Units Consumption for the period (readings × multiplying factor
+	Units     *float64  `json:"units,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // BillInput defines model for BillInput.
 type BillInput struct {
-	AdjustmentsMinor     *int64              `json:"adjustmentsMinor,omitempty"`
-	ArrearsMinor         *int64              `json:"arrearsMinor,omitempty"`
-	BillNumber           *string             `json:"billNumber,omitempty"`
-	Cancelled            *bool               `json:"cancelled,omitempty"`
-	CurrentChargesMinor  int64               `json:"currentChargesMinor"`
-	Description          *string             `json:"description,omitempty"`
-	DueDate              *openapi_types.Date `json:"dueDate,omitempty"`
-	ExpenseDate          *openapi_types.Date `json:"expenseDate,omitempty"`
-	IsEstimated          *bool               `json:"isEstimated,omitempty"`
-	IssueDate            *openapi_types.Date `json:"issueDate,omitempty"`
-	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
-	Notes                *string             `json:"notes,omitempty"`
-	PayableAfterDueMinor *int64              `json:"payableAfterDueMinor,omitempty"`
-	PayableFinalMinor    *int64              `json:"payableFinalMinor,omitempty"`
+	AdjustmentsMinor    *int64              `json:"adjustmentsMinor,omitempty"`
+	ArrearsMinor        *int64              `json:"arrearsMinor,omitempty"`
+	BillNumber          *string             `json:"billNumber,omitempty"`
+	Cancelled           *bool               `json:"cancelled,omitempty"`
+	CurrentChargesMinor int64               `json:"currentChargesMinor"`
+	CurrentReading      *float64            `json:"currentReading,omitempty"`
+	Description         *string             `json:"description,omitempty"`
+	DueDate             *openapi_types.Date `json:"dueDate,omitempty"`
+	ExpenseDate         *openapi_types.Date `json:"expenseDate,omitempty"`
+	IsEstimated         *bool               `json:"isEstimated,omitempty"`
+	IssueDate           *openapi_types.Date `json:"issueDate,omitempty"`
+	LateStepUntil       *openapi_types.Date `json:"lateStepUntil,omitempty"`
+
+	// MeterReplaced The meter was replaced this period (readings restart)
+	MeterReplaced        *bool    `json:"meterReplaced,omitempty"`
+	MultiplyingFactor    *float64 `json:"multiplyingFactor,omitempty"`
+	Notes                *string  `json:"notes,omitempty"`
+	PayableAfterDueMinor *int64   `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64   `json:"payableFinalMinor,omitempty"`
 
 	// PayableMinor Defaults to current charges + arrears + adjustments
-	PayableMinor *int64              `json:"payableMinor,omitempty"`
-	PeriodEnd    *openapi_types.Date `json:"periodEnd,omitempty"`
-	PeriodKey    *string             `json:"periodKey,omitempty"`
-	PeriodStart  *openapi_types.Date `json:"periodStart,omitempty"`
-	ProfileId    openapi_types.UUID  `json:"profileId"`
-	Tags         *[]string           `json:"tags,omitempty"`
+	PayableMinor    *int64              `json:"payableMinor,omitempty"`
+	PeriodEnd       *openapi_types.Date `json:"periodEnd,omitempty"`
+	PeriodKey       *string             `json:"periodKey,omitempty"`
+	PeriodStart     *openapi_types.Date `json:"periodStart,omitempty"`
+	PreviousReading *float64            `json:"previousReading,omitempty"`
+	ProfileId       openapi_types.UUID  `json:"profileId"`
+	Tags            *[]string           `json:"tags,omitempty"`
 
 	// TypeId Sub-category; defaults to the profile's type
 	TypeId *openapi_types.UUID `json:"typeId,omitempty"`
+
+	// Units Consumption for the period (readings × multiplying factor
+	Units *float64 `json:"units,omitempty"`
 }
 
 // BillPage defines model for BillPage.
@@ -541,15 +579,18 @@ type Document struct {
 	CreatedAt   time.Time           `json:"createdAt"`
 
 	// DownloadUrl Signed link that downloads the file
-	DownloadUrl  *string            `json:"downloadUrl,omitempty"`
-	FileName     string             `json:"fileName"`
-	Id           openapi_types.UUID `json:"id"`
-	Kind         DocumentKind       `json:"kind"`
-	PageCount    *int               `json:"pageCount,omitempty"`
-	SizeBytes    int64              `json:"sizeBytes"`
-	Source       DocumentSource     `json:"source"`
-	Status       DocumentStatus     `json:"status"`
-	UrlsExpireAt *time.Time         `json:"urlsExpireAt,omitempty"`
+	DownloadUrl *string            `json:"downloadUrl,omitempty"`
+	FileName    string             `json:"fileName"`
+	Id          openapi_types.UUID `json:"id"`
+	Kind        DocumentKind       `json:"kind"`
+	PageCount   *int               `json:"pageCount,omitempty"`
+
+	// PaymentId Set when the document is a payment's receipt
+	PaymentId    *openapi_types.UUID `json:"paymentId,omitempty"`
+	SizeBytes    int64               `json:"sizeBytes"`
+	Source       DocumentSource      `json:"source"`
+	Status       DocumentStatus      `json:"status"`
+	UrlsExpireAt *time.Time          `json:"urlsExpireAt,omitempty"`
 
 	// ViewUrl Signed link for showing the file inline
 	ViewUrl *string `json:"viewUrl,omitempty"`
@@ -671,7 +712,7 @@ type HistoryEntry struct {
 	BilledMinor *int64   `json:"billedMinor,omitempty"`
 	Month       string   `json:"month"`
 	PaidMinor   *int64   `json:"paidMinor,omitempty"`
-	Units       *float32 `json:"units,omitempty"`
+	Units       *float64 `json:"units,omitempty"`
 }
 
 // HistoryMonth defines model for HistoryMonth.
@@ -685,7 +726,10 @@ type HistoryMonth struct {
 	Month     string             `json:"month"`
 	PaidMinor *int64             `json:"paidMinor,omitempty"`
 	Source    HistoryMonthSource `json:"source"`
-	Units     *float32           `json:"units,omitempty"`
+
+	// Status Status of the month's bill (bills only)
+	Status *BillStatus `json:"status,omitempty"`
+	Units  *float64    `json:"units,omitempty"`
 }
 
 // HistoryMonthSource defines model for HistoryMonth.Source.
@@ -699,6 +743,9 @@ type HomeSummary struct {
 
 	// Month Example: 2026-10
 	Month string `json:"month"`
+
+	// MonthTotal FR-DASH-07 — what the household has to pay for the month's bills.
+	MonthTotal MonthTotal `json:"monthTotal"`
 
 	// OutstandingMinor Unpaid amount across all open bills
 	OutstandingMinor int64  `json:"outstandingMinor"`
@@ -747,6 +794,46 @@ type Me struct {
 	User      User      `json:"user"`
 }
 
+// MonthTotal FR-DASH-07 — what the household has to pay for the month's bills.
+type MonthTotal struct {
+	BillCount int `json:"billCount"`
+
+	// EarlierOutstandingMinor Still owed on earlier months' bills, not counting amounts this month's open bills already carry as arrears
+	EarlierOutstandingMinor int64               `json:"earlierOutstandingMinor"`
+	Groups                  []MonthTotalGroup   `json:"groups"`
+	NextDue                 *Bill               `json:"nextDue,omitempty"`
+	PaidMinor               int64               `json:"paidMinor"`
+	Profiles                []MonthTotalProfile `json:"profiles"`
+
+	// RemainingMinor Still to pay at today's amounts (late fees included once due)
+	RemainingMinor int64 `json:"remainingMinor"`
+
+	// TotalMinor paid + remaining
+	TotalMinor int64 `json:"totalMinor"`
+}
+
+// MonthTotalGroup defines model for MonthTotalGroup.
+type MonthTotalGroup struct {
+	BillCount      int       `json:"billCount"`
+	Group          TypeGroup `json:"group"`
+	PaidMinor      int64     `json:"paidMinor"`
+	RemainingMinor int64     `json:"remainingMinor"`
+	TotalMinor     int64     `json:"totalMinor"`
+}
+
+// MonthTotalProfile defines model for MonthTotalProfile.
+type MonthTotalProfile struct {
+	BillCount      int                `json:"billCount"`
+	Color          int                `json:"color"`
+	Group          TypeGroup          `json:"group"`
+	Icon           string             `json:"icon"`
+	Name           string             `json:"name"`
+	PaidMinor      int64              `json:"paidMinor"`
+	ProfileId      openapi_types.UUID `json:"profileId"`
+	RemainingMinor int64              `json:"remainingMinor"`
+	TotalMinor     int64              `json:"totalMinor"`
+}
+
 // PaidNow Records a full payment in the same step ("Already paid?")
 type PaidNow struct {
 	Method PaymentMethod      `json:"method"`
@@ -766,14 +853,15 @@ type PasswordResetRequest struct {
 
 // Payment defines model for Payment.
 type Payment struct {
-	AmountMinor int64              `json:"amountMinor"`
-	BillId      openapi_types.UUID `json:"billId"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	Id          openapi_types.UUID `json:"id"`
-	Method      PaymentMethod      `json:"method"`
-	Notes       *string            `json:"notes,omitempty"`
-	PaidOn      openapi_types.Date `json:"paidOn"`
-	Reference   *string            `json:"reference,omitempty"`
+	AmountMinor       int64               `json:"amountMinor"`
+	BillId            openapi_types.UUID  `json:"billId"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	Id                openapi_types.UUID  `json:"id"`
+	Method            PaymentMethod       `json:"method"`
+	Notes             *string             `json:"notes,omitempty"`
+	PaidOn            openapi_types.Date  `json:"paidOn"`
+	ReceiptDocumentId *openapi_types.UUID `json:"receiptDocumentId,omitempty"`
+	Reference         *string             `json:"reference,omitempty"`
 }
 
 // PaymentInput defines model for PaymentInput.
@@ -782,7 +870,10 @@ type PaymentInput struct {
 	Method      PaymentMethod      `json:"method"`
 	Notes       *string            `json:"notes,omitempty"`
 	PaidOn      openapi_types.Date `json:"paidOn"`
-	Reference   *string            `json:"reference,omitempty"`
+
+	// ReceiptDocumentId A document of this bill to keep as the payment's receipt
+	ReceiptDocumentId *openapi_types.UUID `json:"receiptDocumentId,omitempty"`
+	Reference         *string             `json:"reference,omitempty"`
 }
 
 // PaymentMethod defines model for PaymentMethod.
@@ -844,11 +935,30 @@ type ProfileOrder struct {
 	Ids []openapi_types.UUID `json:"ids"`
 }
 
+// ProfilePayment defines model for ProfilePayment.
+type ProfilePayment struct {
+	AmountMinor       int64               `json:"amountMinor"`
+	BillDescription   *string             `json:"billDescription,omitempty"`
+	BillExpenseDate   openapi_types.Date  `json:"billExpenseDate"`
+	BillId            openapi_types.UUID  `json:"billId"`
+	BillPeriodKey     *string             `json:"billPeriodKey,omitempty"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	Id                openapi_types.UUID  `json:"id"`
+	Method            PaymentMethod       `json:"method"`
+	Notes             *string             `json:"notes,omitempty"`
+	PaidOn            openapi_types.Date  `json:"paidOn"`
+	ReceiptDocumentId *openapi_types.UUID `json:"receiptDocumentId,omitempty"`
+	Reference         *string             `json:"reference,omitempty"`
+}
+
 // ProfileSummary defines model for ProfileSummary.
 type ProfileSummary struct {
-	BillCount        int   `json:"billCount"`
-	LatestBill       *Bill `json:"latestBill,omitempty"`
-	OutstandingMinor int64 `json:"outstandingMinor"`
+	BillCount int `json:"billCount"`
+
+	// LastReading The latest bill's present reading (next bill's previous reading)
+	LastReading      *float64 `json:"lastReading,omitempty"`
+	LatestBill       *Bill    `json:"latestBill,omitempty"`
+	OutstandingMinor int64    `json:"outstandingMinor"`
 
 	// ThisYearMinor Spend this calendar year (current charges + adjustments)
 	ThisYearMinor int64 `json:"thisYearMinor"`
@@ -948,12 +1058,14 @@ type ValidationError = Error
 // ListBillsParams defines parameters for ListBills.
 type ListBillsParams struct {
 	ProfileId *openapi_types.UUID `form:"profileId,omitempty" json:"profileId,omitempty"`
-	Status    *[]BillStatus       `form:"status,omitempty" json:"status,omitempty"`
-	From      *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
-	To        *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
-	Archived  *bool               `form:"archived,omitempty" json:"archived,omitempty"`
-	Cursor    *string             `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit     *int                `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Status Repeat for several statuses (status=unpaid&status=overdue)
+	Status   *[]BillStatus       `form:"status,omitempty" json:"status,omitempty"`
+	From     *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+	To       *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+	Archived *bool               `form:"archived,omitempty" json:"archived,omitempty"`
+	Cursor   *string             `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit    *int                `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListDocumentsParams defines parameters for ListDocuments.
@@ -1136,8 +1248,14 @@ type ServerInterface interface {
 	// (POST /profiles/{id}/archive)
 	ArchiveProfile(w http.ResponseWriter, r *http.Request, id Id)
 
+	// (GET /profiles/{id}/documents)
+	ListProfileDocuments(w http.ResponseWriter, r *http.Request, id Id)
+
 	// (GET /profiles/{id}/history)
 	GetProfileHistory(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (GET /profiles/{id}/payments)
+	ListProfilePayments(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (POST /profiles/{id}/restore)
 	RestoreProfile(w http.ResponseWriter, r *http.Request, id Id)
@@ -1340,8 +1458,18 @@ func (_ Unimplemented) ArchiveProfile(w http.ResponseWriter, r *http.Request, id
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (GET /profiles/{id}/documents)
+func (_ Unimplemented) ListProfileDocuments(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /profiles/{id}/history)
 func (_ Unimplemented) GetProfileHistory(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /profiles/{id}/payments)
+func (_ Unimplemented) ListProfilePayments(w http.ResponseWriter, r *http.Request, id Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1525,7 +1653,7 @@ func (siw *ServerInterfaceWrapper) ListBills(w http.ResponseWriter, r *http.Requ
 
 	// ------------- Optional query parameter "status" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", false, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
@@ -2250,6 +2378,32 @@ func (siw *ServerInterfaceWrapper) ArchiveProfile(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ListProfileDocuments operation middleware
+func (siw *ServerInterfaceWrapper) ListProfileDocuments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProfileDocuments(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProfileHistory operation middleware
 func (siw *ServerInterfaceWrapper) GetProfileHistory(w http.ResponseWriter, r *http.Request) {
 
@@ -2267,6 +2421,32 @@ func (siw *ServerInterfaceWrapper) GetProfileHistory(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetProfileHistory(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProfilePayments operation middleware
+func (siw *ServerInterfaceWrapper) ListProfilePayments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProfilePayments(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2666,6 +2846,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/documents/{id}/bill", wrapper.SaveScannedBill)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/profiles/{id}/payments", wrapper.ListProfilePayments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/profiles/{id}/documents", wrapper.ListProfileDocuments)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/profiles/{id}/history", wrapper.GetProfileHistory)
 	})
 	r.Group(func(r chi.Router) {
@@ -2680,110 +2866,122 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"HqUGSKragj7+7wA=",
+	"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",
+	"Kz8aS8r5zdT1u4NKM7j4LXY8UgeQhbpD++5/BgA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

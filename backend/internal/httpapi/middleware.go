@@ -130,7 +130,7 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 			return
 		}
 		ctx := r.Context()
-		sess, err := s.db.GetSessionByTokenHash(ctx, auth.HashToken(c.Value))
+		sess, err := s.db.GetSessionByTokenHash(ctx, store.GetSessionByTokenHashParams{TokenHash: auth.HashToken(c.Value), Now: s.now()})
 		if err != nil {
 			if !store.IsNotFound(err) {
 				s.fail(w, r, err)

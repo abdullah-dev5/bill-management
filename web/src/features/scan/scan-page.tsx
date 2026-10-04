@@ -49,6 +49,10 @@ export function reviewFromExtraction(e: Extraction | null | undefined): Pick<Bil
   take('adjustmentsMinor', 'adjustmentsMinor', num)
   take('payableAfterDueMinor', 'payableAfterDueMinor', num)
   take('billNumber', 'billNumber')
+  take('previousReading', 'previousReading')
+  take('currentReading', 'currentReading')
+  take('units', 'units')
+  take('multiplyingFactor', 'multiplyingFactor')
   if (values.issueDate) values.expenseDate = values.issueDate
 
   // Keep the printed payable only when it differs from charges + arrears + adjustments.
@@ -128,6 +132,7 @@ export function ScanPage() {
           name: newProfile.name,
           kind: draftType?.defaultKind ?? 'metered',
           typeId: newProfile.typeId,
+          consumptionUnit: (providers.data ?? []).find((pv) => pv.id === newProfile.providerId)?.consumptionUnit ?? null,
         } as Profile)
       : active.find((p) => p.id === selected)
 

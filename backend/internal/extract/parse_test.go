@@ -40,6 +40,9 @@ func TestParsePITCHesco(t *testing.T) {
 	if len(r.Warnings) != 0 {
 		t.Errorf("unexpected warnings: %+v", r.Warnings)
 	}
+	if c := r.Fields[FUnits].Confidence; c < 0.85 {
+		t.Errorf("units confirmed by the readings should not need checking: %.2f", c)
+	}
 	if !r.Complete() || r.Score() < 0.9 {
 		t.Errorf("score %.2f, complete %v", r.Score(), r.Complete())
 	}

@@ -19,7 +19,7 @@ UPDATE extractions SET
 WHERE id = (
     SELECT id FROM extractions
     WHERE attempts < 3
-      AND (status = 'queued' OR (status = 'running' AND locked_until < now()))
+      AND (status = 'queued' OR (status = 'running' AND locked_until < sqlc.arg(now)::timestamptz))
     ORDER BY created_at
     FOR UPDATE SKIP LOCKED
     LIMIT 1
@@ -35,7 +35,7 @@ WHERE id = $1;
 UPDATE extractions SET
     status = 'failed', error = 'Reading this document kept failing. Please enter the details yourself.',
     finished_at = now(), locked_until = NULL
-WHERE status IN ('queued', 'running') AND attempts >= 3 AND (locked_until IS NULL OR locked_until < now());
+WHERE status IN ('queued', 'running') AND attempts >= 3 AND (locked_until IS NULL OR locked_until < sqlc.arg(now)::timestamptz);
 
 -- name: SetDocumentText :exec
 UPDATE documents SET ocr_text = $2, updated_at = now() WHERE id = $1;

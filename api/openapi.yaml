@@ -365,8 +365,9 @@ paths:
         - name: status
           in: query
           required: false
+          description: Repeat for several statuses (status=unpaid&status=overdue)
           style: form
-          explode: false
+          explode: true
           schema:
             type: array
             items: { $ref: '#/components/schemas/BillStatus' }
@@ -645,6 +646,38 @@ paths:
         '400': { $ref: '#/components/responses/ValidationError' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/DuplicateBill' }
+  /profiles/{id}/payments:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [profiles]
+      operationId: listProfilePayments
+      description: Payments made towards the profile's bills, newest first.
+      responses:
+        '200':
+          description: Payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProfilePayment' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /profiles/{id}/documents:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [profiles]
+      operationId: listProfileDocuments
+      description: Documents attached to the profile's bills, newest first (with fresh signed links).
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /profiles/{id}/history:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -916,6 +949,7 @@ components:
         outstandingMinor: { type: integer, format: int64 }
         thisYearMinor: { type: integer, format: int64, description: Spend this calendar year (current charges + adjustments) }
         latestBill: { $ref: '#/components/schemas/Bill' }
+        lastReading: { type: number, format: double, nullable: true, description: The latest bill's present reading (next bill's previous reading) }
 
     ProfileInput:
       type: object
@@ -952,7 +986,7 @@ components:
 
     Bill:
       type: object
-      required: [id, profileId, typeId, expenseDate, currentChargesMinor, arrearsMinor, adjustmentsMinor, payableMinor, currency, status, paidMinor, outstandingMinor, isEstimated, cancelled, tags, archived, createdAt, updatedAt]
+      required: [id, profileId, typeId, expenseDate, currentChargesMinor, arrearsMinor, adjustmentsMinor, payableMinor, currency, status, paidMinor, outstandingMinor, isEstimated, meterReplaced, cancelled, tags, archived, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         profileId: { type: string, format: uuid }
@@ -976,10 +1010,20 @@ components:
           nullable: true
           description: The after-due amount applies until this date; payableFinalMinor applies after it
         payableFinalMinor: { type: integer, format: int64, nullable: true }
+        settledByBillId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Paid through a later bill that carried this bill's amount as arrears
         currency: { type: string }
         status: { $ref: '#/components/schemas/BillStatus' }
         paidMinor: { type: integer, format: int64 }
         outstandingMinor: { type: integer, format: int64 }
+        previousReading: { type: number, format: double, nullable: true }
+        currentReading: { type: number, format: double, nullable: true }
+        units: { type: number, format: double, nullable: true, description: Consumption for the period (readings × multiplying factor, or as printed) }
+        multiplyingFactor: { type: number, format: double, nullable: true }
+        meterReplaced: { type: boolean }
         isEstimated: { type: boolean }
         cancelled: { type: boolean }
         notes: { type: string, nullable: true }
@@ -1011,6 +1055,11 @@ components:
         payableAfterDueMinor: { type: integer, format: int64, minimum: 0, nullable: true }
         lateStepUntil: { type: string, format: date, nullable: true }
         payableFinalMinor: { type: integer, format: int64, minimum: 0, nullable: true }
+        previousReading: { type: number, format: double, minimum: 0, nullable: true }
+        currentReading: { type: number, format: double, minimum: 0, nullable: true }
+        units: { type: number, format: double, nullable: true, description: Consumption for the period (readings × multiplying factor, or as printed) }
+        multiplyingFactor: { type: number, format: double, minimum: 0.0001, nullable: true }
+        meterReplaced: { type: boolean, description: The meter was replaced this period (readings restart) }
         isEstimated: { type: boolean }
         cancelled: { type: boolean }
         notes: { type: string, maxLength: 2000, nullable: true }
@@ -1050,16 +1099,34 @@ components:
       required: [month]
       properties:
         month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
-        units: { type: number, nullable: true }
+        units: { type: number, format: double, nullable: true }
         billedMinor: { type: integer, format: int64, nullable: true }
         paidMinor: { type: integer, format: int64, nullable: true }
+
+    ProfilePayment:
+      type: object
+      required: [id, billId, paidOn, amountMinor, method, createdAt, billExpenseDate]
+      properties:
+        id: { type: string, format: uuid }
+        billId: { type: string, format: uuid }
+        paidOn: { type: string, format: date }
+        amountMinor: { type: integer, format: int64 }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        reference: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        receiptDocumentId: { type: string, format: uuid, nullable: true }
+        billPeriodKey: { type: string, nullable: true }
+        billDescription: { type: string, nullable: true }
+        billExpenseDate: { type: string, format: date }
 
     HistoryMonth:
       type: object
       required: [month, source]
       properties:
+        status: { allOf: [{ $ref: '#/components/schemas/BillStatus' }], nullable: true, description: Status of the month's bill (bills only) }
         month: { type: string, example: '2026-08' }
-        units: { type: number, nullable: true }
+        units: { type: number, format: double, nullable: true }
         billedMinor: { type: integer, format: int64, nullable: true, description: Spend for the month (excludes arrears for bills) }
         paidMinor: { type: integer, format: int64, nullable: true }
         source: { type: string, enum: [bill, printed] }
@@ -1114,6 +1181,7 @@ components:
         reference: { type: string, nullable: true }
         notes: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+        receiptDocumentId: { type: string, format: uuid, nullable: true }
 
     PaymentInput:
       type: object
@@ -1124,6 +1192,10 @@ components:
         method: { $ref: '#/components/schemas/PaymentMethod' }
         reference: { type: string, maxLength: 80, nullable: true }
         notes: { type: string, maxLength: 500, nullable: true }
+        receiptDocumentId:
+          type: string
+          format: uuid
+          description: A document of this bill to keep as the payment's receipt
 
     DocumentKind:
       type: string
@@ -1150,6 +1222,7 @@ components:
         downloadUrl: { type: string, nullable: true, description: Signed link that downloads the file }
         urlsExpireAt: { type: string, format: date-time, nullable: true }
         pageCount: { type: integer, nullable: true }
+        paymentId: { type: string, format: uuid, nullable: true, description: Set when the document is a payment's receipt }
 
     ExtractedField:
       type: object
@@ -1269,10 +1342,59 @@ components:
           type: object
           additionalProperties: true
 
+    MonthTotalGroup:
+      type: object
+      required: [group, totalMinor, paidMinor, remainingMinor, billCount]
+      properties:
+        group: { $ref: '#/components/schemas/TypeGroup' }
+        totalMinor: { type: integer, format: int64 }
+        paidMinor: { type: integer, format: int64 }
+        remainingMinor: { type: integer, format: int64 }
+        billCount: { type: integer }
+
+    MonthTotalProfile:
+      type: object
+      required: [profileId, name, icon, color, group, totalMinor, paidMinor, remainingMinor, billCount]
+      properties:
+        profileId: { type: string, format: uuid }
+        name: { type: string }
+        icon: { type: string }
+        color: { type: integer }
+        group: { $ref: '#/components/schemas/TypeGroup' }
+        totalMinor: { type: integer, format: int64 }
+        paidMinor: { type: integer, format: int64 }
+        remainingMinor: { type: integer, format: int64 }
+        billCount: { type: integer }
+
+    MonthTotal:
+      type: object
+      description: FR-DASH-07 — what the household has to pay for the month's bills.
+      required: [totalMinor, paidMinor, remainingMinor, billCount, earlierOutstandingMinor, groups, profiles]
+      properties:
+        totalMinor: { type: integer, format: int64, description: paid + remaining }
+        paidMinor: { type: integer, format: int64 }
+        remainingMinor: { type: integer, format: int64, description: Still to pay at today's amounts (late fees included once due) }
+        billCount: { type: integer }
+        earlierOutstandingMinor:
+          type: integer
+          format: int64
+          description: Still owed on earlier months' bills, not counting amounts this month's open bills already carry as arrears
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/MonthTotalGroup' }
+        profiles:
+          type: array
+          items: { $ref: '#/components/schemas/MonthTotalProfile' }
+        nextDue:
+          allOf:
+            - $ref: '#/components/schemas/Bill'
+          nullable: true
+
     HomeSummary:
       type: object
-      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent]
+      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent, monthTotal]
       properties:
+        monthTotal: { $ref: '#/components/schemas/MonthTotal' }
         month: { type: string, example: '2026-10' }
         billedMinor: { type: integer, format: int64, description: Spend for the month (current charges + adjustments) }
         paidMinor: { type: integer, format: int64, description: Payments made during the month }

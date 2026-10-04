@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -72,13 +73,19 @@ func (q *Queries) GetExtraction(ctx context.Context, arg GetExtractionParams) (E
 }
 
 const listProfileBillMonths = `-- name: ListProfileBillMonths :many
-SELECT period_key::text AS period_key, (payable_minor - arrears_minor)::bigint AS billed_minor, paid_minor, id
+SELECT period_key::text AS period_key, (payable_minor - arrears_minor)::bigint AS billed_minor, paid_minor, id, units,
+    bill_status(
+        cancelled, verified_at IS NOT NULL, due_date, payable_minor,
+        payable_after_due_minor, paid_minor, paid_on_time_minor,
+        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
+    )::text AS status
 FROM bills
-WHERE profile_id = $1 AND household_id = $2 AND archived_at IS NULL AND period_key IS NOT NULL
+WHERE profile_id = $2 AND household_id = $3 AND archived_at IS NULL AND period_key IS NOT NULL
 ORDER BY period_key
 `
 
 type ListProfileBillMonthsParams struct {
+	Today       time.Time
 	ProfileID   uuid.UUID
 	HouseholdID uuid.UUID
 }
@@ -88,11 +95,13 @@ type ListProfileBillMonthsRow struct {
 	BilledMinor int64
 	PaidMinor   int64
 	ID          uuid.UUID
+	Units       *float64
+	Status      string
 }
 
 // One row per billing month of a cycle-based profile, for the history view.
 func (q *Queries) ListProfileBillMonths(ctx context.Context, arg ListProfileBillMonthsParams) ([]ListProfileBillMonthsRow, error) {
-	rows, err := q.db.Query(ctx, listProfileBillMonths, arg.ProfileID, arg.HouseholdID)
+	rows, err := q.db.Query(ctx, listProfileBillMonths, arg.Today, arg.ProfileID, arg.HouseholdID)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +114,60 @@ func (q *Queries) ListProfileBillMonths(ctx context.Context, arg ListProfileBill
 			&i.BilledMinor,
 			&i.PaidMinor,
 			&i.ID,
+			&i.Units,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProfileDocuments = `-- name: ListProfileDocuments :many
+SELECT d.id, d.household_id, d.bill_id, d.kind, d.source, d.status, d.storage_key, d.file_name, d.content_type, d.size_bytes, d.sha256, d.created_by, d.created_at, d.updated_at, d.uploaded_at, d.page_count, d.ocr_text, d.payment_id FROM documents d
+JOIN bills b ON b.id = d.bill_id
+WHERE b.profile_id = $1 AND d.household_id = $2 AND d.status = 'ready'
+ORDER BY d.created_at DESC
+LIMIT 200
+`
+
+type ListProfileDocumentsParams struct {
+	ProfileID   uuid.UUID
+	HouseholdID uuid.UUID
+}
+
+func (q *Queries) ListProfileDocuments(ctx context.Context, arg ListProfileDocumentsParams) ([]Document, error) {
+	rows, err := q.db.Query(ctx, listProfileDocuments, arg.ProfileID, arg.HouseholdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Document
+	for rows.Next() {
+		var i Document
+		if err := rows.Scan(
+			&i.ID,
+			&i.HouseholdID,
+			&i.BillID,
+			&i.Kind,
+			&i.Source,
+			&i.Status,
+			&i.StorageKey,
+			&i.FileName,
+			&i.ContentType,
+			&i.SizeBytes,
+			&i.Sha256,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UploadedAt,
+			&i.PageCount,
+			&i.OcrText,
+			&i.PaymentID,
 		); err != nil {
 			return nil, err
 		}
@@ -148,6 +211,70 @@ func (q *Queries) ListProfileHistory(ctx context.Context, arg ListProfileHistory
 			&i.Units,
 			&i.BilledMinor,
 			&i.PaidMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProfilePayments = `-- name: ListProfilePayments :many
+SELECT p.id, p.bill_id, p.paid_on, p.amount_minor, p.method, p.reference, p.notes, p.created_at,
+       b.period_key, b.description, b.expense_date, d.id AS receipt_document_id
+FROM payments p
+JOIN bills b ON b.id = p.bill_id
+LEFT JOIN documents d ON d.payment_id = p.id
+WHERE b.profile_id = $1 AND p.household_id = $2
+ORDER BY p.paid_on DESC, p.created_at DESC
+LIMIT 200
+`
+
+type ListProfilePaymentsParams struct {
+	ProfileID   uuid.UUID
+	HouseholdID uuid.UUID
+}
+
+type ListProfilePaymentsRow struct {
+	ID                uuid.UUID
+	BillID            uuid.UUID
+	PaidOn            time.Time
+	AmountMinor       int64
+	Method            PaymentMethod
+	Reference         *string
+	Notes             *string
+	CreatedAt         time.Time
+	PeriodKey         *string
+	Description       *string
+	ExpenseDate       time.Time
+	ReceiptDocumentID *uuid.UUID
+}
+
+func (q *Queries) ListProfilePayments(ctx context.Context, arg ListProfilePaymentsParams) ([]ListProfilePaymentsRow, error) {
+	rows, err := q.db.Query(ctx, listProfilePayments, arg.ProfileID, arg.HouseholdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProfilePaymentsRow
+	for rows.Next() {
+		var i ListProfilePaymentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.BillID,
+			&i.PaidOn,
+			&i.AmountMinor,
+			&i.Method,
+			&i.Reference,
+			&i.Notes,
+			&i.CreatedAt,
+			&i.PeriodKey,
+			&i.Description,
+			&i.ExpenseDate,
+			&i.ReceiptDocumentID,
 		); err != nil {
 			return nil, err
 		}

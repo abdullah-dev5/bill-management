@@ -458,6 +458,16 @@ func (s *Server) profileSummaries(ctx context.Context, q *store.Queries, househo
 			BillCount: int(row.BillCount), OutstandingMinor: row.OutstandingMinor, ThisYearMinor: row.ThisYearMinor,
 		}
 	}
+	readings, err := q.LatestReadings(ctx, householdID)
+	if err != nil {
+		return nil, err
+	}
+	for _, rd := range readings {
+		sm := out[rd.ProfileID]
+		v := rd.CurrentReading
+		sm.LastReading = &v
+		out[rd.ProfileID] = sm
+	}
 	latest, err := q.LatestBillPerProfile(ctx, store.LatestBillPerProfileParams{HouseholdID: householdID, Today: today})
 	if err != nil {
 		return nil, err
