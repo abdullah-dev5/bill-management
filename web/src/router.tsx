@@ -26,6 +26,7 @@ const HomePage = lazyRouteComponent(() => import('@/features/home/home-page'), '
 const OnboardingPage = lazyRouteComponent(() => import('@/features/onboarding/onboarding-page'), 'OnboardingPage')
 const SettingsPage = lazyRouteComponent(() => import('@/features/settings/settings-page'), 'SettingsPage')
 const ScanPage = lazyRouteComponent(() => import('@/features/scan/scan-page'), 'ScanPage')
+const AnalyticsPage = lazyRouteComponent(() => import('@/features/analytics/analytics-page'), 'AnalyticsPage')
 
 interface RouterContext {
   queryClient: QueryClient
@@ -139,6 +140,21 @@ const editBillRoute = createRoute({ getParentRoute: () => appRoute, path: '/bill
 
 const settingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings', component: SettingsPage })
 const scanRoute = createRoute({ getParentRoute: () => appRoute, path: '/scan/$documentId', component: ScanPage })
+const monthRe = /^\d{4}-(0[1-9]|1[0-2])$/
+const presets = ['month', '3m', 'year', '12m', 'custom'] as const
+const analyticsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/analytics',
+  component: AnalyticsPage,
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { preset?: (typeof presets)[number]; from?: string; to?: string; basis?: 'cash' } => ({
+    preset: presets.includes(s.preset as (typeof presets)[number]) ? (s.preset as (typeof presets)[number]) : undefined,
+    from: typeof s.from === 'string' && monthRe.test(s.from) ? s.from : undefined,
+    to: typeof s.to === 'string' && monthRe.test(s.to) ? s.to : undefined,
+    basis: s.basis === 'cash' ? 'cash' : undefined,
+  }),
+})
 
 const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute, forgotRoute, resetRoute]),
@@ -154,6 +170,7 @@ const routeTree = rootRoute.addChildren([
     editBillRoute,
     settingsRoute,
     scanRoute,
+    analyticsRoute,
   ]),
 ])
 

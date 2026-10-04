@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { LayoutGrid, Plus, Receipt, Settings, House, ChevronRight, ScanLine } from 'lucide-react'
+import { ChartColumn, LayoutGrid, Plus, Receipt, Settings, House, ChevronRight, ScanLine } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useProfiles } from '@/api/hooks'
@@ -12,8 +12,12 @@ const NAV = [
   { to: '/', key: 'home', Icon: House, exact: true },
   { to: '/profiles', key: 'profiles', Icon: LayoutGrid },
   { to: '/bills', key: 'bills', Icon: Receipt },
+  { to: '/analytics', key: 'analytics', Icon: ChartColumn },
   { to: '/settings', key: 'settings', Icon: Settings },
 ] as const
+
+// Phones: Home · Profiles · ＋ · Analytics · Settings (bills are one tap away from Home and Analytics).
+const BOTTOM_NAV = NAV.filter((n) => n.key !== 'bills')
 
 export function AppShell() {
   const { t } = useTranslation()
@@ -38,7 +42,7 @@ export function AppShell() {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         <ul className="mx-auto grid h-16 max-w-lg grid-cols-5 items-center">
-          {NAV.slice(0, 2).map((n) => (
+          {BOTTOM_NAV.slice(0, 2).map((n) => (
             <BottomItem key={n.to} to={n.to} label={t(`nav.${n.key}`)} Icon={n.Icon} active={isActive(n.to, 'exact' in n)} />
           ))}
           <li className="flex justify-center">
@@ -51,7 +55,7 @@ export function AppShell() {
               <Plus className="size-7" strokeWidth={2.25} />
             </button>
           </li>
-          {NAV.slice(2).map((n) => (
+          {BOTTOM_NAV.slice(2).map((n) => (
             <BottomItem key={n.to} to={n.to} label={t(`nav.${n.key}`)} Icon={n.Icon} active={isActive(n.to)} />
           ))}
         </ul>

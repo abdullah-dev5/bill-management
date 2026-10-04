@@ -104,6 +104,7 @@ function useInvalidateAll() {
       qc.invalidateQueries({ queryKey: ['profilePayments'] }),
       qc.invalidateQueries({ queryKey: ['profileDocuments'] }),
       qc.invalidateQueries({ queryKey: ['profileHistory'] }),
+      qc.invalidateQueries({ queryKey: ['analytics'] }),
     ])
 }
 
@@ -309,4 +310,13 @@ export const useProfileDocuments = (profileId: string) =>
     queryKey: ['profileDocuments', profileId] as const,
     queryFn: () => unwrap(api.GET('/profiles/{id}/documents', { params: { path: { id: profileId } } })),
     staleTime: 60_000,
+  })
+
+// --- Analytics ---------------------------------------------------------------------
+
+export const useAnalytics = (from: string, to: string, basis: 'spend' | 'cash') =>
+  useQuery({
+    queryKey: ['analytics', from, to, basis] as const,
+    queryFn: () => unwrap(api.GET('/analytics', { params: { query: { from, to, basis } } })),
+    placeholderData: (prev) => prev,
   })
