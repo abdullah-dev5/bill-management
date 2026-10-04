@@ -40,12 +40,12 @@ test('sign up, onboard, add a bill, pay it, log an expense', async ({ page }) =>
   // Home lists the pinned profiles.
   await expect(page.getByRole('heading', { name: 'Hello, Ayesha' })).toBeVisible()
   const main = page.locator('#main')
-  await expect(main.getByRole('link', { name: /Home Electricity/ })).toBeVisible()
-  await expect(main.getByRole('link', { name: /Maintenance/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /Home Electricity/ }).first()).toBeVisible()
+  await expect(main.getByRole('link', { name: /Maintenance/ }).first()).toBeVisible()
   await shot(page, '03-home-empty')
 
   // Open the profile dashboard and add September's bill.
-  await main.getByRole('link', { name: /Home Electricity/ }).click()
+  await main.getByRole('link', { name: /Home Electricity/ }).first().click() // the pinned tile (before recent activity)
   await expect(page.getByRole('heading', { name: 'Home Electricity', exact: true })).toBeVisible()
   await main.getByRole('link', { name: 'Add bill' }).first().click()
   await expect(page.getByRole('heading', { name: 'New bill' })).toBeVisible()

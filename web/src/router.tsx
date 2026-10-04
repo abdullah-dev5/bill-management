@@ -27,6 +27,7 @@ const OnboardingPage = lazyRouteComponent(() => import('@/features/onboarding/on
 const SettingsPage = lazyRouteComponent(() => import('@/features/settings/settings-page'), 'SettingsPage')
 const ScanPage = lazyRouteComponent(() => import('@/features/scan/scan-page'), 'ScanPage')
 const AnalyticsPage = lazyRouteComponent(() => import('@/features/analytics/analytics-page'), 'AnalyticsPage')
+const SearchPage = lazyRouteComponent(() => import('@/features/search/search-page'), 'SearchPage')
 
 interface RouterContext {
   queryClient: QueryClient
@@ -119,14 +120,40 @@ const profileRoute = createRoute({
   }),
 })
 
+/** Bills list filters, kept in the URL (FR-SRCH-04). Lists are comma-separated; amounts in whole rupees. */
+export interface BillsSearch {
+  status?: string
+  profileId?: string
+  archived?: true
+  type?: string
+  provider?: string
+  min?: number
+  max?: number
+  source?: string
+  from?: string
+  to?: string
+}
+const num = (v: unknown) => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN
+  return Number.isFinite(n) && n >= 0 ? n : undefined
+}
+const dateStr = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined)
+
 const billsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/bills',
   component: BillsPage,
-  validateSearch: (s: Record<string, unknown>): { status?: string; profileId?: string; archived?: true } => ({
+  validateSearch: (s: Record<string, unknown>): BillsSearch => ({
     status: str(s.status),
     profileId: str(s.profileId),
     archived: s.archived === true || s.archived === 'true' ? true : undefined,
+    type: str(s.type),
+    provider: str(s.provider),
+    min: num(s.min),
+    max: num(s.max),
+    source: str(s.source),
+    from: dateStr(s.from),
+    to: dateStr(s.to),
   }),
 })
 const newBillRoute = createRoute({
@@ -156,6 +183,13 @@ const analyticsRoute = createRoute({
   }),
 })
 
+const searchRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/search',
+  component: SearchPage,
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({ q: typeof s.q === 'string' && s.q.trim() ? s.q.slice(0, 200) : undefined }),
+})
+
 const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute, forgotRoute, resetRoute]),
   appRoute.addChildren([
@@ -171,6 +205,7 @@ const routeTree = rootRoute.addChildren([
     settingsRoute,
     scanRoute,
     analyticsRoute,
+    searchRoute,
   ]),
 ])
 

@@ -543,20 +543,29 @@ SELECT
         late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
     )::bigint AS outstanding_minor
 FROM bills
-WHERE household_id = $2
-  AND ($3::uuid IS NULL OR profile_id = $3::uuid)
-  AND (CASE WHEN $4::boolean THEN archived_at IS NOT NULL ELSE archived_at IS NULL END)
-  AND ($5::date IS NULL OR expense_date >= $5::date)
-  AND ($6::date IS NULL OR expense_date <= $6::date)
+WHERE bills.household_id = $2
+  AND ($3::uuid IS NULL OR bills.profile_id = $3::uuid)
+  AND (CASE WHEN $4::boolean THEN bills.archived_at IS NOT NULL ELSE bills.archived_at IS NULL END)
+  AND ($5::date IS NULL OR bills.expense_date >= $5::date)
+  AND ($6::date IS NULL OR bills.expense_date <= $6::date)
   AND ($7::text[] IS NULL OR bill_status(
-        cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, $1::date
+        bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
+        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
+        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id IS NOT NULL, $1::date
       ) = ANY ($7::text[]))
-  AND ($8::date IS NULL
-       OR (expense_date, id) < ($8::date, $9::uuid))
-ORDER BY expense_date DESC, id DESC
-LIMIT $10
+  AND (coalesce(cardinality($8::uuid[]), 0) = 0 OR bills.category_id = ANY ($8::uuid[]))
+  AND ($9::uuid IS NULL
+       OR bills.profile_id IN (SELECT bp.id FROM bill_profiles bp WHERE bp.provider_id = $9::uuid))
+  AND ($10::bigint IS NULL OR bills.payable_minor >= $10::bigint)
+  AND ($11::bigint IS NULL OR bills.payable_minor <= $11::bigint)
+  -- Source: how the bill arrived; the first bill document's source, or manual entry.
+  AND (coalesce(cardinality($12::text[]), 0) = 0 OR coalesce(
+        (SELECT d.source::text FROM documents d WHERE d.bill_id = bills.id AND d.kind = 'bill' ORDER BY d.created_at LIMIT 1),
+        'manual') = ANY ($12::text[]))
+  AND ($13::date IS NULL
+       OR (bills.expense_date, bills.id) < ($13::date, $14::uuid))
+ORDER BY bills.expense_date DESC, bills.id DESC
+LIMIT $15
 `
 
 type ListBillsParams struct {
@@ -567,6 +576,11 @@ type ListBillsParams struct {
 	FromDate    *time.Time
 	ToDate      *time.Time
 	Statuses    []string
+	TypeIds     []uuid.UUID
+	ProviderID  *uuid.UUID
+	MinAmount   *int64
+	MaxAmount   *int64
+	Sources     []string
 	CursorDate  *time.Time
 	CursorID    *uuid.UUID
 	RowLimit    int32
@@ -587,6 +601,11 @@ func (q *Queries) ListBills(ctx context.Context, arg ListBillsParams) ([]ListBil
 		arg.FromDate,
 		arg.ToDate,
 		arg.Statuses,
+		arg.TypeIds,
+		arg.ProviderID,
+		arg.MinAmount,
+		arg.MaxAmount,
+		arg.Sources,
 		arg.CursorDate,
 		arg.CursorID,
 		arg.RowLimit,

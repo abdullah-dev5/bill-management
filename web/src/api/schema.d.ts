@@ -165,6 +165,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Global search (FR-SRCH-01/02). Phrases like "electricity september 2025" become filters; other words are matched as text. */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/types": {
         parameters: {
             query?: never;
@@ -808,6 +841,73 @@ export interface components {
         };
         /** @enum {string} */
         BillStatus: "draft" | "unpaid" | "partially_paid" | "paid" | "overdue" | "cancelled";
+        /** @enum {string} */
+        BillSource: "camera" | "upload" | "manual";
+        SearchInterpretation: {
+            typeNames: string[];
+            providerNames: string[];
+            /** @example 2025-09 */
+            from?: string | null;
+            /** @example 2025-09 */
+            to?: string | null;
+            statuses: components["schemas"]["BillStatus"][];
+            /** @description Words searched as text */
+            terms: string[];
+            /** @description A word matched a profile's reference number */
+            referenceMatch?: boolean;
+        };
+        SearchProfile: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            icon: string;
+            color: number;
+            typeName: string;
+            providerName?: string | null;
+            /** @description Masked */
+            referenceDisplay?: string | null;
+        };
+        SearchDocument: {
+            /** Format: uuid */
+            id: string;
+            fileName: string;
+            /** @enum {string} */
+            kind: "bill" | "receipt" | "other";
+            /** Format: uuid */
+            billId?: string | null;
+            /** @description Text around the first match */
+            snippet?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SearchResult: {
+            query: string;
+            interpretation: components["schemas"]["SearchInterpretation"];
+            profiles: components["schemas"]["SearchProfile"][];
+            bills: components["schemas"]["Bill"][];
+            documents: components["schemas"]["SearchDocument"][];
+        };
+        ActivityItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            at: string;
+            /** @enum {string} */
+            action: "bill_added" | "payment_added" | "payment_removed" | "document_added" | "profile_added";
+            actorName?: string | null;
+            /** Format: uuid */
+            profileId: string;
+            profileName: string;
+            /** Format: uuid */
+            billId?: string | null;
+            periodKey?: string | null;
+            description?: string | null;
+            /** Format: int64 */
+            amountMinor?: number | null;
+            currency?: string | null;
+            /** @description e.g. the file name or payment method */
+            detail?: string | null;
+        };
         Bill: {
             /** Format: uuid */
             id: string;
@@ -1630,6 +1730,50 @@ export interface operations {
             };
         };
     };
+    search: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching profiles, bills and documents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+        };
+    };
+    listActivity: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent activity, newest first (FR-DASH-05) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityItem"][];
+                };
+            };
+        };
+    };
     listTypes: {
         parameters: {
             query?: never;
@@ -1951,6 +2095,15 @@ export interface operations {
                 from?: string;
                 to?: string;
                 archived?: boolean;
+                /** @description Bill types (repeatable); a type includes its sub-categories */
+                typeId?: string[];
+                providerId?: string;
+                /** @description Minimum payable amount, minor units */
+                minAmount?: number;
+                /** @description Maximum payable amount, minor units */
+                maxAmount?: number;
+                /** @description How the bill arrived (repeatable) */
+                source?: components["schemas"]["BillSource"][];
                 cursor?: string;
                 limit?: number;
             };

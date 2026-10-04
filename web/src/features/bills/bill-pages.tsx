@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { BillStatus, Profile } from '@/api/client'
 import { useBill, useBillAction, useCreateBill, useDeletePayment, useProfile, useProfiles, useUpdateBill } from '@/api/hooks'
-import { PageHeader } from '@/components/layout/app-shell'
+import { PageHeader, SearchButton } from '@/components/layout/app-shell'
 import { DocumentsSection, DocumentViewer } from '@/features/documents/documents-section'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/field'
@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
 import { isOpen } from '@/lib/status'
 import { BillForm } from './bill-form'
+import { apiFilters, BillFilterBar } from './bill-filters'
 import { billTitle, BillsList } from './bill-row'
 import { PaymentSheet } from './payment-sheet'
 
@@ -451,7 +452,7 @@ export function BillsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title={t('bills.all')} />
+      <PageHeader title={t('bills.all')} actions={<SearchButton />} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" role="group" aria-label={t('bills.filterStatus')}>
           {STATUS_FILTERS.map((f) => (
@@ -473,8 +474,9 @@ export function BillsPage() {
           />
         </div>
       </div>
+      <BillFilterBar search={search} onChange={set} />
       <Toggle label={t('bills.archivedView')} checked={Boolean(search.archived)} onChange={(v) => set({ archived: v || undefined })} />
-      <BillsList filters={{ profileId: search.profileId, status: statuses, archived: search.archived }} profilesById={byId} />
+      <BillsList filters={{ profileId: search.profileId, status: statuses, archived: search.archived, ...apiFilters(search) }} profilesById={byId} />
     </div>
   )
 }

@@ -165,6 +165,41 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/HomeSummary' }
 
+  /search:
+    get:
+      tags: [search]
+      operationId: search
+      description: Global search (FR-SRCH-01/02). Phrases like "electricity september 2025" become filters; other words are matched as text.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: Matching profiles, bills and documents
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResult' }
+
+  /activity:
+    get:
+      tags: [home]
+      operationId: listActivity
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        '200':
+          description: Recent activity, newest first (FR-DASH-05)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ActivityItem' }
+
   /types:
     get:
       tags: [types]
@@ -384,6 +419,38 @@ paths:
           in: query
           required: false
           schema: { type: boolean, default: false }
+        - name: typeId
+          in: query
+          required: false
+          description: Bill types (repeatable); a type includes its sub-categories
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string, format: uuid }
+        - name: providerId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: minAmount
+          in: query
+          required: false
+          description: Minimum payable amount, minor units
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: maxAmount
+          in: query
+          required: false
+          description: Maximum payable amount, minor units
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: source
+          in: query
+          required: false
+          description: How the bill arrived (repeatable)
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/BillSource' }
         - name: cursor
           in: query
           required: false
@@ -1013,6 +1080,72 @@ components:
     BillStatus:
       type: string
       enum: [draft, unpaid, partially_paid, paid, overdue, cancelled]
+
+    BillSource:
+      type: string
+      enum: [camera, upload, manual]
+
+    SearchInterpretation:
+      type: object
+      required: [typeNames, providerNames, statuses, terms]
+      properties:
+        typeNames: { type: array, items: { type: string } }
+        providerNames: { type: array, items: { type: string } }
+        from: { type: string, nullable: true, example: '2025-09' }
+        to: { type: string, nullable: true, example: '2025-09' }
+        statuses: { type: array, items: { $ref: '#/components/schemas/BillStatus' } }
+        terms: { type: array, items: { type: string }, description: Words searched as text }
+        referenceMatch: { type: boolean, description: A word matched a profile's reference number }
+
+    SearchProfile:
+      type: object
+      required: [id, name, icon, color, typeName]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        icon: { type: string }
+        color: { type: integer }
+        typeName: { type: string }
+        providerName: { type: string, nullable: true }
+        referenceDisplay: { type: string, nullable: true, description: Masked, e.g. "•••• 2345" }
+
+    SearchDocument:
+      type: object
+      required: [id, fileName, kind, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        kind: { type: string, enum: [bill, receipt, other] }
+        billId: { type: string, format: uuid, nullable: true }
+        snippet: { type: string, nullable: true, description: Text around the first match }
+        createdAt: { type: string, format: date-time }
+
+    SearchResult:
+      type: object
+      required: [query, interpretation, profiles, bills, documents]
+      properties:
+        query: { type: string }
+        interpretation: { $ref: '#/components/schemas/SearchInterpretation' }
+        profiles: { type: array, items: { $ref: '#/components/schemas/SearchProfile' } }
+        bills: { type: array, items: { $ref: '#/components/schemas/Bill' } }
+        documents: { type: array, items: { $ref: '#/components/schemas/SearchDocument' } }
+
+    ActivityItem:
+      type: object
+      required: [id, at, action, profileId, profileName]
+      properties:
+        id: { type: string, format: uuid }
+        at: { type: string, format: date-time }
+        action: { type: string, enum: [bill_added, payment_added, payment_removed, document_added, profile_added] }
+        actorName: { type: string, nullable: true }
+        profileId: { type: string, format: uuid }
+        profileName: { type: string }
+        billId: { type: string, format: uuid, nullable: true }
+        periodKey: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        amountMinor: { type: integer, format: int64, nullable: true }
+        currency: { type: string, nullable: true }
+        detail: { type: string, nullable: true, description: e.g. the file name or payment method }
 
     Bill:
       type: object

@@ -7,8 +7,8 @@ question in [01](../01-product-vision.md) §3 from the UI; dashboard < 1 s.
 |---|---|---|
 | 1 — Analytics | Ranges, spend rule, breakdowns, comparisons, profile stats, consumption, data tables | **Done** |
 | 1b — Gas bills & UI consistency | Layout reader for any provider (tested on SSGC), themed date/month pickers, clearer dropdowns | **Done** |
-| 2 — Search & filters | Global search, natural phrases, more bill filters, recent activity | Next |
-| 3 — Export & exit | CSV export, backup ZIP, dashboard speed, end-to-end test of the six questions | — |
+| 2 — Search & filters | Global search, natural phrases, more bill filters, recent activity | **Done** |
+| 3 — Export & exit | CSV export, backup ZIP, dashboard speed, end-to-end test of the six questions | Next |
 
 ## Phase 1 — Analytics (delivered)
 | Area | What's in | Requirements |
@@ -36,6 +36,18 @@ the light card).
   and printed history, range validation, household isolation.
 - Web: unit tests for axis scaling, presets and change maths; end-to-end on phone and desktop.
 - Fixed: two more tests compared the database clock with the app clock or passed before a payment had saved.
+
+## Phase 2 — Search & filters (delivered)
+| Area | What's in | Requirements |
+|---|---|---|
+| Global search | One box for everything: profile names, bill types (and their sub-categories), providers, bill numbers, notes, descriptions, tags, payment references and the text of scanned bills/receipts. Every word must match. Opens with **/** on desktop, from the sidebar, or the search button on phones; the query stays in the URL. | FR-SRCH-01 |
+| Phrases | "electricity september 2025", "gas last winter", "internet this year", "lesco last month", "unpaid", "2026-08", everyday words (bijli, wifi, pani…) become type, provider, period and status filters; the page shows what it understood as chips. A month without a year means the latest one; "last winter" is the winter just gone. | FR-SRCH-02 |
+| Reference numbers | Typed any way ("09 12345 0012345", with dashes) they find the profile and its bills, matched by keyed hash; the number is never stored or shown in plain text (shown as •••• 2345). | FR-SRCH-01, docs/08 |
+| Document text | Matching documents with a short highlighted snippet, linking to their bill. | FR-SRCH-01, FR-DOC-03 |
+| Bill filters | Bill type (multi, includes sub-categories), provider, amount range, bill date range, how it was added (photo / uploaded file / typed in), alongside status and profile; shown as removable chips with "Clear all", kept in the URL. | FR-SRCH-03/04 |
+| Recent activity | Home lists the latest bills added, payments (amount and method), removed payments, documents and new profiles, with "by Name" when more than one person adds things. | FR-DASH-05 |
+
+Quality: Go tests for the phrase parser (months, years, seasons in October and January, statuses, aliases, providers, sub-categories), search across all fields, reference numbers typed with spaces, literal wildcards, household isolation, every bill filter, and the activity feed; an end-to-end test of search, filters and activity on phone and desktop.
 
 ## Phase 1b — Gas bills & UI consistency (delivered)
 | Area | What's in |
