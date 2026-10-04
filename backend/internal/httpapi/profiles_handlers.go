@@ -30,7 +30,7 @@ func (s *Server) ListProfiles(w http.ResponseWriter, r *http.Request, params api
 	}
 	out := make([]apigen.Profile, 0, len(rows))
 	for _, p := range rows {
-		out = append(out, toProfile(p, summaries.get(p.ID)))
+		out = append(out, toProfile(p, s.refDisplay(ctx, p), summaries.get(p.ID)))
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -58,7 +58,7 @@ func (s *Server) CreateProfile(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var out store.BillProfile
 	err := s.db.InTx(ctx, func(q *store.Queries) error {
-		f, err := buildProfile(ctx, q, a, in, nil)
+		f, err := s.buildProfile(ctx, q, a, in, nil)
 		if err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func (s *Server) CreateProfile(w http.ResponseWriter, r *http.Request) {
 		out, err = q.CreateProfile(ctx, store.CreateProfileParams{
 			ID: uuid.Must(uuid.NewV7()), HouseholdID: a.HouseholdID, PropertyID: prop.ID,
 			CategoryID: f.CategoryID, Kind: f.Kind, Name: f.Name, Icon: f.Icon, Color: f.Color,
-			ProviderID: f.ProviderID, ReferenceNumber: f.ReferenceNumber, ReferenceDisplay: f.ReferenceDisplay,
+			ProviderID: f.ProviderID, ReferenceHash: f.ReferenceHash, ReferenceEnc: f.ReferenceEnc,
 			MeterNumber: f.MeterNumber, MultiplyingFactor: f.MultiplyingFactor, ConsumptionUnit: f.ConsumptionUnit,
 			BillingCycle: f.BillingCycle, TypicalIssueDay: f.TypicalIssueDay, TypicalDueDay: f.TypicalDueDay,
 			ExpectedAmountMinor: f.ExpectedAmountMinor, AutoCreateBill: f.AutoCreateBill,
@@ -86,7 +86,7 @@ func (s *Server) CreateProfile(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return profileConflict(err)
 		}
-		return audit(ctx, q, a, "profile", out.ID, "create", diff(snapshot{}, profileSnapshot(out)))
+		return audit(ctx, q, a, "profile", out.ID, "create", maskReference(diff(snapshot{}, profileSnapshot(out, f.ReferenceDisplay))))
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -111,7 +111,7 @@ func (s *Server) UpdateProfile(w http.ResponseWriter, r *http.Request, id apigen
 		} else if err != nil {
 			return err
 		}
-		f, err := buildProfile(ctx, q, a, in, &existing)
+		f, err := s.buildProfile(ctx, q, a, in, &existing)
 		if err != nil {
 			return err
 		}
@@ -134,7 +134,7 @@ func (s *Server) UpdateProfile(w http.ResponseWriter, r *http.Request, id apigen
 		out, err = q.UpdateProfile(ctx, store.UpdateProfileParams{
 			ID: id, HouseholdID: a.HouseholdID,
 			CategoryID: f.CategoryID, Kind: f.Kind, Name: f.Name, Icon: f.Icon, Color: f.Color,
-			ProviderID: f.ProviderID, ReferenceNumber: f.ReferenceNumber, ReferenceDisplay: f.ReferenceDisplay,
+			ProviderID: f.ProviderID, ReferenceHash: f.ReferenceHash, ReferenceEnc: f.ReferenceEnc,
 			MeterNumber: f.MeterNumber, MultiplyingFactor: f.MultiplyingFactor, ConsumptionUnit: f.ConsumptionUnit,
 			BillingCycle: f.BillingCycle, TypicalIssueDay: f.TypicalIssueDay, TypicalDueDay: f.TypicalDueDay,
 			ExpectedAmountMinor: f.ExpectedAmountMinor, AutoCreateBill: f.AutoCreateBill, Pinned: pinned,
@@ -142,7 +142,8 @@ func (s *Server) UpdateProfile(w http.ResponseWriter, r *http.Request, id apigen
 		if err != nil {
 			return profileConflict(err)
 		}
-		return audit(ctx, q, a, "profile", id, "update", diff(profileSnapshot(existing), profileSnapshot(out)))
+		return audit(ctx, q, a, "profile", id, "update",
+			maskReference(diff(profileSnapshot(existing, s.refDisplay(ctx, existing)), profileSnapshot(out, f.ReferenceDisplay))))
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -242,7 +243,8 @@ type profileFields struct {
 	Icon                string
 	Color               int16
 	ProviderID          *uuid.UUID
-	ReferenceNumber     *string
+	ReferenceHash       []byte
+	ReferenceEnc        []byte
 	ReferenceDisplay    *string
 	MeterNumber         *string
 	MultiplyingFactor   *float64
@@ -255,7 +257,7 @@ type profileFields struct {
 }
 
 // buildProfile applies the per-kind rules (FR-ACCT-03/04/05/09). existing is nil on create.
-func buildProfile(ctx context.Context, q *store.Queries, a authInfo, in apigen.ProfileInput, existing *store.BillProfile) (profileFields, error) {
+func (s *Server) buildProfile(ctx context.Context, q *store.Queries, a authInfo, in apigen.ProfileInput, existing *store.BillProfile) (profileFields, error) {
 	fields := domain.FieldErrors{}
 	f := profileFields{Name: strings.TrimSpace(in.Name)}
 	if f.Name == "" {
@@ -330,7 +332,7 @@ func buildProfile(ctx context.Context, q *store.Queries, a authInfo, in apigen.P
 				fields.Add("referenceNumber", fmt.Sprintf("This doesn't look like a %s %s. Check the number on your bill.", provider.ShortName, provider.RefNumberLabel))
 			}
 		}
-		f.ReferenceNumber, f.ReferenceDisplay = &norm, display
+		f.ReferenceHash, f.ReferenceEnc, f.ReferenceDisplay = s.keys.Hash(norm), s.keys.Seal(*display), display
 	}
 
 	cycleBased := f.Kind == store.ProfileKindMetered || f.Kind == store.ProfileKindRecurring
@@ -412,7 +414,20 @@ func (s *Server) writeProfile(w http.ResponseWriter, r *http.Request, status int
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, status, toProfile(p, summaries.get(p.ID)))
+	writeJSON(w, status, toProfile(p, s.refDisplay(r.Context(), p), summaries.get(p.ID)))
+}
+
+// refDisplay decrypts a profile's reference number for display.
+func (s *Server) refDisplay(ctx context.Context, p store.BillProfile) *string {
+	if p.ReferenceEnc == nil {
+		return nil
+	}
+	v, err := s.keys.Open(p.ReferenceEnc)
+	if err != nil {
+		s.log.ErrorContext(ctx, "decrypt reference number", "profile_id", p.ID, "err", err)
+		return nil
+	}
+	return &v
 }
 
 type summaryMap map[uuid.UUID]apigen.ProfileSummary

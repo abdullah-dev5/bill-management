@@ -15,8 +15,11 @@ import (
 
 	"github.com/abdullah-dev5/bill-management/backend/internal/apigen"
 	"github.com/abdullah-dev5/bill-management/backend/internal/config"
+	"github.com/abdullah-dev5/bill-management/backend/internal/extract"
 	"github.com/abdullah-dev5/bill-management/backend/internal/mail"
 	"github.com/abdullah-dev5/bill-management/backend/internal/ratelimit"
+	"github.com/abdullah-dev5/bill-management/backend/internal/secure"
+	"github.com/abdullah-dev5/bill-management/backend/internal/storage"
 	"github.com/abdullah-dev5/bill-management/backend/internal/store"
 )
 
@@ -24,33 +27,44 @@ const apiPrefix = "/api/v1"
 
 // Server implements apigen.ServerInterface.
 type Server struct {
-	db   *store.DB
-	cfg  config.Config
-	log  *slog.Logger
-	mail mail.Mailer
-	now  func() time.Time
+	db    *store.DB
+	cfg   config.Config
+	log   *slog.Logger
+	mail  mail.Mailer
+	keys  *secure.Keys
+	files storage.Store
+	now   func() time.Time
+
+	extractor *extract.Chain
+	wake      chan struct{} // nudges idle extraction workers
 
 	loginByEmail *ratelimit.Limiter
 	loginByIP    *ratelimit.Limiter
 	signupByIP   *ratelimit.Limiter
 	resetByKey   *ratelimit.Limiter
+	uploadsByHH  *ratelimit.Limiter
 
 	lastTick atomic.Int64 // unix seconds of the last successful tick
 }
 
 var _ apigen.ServerInterface = (*Server)(nil)
 
-func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer) *Server {
+func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, keys *secure.Keys, files storage.Store) *Server {
 	return &Server{
 		db:           db,
 		cfg:          cfg,
 		log:          log,
 		mail:         mailer,
+		keys:         keys,
+		files:        files,
 		now:          time.Now,
+		extractor:    NewExtractionChain(cfg),
+		wake:         make(chan struct{}, 1),
 		loginByEmail: ratelimit.New(5, 15*time.Minute),
 		loginByIP:    ratelimit.New(30, 15*time.Minute),
 		signupByIP:   ratelimit.New(10, time.Hour),
 		resetByKey:   ratelimit.New(3, time.Hour),
+		uploadsByHH:  ratelimit.New(100, time.Hour),
 	}
 }
 
@@ -88,6 +102,10 @@ func (s *Server) Handler() (http.Handler, error) {
 
 	r.Get("/healthz", s.healthz)
 	r.Post("/internal/tick", s.tick)
+	// Signed file links for stores without presigned URLs (local) or when direct uploads are off.
+	// Authorised by the signature in the link, not by the session.
+	r.Put(filesPath+"{id}", s.putFile)
+	r.Get(filesPath+"{id}", s.getFile)
 
 	r.Group(func(api chi.Router) {
 		api.Use(limitBody(1<<20), s.csrf, s.loadSession, s.requireAuth, validator)

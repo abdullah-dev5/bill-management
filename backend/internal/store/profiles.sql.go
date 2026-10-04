@@ -44,7 +44,7 @@ func (q *Queries) CountProfileBills(ctx context.Context, profileID uuid.UUID) (i
 const createProfile = `-- name: CreateProfile :one
 INSERT INTO bill_profiles (
     id, household_id, property_id, category_id, kind, name, icon, color,
-    provider_id, reference_number, reference_display, meter_number, multiplying_factor,
+    provider_id, reference_hash, reference_enc, meter_number, multiplying_factor,
     consumption_unit, billing_cycle, typical_issue_day, typical_due_day,
     expected_amount_minor, auto_create_bill, is_default, pinned, sort_order
 ) VALUES (
@@ -53,7 +53,7 @@ INSERT INTO bill_profiles (
     $14, $15, $16, $17,
     $18, $19, $20, $21, $22
 )
-RETURNING id, household_id, property_id, category_id, kind, name, icon, color, provider_id, reference_number, reference_display, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at
+RETURNING id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc
 `
 
 type CreateProfileParams struct {
@@ -66,8 +66,8 @@ type CreateProfileParams struct {
 	Icon                string
 	Color               int16
 	ProviderID          *uuid.UUID
-	ReferenceNumber     *string
-	ReferenceDisplay    *string
+	ReferenceHash       []byte
+	ReferenceEnc        []byte
 	MeterNumber         *string
 	MultiplyingFactor   *float64
 	ConsumptionUnit     *string
@@ -92,8 +92,8 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (B
 		arg.Icon,
 		arg.Color,
 		arg.ProviderID,
-		arg.ReferenceNumber,
-		arg.ReferenceDisplay,
+		arg.ReferenceHash,
+		arg.ReferenceEnc,
 		arg.MeterNumber,
 		arg.MultiplyingFactor,
 		arg.ConsumptionUnit,
@@ -117,8 +117,6 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (B
 		&i.Icon,
 		&i.Color,
 		&i.ProviderID,
-		&i.ReferenceNumber,
-		&i.ReferenceDisplay,
 		&i.MeterNumber,
 		&i.MultiplyingFactor,
 		&i.ConsumptionUnit,
@@ -134,12 +132,14 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (B
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchivedAt,
+		&i.ReferenceHash,
+		&i.ReferenceEnc,
 	)
 	return i, err
 }
 
 const getProfile = `-- name: GetProfile :one
-SELECT id, household_id, property_id, category_id, kind, name, icon, color, provider_id, reference_number, reference_display, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at FROM bill_profiles WHERE id = $1 AND household_id = $2
+SELECT id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc FROM bill_profiles WHERE id = $1 AND household_id = $2
 `
 
 type GetProfileParams struct {
@@ -160,8 +160,6 @@ func (q *Queries) GetProfile(ctx context.Context, arg GetProfileParams) (BillPro
 		&i.Icon,
 		&i.Color,
 		&i.ProviderID,
-		&i.ReferenceNumber,
-		&i.ReferenceDisplay,
 		&i.MeterNumber,
 		&i.MultiplyingFactor,
 		&i.ConsumptionUnit,
@@ -177,20 +175,24 @@ func (q *Queries) GetProfile(ctx context.Context, arg GetProfileParams) (BillPro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchivedAt,
+		&i.ReferenceHash,
+		&i.ReferenceEnc,
 	)
 	return i, err
 }
 
 const latestBillPerProfile = `-- name: LatestBillPerProfile :many
 SELECT DISTINCT ON (bills.profile_id)
-    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at,
+    bills.id, bills.household_id, bills.profile_id, bills.category_id, bills.description, bills.bill_number, bills.period_key, bills.period_start, bills.period_end, bills.issue_date, bills.due_date, bills.expense_date, bills.current_charges_minor, bills.arrears_minor, bills.adjustments_minor, bills.payable_minor, bills.payable_after_due_minor, bills.currency, bills.paid_minor, bills.paid_on_time_minor, bills.is_estimated, bills.cancelled, bills.verified_at, bills.verified_by, bills.field_meta, bills.notes, bills.tags, bills.created_by, bills.created_at, bills.updated_at, bills.archived_at, bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor,
     bill_status(
         bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
-        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor, $1::date
+        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
+        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, $1::date
     )::text AS status,
     bill_outstanding(
         bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
-        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor, $1::date
+        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
+        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, $1::date
     )::bigint AS outstanding_minor
 FROM bills
 WHERE bills.household_id = $2 AND bills.archived_at IS NULL
@@ -252,6 +254,9 @@ func (q *Queries) LatestBillPerProfile(ctx context.Context, arg LatestBillPerPro
 			&i.Bill.CreatedAt,
 			&i.Bill.UpdatedAt,
 			&i.Bill.ArchivedAt,
+			&i.Bill.LateStepUntil,
+			&i.Bill.PayableFinalMinor,
+			&i.Bill.PaidByStepMinor,
 			&i.Status,
 			&i.OutstandingMinor,
 		); err != nil {
@@ -290,7 +295,7 @@ func (q *Queries) ListProfileColors(ctx context.Context, householdID uuid.UUID) 
 }
 
 const listProfiles = `-- name: ListProfiles :many
-SELECT id, household_id, property_id, category_id, kind, name, icon, color, provider_id, reference_number, reference_display, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at FROM bill_profiles
+SELECT id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc FROM bill_profiles
 WHERE household_id = $1 AND ($2::boolean OR archived_at IS NULL)
 ORDER BY archived_at NULLS FIRST, sort_order, created_at
 `
@@ -319,8 +324,6 @@ func (q *Queries) ListProfiles(ctx context.Context, arg ListProfilesParams) ([]B
 			&i.Icon,
 			&i.Color,
 			&i.ProviderID,
-			&i.ReferenceNumber,
-			&i.ReferenceDisplay,
 			&i.MeterNumber,
 			&i.MultiplyingFactor,
 			&i.ConsumptionUnit,
@@ -336,6 +339,8 @@ func (q *Queries) ListProfiles(ctx context.Context, arg ListProfilesParams) ([]B
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ArchivedAt,
+			&i.ReferenceHash,
+			&i.ReferenceEnc,
 		); err != nil {
 			return nil, err
 		}
@@ -364,7 +369,8 @@ SELECT
     count(b.id)::bigint AS bill_count,
     coalesce(sum(bill_outstanding(
         b.cancelled, b.verified_at IS NOT NULL, b.due_date, b.payable_minor,
-        b.payable_after_due_minor, b.paid_minor, b.paid_on_time_minor, $1::date
+        b.payable_after_due_minor, b.paid_minor, b.paid_on_time_minor,
+        b.late_step_until, b.payable_final_minor, b.paid_by_step_minor, $1::date
     )), 0)::bigint AS outstanding_minor,
     coalesce(sum(b.current_charges_minor + b.adjustments_minor) FILTER (
         WHERE NOT b.cancelled AND b.verified_at IS NOT NULL
@@ -455,12 +461,12 @@ func (q *Queries) SetProfileSortOrder(ctx context.Context, arg SetProfileSortOrd
 const updateProfile = `-- name: UpdateProfile :one
 UPDATE bill_profiles SET
     category_id = $3, kind = $4, name = $5, icon = $6, color = $7,
-    provider_id = $8, reference_number = $9, reference_display = $10, meter_number = $11,
+    provider_id = $8, reference_hash = $9, reference_enc = $10, meter_number = $11,
     multiplying_factor = $12, consumption_unit = $13, billing_cycle = $14,
     typical_issue_day = $15, typical_due_day = $16, expected_amount_minor = $17,
     auto_create_bill = $18, pinned = $19, updated_at = now()
 WHERE id = $1 AND household_id = $2
-RETURNING id, household_id, property_id, category_id, kind, name, icon, color, provider_id, reference_number, reference_display, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at
+RETURNING id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc
 `
 
 type UpdateProfileParams struct {
@@ -472,8 +478,8 @@ type UpdateProfileParams struct {
 	Icon                string
 	Color               int16
 	ProviderID          *uuid.UUID
-	ReferenceNumber     *string
-	ReferenceDisplay    *string
+	ReferenceHash       []byte
+	ReferenceEnc        []byte
 	MeterNumber         *string
 	MultiplyingFactor   *float64
 	ConsumptionUnit     *string
@@ -495,8 +501,8 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (B
 		arg.Icon,
 		arg.Color,
 		arg.ProviderID,
-		arg.ReferenceNumber,
-		arg.ReferenceDisplay,
+		arg.ReferenceHash,
+		arg.ReferenceEnc,
 		arg.MeterNumber,
 		arg.MultiplyingFactor,
 		arg.ConsumptionUnit,
@@ -518,8 +524,6 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (B
 		&i.Icon,
 		&i.Color,
 		&i.ProviderID,
-		&i.ReferenceNumber,
-		&i.ReferenceDisplay,
 		&i.MeterNumber,
 		&i.MultiplyingFactor,
 		&i.ConsumptionUnit,
@@ -535,6 +539,8 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (B
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchivedAt,
+		&i.ReferenceHash,
+		&i.ReferenceEnc,
 	)
 	return i, err
 }

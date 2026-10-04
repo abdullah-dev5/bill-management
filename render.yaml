@@ -19,6 +19,22 @@ services:
         sync: false # e.g. https://bill-management.pages.dev
       - key: TICK_TOKEN
         generateValue: true
+      - key: DATA_ENCRYPTION_KEY
+        generateValue: true # copy it to your password manager: without it, encrypted data can't be read
+      - key: GEMINI_API_KEY
+        sync: false # optional: AI extraction (docs/setup-external-services.md)
+      - key: OCRSPACE_API_KEY
+        sync: false # optional: OCR fallback
+      - key: S3_ENDPOINT
+        sync: false # https://<project>.supabase.co/storage/v1/s3
+      - key: S3_REGION
+        sync: false # the Supabase project's region, e.g. ap-southeast-1
+      - key: S3_BUCKET
+        value: documents
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
       - key: RESEND_API_KEY
         sync: false # optional until email is set up
       - key: MAIL_FROM

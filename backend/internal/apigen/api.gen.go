@@ -75,6 +75,168 @@ func (e BillingCycle) Valid() bool {
 	}
 }
 
+// Defines values for DocumentStatus.
+const (
+	Pending DocumentStatus = "pending"
+	Ready   DocumentStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the DocumentStatus enum.
+func (e DocumentStatus) Valid() bool {
+	switch e {
+	case Pending:
+		return true
+	case Ready:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DocumentKind.
+const (
+	DocumentKindBill    DocumentKind = "bill"
+	DocumentKindOther   DocumentKind = "other"
+	DocumentKindReceipt DocumentKind = "receipt"
+)
+
+// Valid indicates whether the value is a known member of the DocumentKind enum.
+func (e DocumentKind) Valid() bool {
+	switch e {
+	case DocumentKindBill:
+		return true
+	case DocumentKindOther:
+		return true
+	case DocumentKindReceipt:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DocumentSource.
+const (
+	Camera DocumentSource = "camera"
+	Upload DocumentSource = "upload"
+)
+
+// Valid indicates whether the value is a known member of the DocumentSource enum.
+func (e DocumentSource) Valid() bool {
+	switch e {
+	case Camera:
+		return true
+	case Upload:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DocumentUploadUploadMethod.
+const (
+	PUT DocumentUploadUploadMethod = "PUT"
+)
+
+// Valid indicates whether the value is a known member of the DocumentUploadUploadMethod enum.
+func (e DocumentUploadUploadMethod) Valid() bool {
+	switch e {
+	case PUT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DocumentUploadInputContentType.
+const (
+	Applicationpdf DocumentUploadInputContentType = "application/pdf"
+	Imagejpeg      DocumentUploadInputContentType = "image/jpeg"
+	Imagepng       DocumentUploadInputContentType = "image/png"
+	Imagewebp      DocumentUploadInputContentType = "image/webp"
+)
+
+// Valid indicates whether the value is a known member of the DocumentUploadInputContentType enum.
+func (e DocumentUploadInputContentType) Valid() bool {
+	switch e {
+	case Applicationpdf:
+		return true
+	case Imagejpeg:
+		return true
+	case Imagepng:
+		return true
+	case Imagewebp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExtractionStatus.
+const (
+	ExtractionStatusFailed    ExtractionStatus = "failed"
+	ExtractionStatusQueued    ExtractionStatus = "queued"
+	ExtractionStatusRunning   ExtractionStatus = "running"
+	ExtractionStatusSucceeded ExtractionStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ExtractionStatus enum.
+func (e ExtractionStatus) Valid() bool {
+	switch e {
+	case ExtractionStatusFailed:
+		return true
+	case ExtractionStatusQueued:
+		return true
+	case ExtractionStatusRunning:
+		return true
+	case ExtractionStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ExtractionTiersOutcome.
+const (
+	ExtractionTiersOutcomeFailed    ExtractionTiersOutcome = "failed"
+	ExtractionTiersOutcomeNotNeeded ExtractionTiersOutcome = "not_needed"
+	ExtractionTiersOutcomeSkipped   ExtractionTiersOutcome = "skipped"
+	ExtractionTiersOutcomeUsed      ExtractionTiersOutcome = "used"
+)
+
+// Valid indicates whether the value is a known member of the ExtractionTiersOutcome enum.
+func (e ExtractionTiersOutcome) Valid() bool {
+	switch e {
+	case ExtractionTiersOutcomeFailed:
+		return true
+	case ExtractionTiersOutcomeNotNeeded:
+		return true
+	case ExtractionTiersOutcomeSkipped:
+		return true
+	case ExtractionTiersOutcomeUsed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HistoryMonthSource.
+const (
+	HistoryMonthSourceBill    HistoryMonthSource = "bill"
+	HistoryMonthSourcePrinted HistoryMonthSource = "printed"
+)
+
+// Valid indicates whether the value is a known member of the HistoryMonthSource enum.
+func (e HistoryMonthSource) Valid() bool {
+	switch e {
+	case HistoryMonthSourceBill:
+		return true
+	case HistoryMonthSourcePrinted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PaymentMethod.
 const (
 	PaymentMethodBankTransfer PaymentMethod = "bank_transfer"
@@ -150,6 +312,24 @@ func (e Role) Valid() bool {
 	}
 }
 
+// Defines values for ScannedBillInputDuplicate.
+const (
+	Attach       ScannedBillInputDuplicate = "attach"
+	KeepSeparate ScannedBillInputDuplicate = "keep_separate"
+)
+
+// Valid indicates whether the value is a known member of the ScannedBillInputDuplicate enum.
+func (e ScannedBillInputDuplicate) Valid() bool {
+	switch e {
+	case Attach:
+		return true
+	case KeepSeparate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TypeGroup.
 const (
 	TypeGroupHousehold TypeGroup = "household"
@@ -183,24 +363,28 @@ type AuditEvent struct {
 
 // Bill defines model for Bill.
 type Bill struct {
-	AdjustmentsMinor     int64               `json:"adjustmentsMinor"`
-	Archived             bool                `json:"archived"`
-	ArrearsMinor         int64               `json:"arrearsMinor"`
-	BillNumber           *string             `json:"billNumber,omitempty"`
-	Cancelled            bool                `json:"cancelled"`
-	CreatedAt            time.Time           `json:"createdAt"`
-	Currency             string              `json:"currency"`
-	CurrentChargesMinor  int64               `json:"currentChargesMinor"`
-	Description          *string             `json:"description,omitempty"`
-	DueDate              *openapi_types.Date `json:"dueDate,omitempty"`
-	ExpenseDate          openapi_types.Date  `json:"expenseDate"`
-	Id                   openapi_types.UUID  `json:"id"`
-	IsEstimated          bool                `json:"isEstimated"`
-	IssueDate            *openapi_types.Date `json:"issueDate,omitempty"`
+	AdjustmentsMinor    int64               `json:"adjustmentsMinor"`
+	Archived            bool                `json:"archived"`
+	ArrearsMinor        int64               `json:"arrearsMinor"`
+	BillNumber          *string             `json:"billNumber,omitempty"`
+	Cancelled           bool                `json:"cancelled"`
+	CreatedAt           time.Time           `json:"createdAt"`
+	Currency            string              `json:"currency"`
+	CurrentChargesMinor int64               `json:"currentChargesMinor"`
+	Description         *string             `json:"description,omitempty"`
+	DueDate             *openapi_types.Date `json:"dueDate,omitempty"`
+	ExpenseDate         openapi_types.Date  `json:"expenseDate"`
+	Id                  openapi_types.UUID  `json:"id"`
+	IsEstimated         bool                `json:"isEstimated"`
+	IssueDate           *openapi_types.Date `json:"issueDate,omitempty"`
+
+	// LateStepUntil The after-due amount applies until this date; payableFinalMinor applies after it
+	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
 	Notes                *string             `json:"notes,omitempty"`
 	OutstandingMinor     int64               `json:"outstandingMinor"`
 	PaidMinor            int64               `json:"paidMinor"`
 	PayableAfterDueMinor *int64              `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64              `json:"payableFinalMinor,omitempty"`
 	PayableMinor         int64               `json:"payableMinor"`
 	PeriodEnd            *openapi_types.Date `json:"periodEnd,omitempty"`
 
@@ -226,11 +410,13 @@ type BillCreate struct {
 	ExpenseDate         *openapi_types.Date `json:"expenseDate,omitempty"`
 	IsEstimated         *bool               `json:"isEstimated,omitempty"`
 	IssueDate           *openapi_types.Date `json:"issueDate,omitempty"`
+	LateStepUntil       *openapi_types.Date `json:"lateStepUntil,omitempty"`
 	Notes               *string             `json:"notes,omitempty"`
 
 	// PaidNow Records a full payment in the same step ("Already paid?")
 	PaidNow              *PaidNow `json:"paidNow,omitempty"`
 	PayableAfterDueMinor *int64   `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64   `json:"payableFinalMinor,omitempty"`
 
 	// PayableMinor Defaults to current charges + arrears + adjustments
 	PayableMinor *int64              `json:"payableMinor,omitempty"`
@@ -246,25 +432,30 @@ type BillCreate struct {
 
 // BillDetail defines model for BillDetail.
 type BillDetail struct {
-	AdjustmentsMinor     int64               `json:"adjustmentsMinor"`
-	Archived             bool                `json:"archived"`
-	ArrearsMinor         int64               `json:"arrearsMinor"`
-	BillNumber           *string             `json:"billNumber,omitempty"`
-	Cancelled            bool                `json:"cancelled"`
-	CreatedAt            time.Time           `json:"createdAt"`
-	Currency             string              `json:"currency"`
-	CurrentChargesMinor  int64               `json:"currentChargesMinor"`
-	Description          *string             `json:"description,omitempty"`
-	DueDate              *openapi_types.Date `json:"dueDate,omitempty"`
-	ExpenseDate          openapi_types.Date  `json:"expenseDate"`
-	History              []AuditEvent        `json:"history"`
-	Id                   openapi_types.UUID  `json:"id"`
-	IsEstimated          bool                `json:"isEstimated"`
-	IssueDate            *openapi_types.Date `json:"issueDate,omitempty"`
+	AdjustmentsMinor    int64               `json:"adjustmentsMinor"`
+	Archived            bool                `json:"archived"`
+	ArrearsMinor        int64               `json:"arrearsMinor"`
+	BillNumber          *string             `json:"billNumber,omitempty"`
+	Cancelled           bool                `json:"cancelled"`
+	CreatedAt           time.Time           `json:"createdAt"`
+	Currency            string              `json:"currency"`
+	CurrentChargesMinor int64               `json:"currentChargesMinor"`
+	Description         *string             `json:"description,omitempty"`
+	Documents           []Document          `json:"documents"`
+	DueDate             *openapi_types.Date `json:"dueDate,omitempty"`
+	ExpenseDate         openapi_types.Date  `json:"expenseDate"`
+	History             []AuditEvent        `json:"history"`
+	Id                  openapi_types.UUID  `json:"id"`
+	IsEstimated         bool                `json:"isEstimated"`
+	IssueDate           *openapi_types.Date `json:"issueDate,omitempty"`
+
+	// LateStepUntil The after-due amount applies until this date; payableFinalMinor applies after it
+	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
 	Notes                *string             `json:"notes,omitempty"`
 	OutstandingMinor     int64               `json:"outstandingMinor"`
 	PaidMinor            int64               `json:"paidMinor"`
 	PayableAfterDueMinor *int64              `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64              `json:"payableFinalMinor,omitempty"`
 	PayableMinor         int64               `json:"payableMinor"`
 	Payments             []Payment           `json:"payments"`
 	PeriodEnd            *openapi_types.Date `json:"periodEnd,omitempty"`
@@ -291,8 +482,10 @@ type BillInput struct {
 	ExpenseDate          *openapi_types.Date `json:"expenseDate,omitempty"`
 	IsEstimated          *bool               `json:"isEstimated,omitempty"`
 	IssueDate            *openapi_types.Date `json:"issueDate,omitempty"`
+	LateStepUntil        *openapi_types.Date `json:"lateStepUntil,omitempty"`
 	Notes                *string             `json:"notes,omitempty"`
 	PayableAfterDueMinor *int64              `json:"payableAfterDueMinor,omitempty"`
+	PayableFinalMinor    *int64              `json:"payableFinalMinor,omitempty"`
 
 	// PayableMinor Defaults to current charges + arrears + adjustments
 	PayableMinor *int64              `json:"payableMinor,omitempty"`
@@ -341,6 +534,70 @@ type BillTypeInput struct {
 // BillingCycle defines model for BillingCycle.
 type BillingCycle string
 
+// Document defines model for Document.
+type Document struct {
+	BillId      *openapi_types.UUID `json:"billId,omitempty"`
+	ContentType string              `json:"contentType"`
+	CreatedAt   time.Time           `json:"createdAt"`
+
+	// DownloadUrl Signed link that downloads the file
+	DownloadUrl  *string            `json:"downloadUrl,omitempty"`
+	FileName     string             `json:"fileName"`
+	Id           openapi_types.UUID `json:"id"`
+	Kind         DocumentKind       `json:"kind"`
+	PageCount    *int               `json:"pageCount,omitempty"`
+	SizeBytes    int64              `json:"sizeBytes"`
+	Source       DocumentSource     `json:"source"`
+	Status       DocumentStatus     `json:"status"`
+	UrlsExpireAt *time.Time         `json:"urlsExpireAt,omitempty"`
+
+	// ViewUrl Signed link for showing the file inline
+	ViewUrl *string `json:"viewUrl,omitempty"`
+}
+
+// DocumentStatus defines model for Document.Status.
+type DocumentStatus string
+
+// DocumentKind defines model for DocumentKind.
+type DocumentKind string
+
+// DocumentSource defines model for DocumentSource.
+type DocumentSource string
+
+// DocumentUpdate defines model for DocumentUpdate.
+type DocumentUpdate struct {
+	BillId *openapi_types.UUID `json:"billId,omitempty"`
+	Kind   DocumentKind        `json:"kind"`
+}
+
+// DocumentUpload defines model for DocumentUpload.
+type DocumentUpload struct {
+	Document  Document `json:"document"`
+	Duplicate bool     `json:"duplicate"`
+	Upload    *struct {
+		Headers map[string]string          `json:"headers"`
+		Method  DocumentUploadUploadMethod `json:"method"`
+		Url     string                     `json:"url"`
+	} `json:"upload,omitempty"`
+}
+
+// DocumentUploadUploadMethod defines model for DocumentUpload.Upload.Method.
+type DocumentUploadUploadMethod string
+
+// DocumentUploadInput defines model for DocumentUploadInput.
+type DocumentUploadInput struct {
+	BillId      *openapi_types.UUID            `json:"billId,omitempty"`
+	ContentType DocumentUploadInputContentType `json:"contentType"`
+	FileName    string                         `json:"fileName"`
+	Kind        DocumentKind                   `json:"kind"`
+	Sha256      string                         `json:"sha256"`
+	SizeBytes   int64                          `json:"sizeBytes"`
+	Source      DocumentSource                 `json:"source"`
+}
+
+// DocumentUploadInputContentType defines model for DocumentUploadInput.ContentType.
+type DocumentUploadInputContentType string
+
 // Error defines model for Error.
 type Error struct {
 	// Code Example: validation_failed
@@ -351,6 +608,88 @@ type Error struct {
 	Fields  *map[string]string `json:"fields,omitempty"`
 	Message string             `json:"message"`
 }
+
+// ExtractedField defines model for ExtractedField.
+type ExtractedField struct {
+	Confidence float32 `json:"confidence"`
+
+	// Source Example: pdf-text+pitc
+	Source string `json:"source"`
+
+	// Value Money in minor units, dates YYYY-MM-DD, months YYYY-MM, numbers as decimals
+	Value string `json:"value"`
+}
+
+// Extraction defines model for Extraction.
+type Extraction struct {
+	CreatedAt  time.Time                 `json:"createdAt"`
+	DocumentId openapi_types.UUID        `json:"documentId"`
+	Error      *string                   `json:"error,omitempty"`
+	Fields     map[string]ExtractedField `json:"fields"`
+	FinishedAt *time.Time                `json:"finishedAt,omitempty"`
+	History    []struct {
+		BilledMinor *int64 `json:"billedMinor,omitempty"`
+
+		// Month Example: 2026-08
+		Month     string   `json:"month"`
+		PaidMinor *int64   `json:"paidMinor,omitempty"`
+		Units     *float32 `json:"units,omitempty"`
+	} `json:"history"`
+	Id       openapi_types.UUID `json:"id"`
+	LateFees []struct {
+		AmountMinor int64               `json:"amountMinor"`
+		Until       *openapi_types.Date `json:"until,omitempty"`
+	} `json:"lateFees"`
+	LineItems []struct {
+		AmountMinor int64  `json:"amountMinor"`
+		Label       string `json:"label"`
+	} `json:"lineItems"`
+	ProviderId *openapi_types.UUID `json:"providerId,omitempty"`
+	Status     ExtractionStatus    `json:"status"`
+	Tiers      []struct {
+		Message *string                `json:"message,omitempty"`
+		Ms      int64                  `json:"ms"`
+		Outcome ExtractionTiersOutcome `json:"outcome"`
+
+		// Tier Example: gemini
+		Tier string `json:"tier"`
+	} `json:"tiers"`
+	Warnings []struct {
+		Field   *string `json:"field,omitempty"`
+		Message string  `json:"message"`
+	} `json:"warnings"`
+}
+
+// ExtractionStatus defines model for Extraction.Status.
+type ExtractionStatus string
+
+// ExtractionTiersOutcome defines model for Extraction.Tiers.Outcome.
+type ExtractionTiersOutcome string
+
+// HistoryEntry defines model for HistoryEntry.
+type HistoryEntry struct {
+	BilledMinor *int64   `json:"billedMinor,omitempty"`
+	Month       string   `json:"month"`
+	PaidMinor   *int64   `json:"paidMinor,omitempty"`
+	Units       *float32 `json:"units,omitempty"`
+}
+
+// HistoryMonth defines model for HistoryMonth.
+type HistoryMonth struct {
+	BillId *openapi_types.UUID `json:"billId,omitempty"`
+
+	// BilledMinor Spend for the month (excludes arrears for bills)
+	BilledMinor *int64 `json:"billedMinor,omitempty"`
+
+	// Month Example: 2026-08
+	Month     string             `json:"month"`
+	PaidMinor *int64             `json:"paidMinor,omitempty"`
+	Source    HistoryMonthSource `json:"source"`
+	Units     *float32           `json:"units,omitempty"`
+}
+
+// HistoryMonthSource defines model for HistoryMonth.Source.
+type HistoryMonthSource string
 
 // HomeSummary defines model for HomeSummary.
 type HomeSummary struct {
@@ -373,10 +712,14 @@ type HomeSummary struct {
 
 // Household defines model for Household.
 type Household struct {
+	// AiExtractionConsent Bill images may be sent to a third-party AI service to read them (docs/08 §5)
+	AiExtractionConsent bool `json:"aiExtractionConsent"`
+
 	// Currency Example: PKR
 	Currency string             `json:"currency"`
 	Id       openapi_types.UUID `json:"id"`
 	Name     string             `json:"name"`
+	Storage  StorageUsage       `json:"storage"`
 
 	// Timezone Example: Asia/Karachi
 	Timezone string `json:"timezone"`
@@ -384,9 +727,11 @@ type Household struct {
 
 // HouseholdInput defines model for HouseholdInput.
 type HouseholdInput struct {
-	Currency string `json:"currency"`
-	Name     string `json:"name"`
-	Timezone string `json:"timezone"`
+	// AiExtractionConsent Unchanged when omitted
+	AiExtractionConsent *bool  `json:"aiExtractionConsent,omitempty"`
+	Currency            string `json:"currency"`
+	Name                string `json:"name"`
+	Timezone            string `json:"timezone"`
 }
 
 // LoginRequest defines model for LoginRequest.
@@ -534,11 +879,35 @@ type ProviderInput struct {
 // Role defines model for Role.
 type Role string
 
+// ScannedBillInput defines model for ScannedBillInput.
+type ScannedBillInput struct {
+	Bill BillInput `json:"bill"`
+
+	// Duplicate How to handle a duplicate reported by a previous attempt
+	Duplicate *ScannedBillInputDuplicate `json:"duplicate,omitempty"`
+
+	// ExtractionId The extraction the values came from, to record corrections
+	ExtractionId *openapi_types.UUID `json:"extractionId,omitempty"`
+
+	// History Bill history printed on the document, saved to the profile
+	History *[]HistoryEntry `json:"history,omitempty"`
+}
+
+// ScannedBillInputDuplicate How to handle a duplicate reported by a previous attempt
+type ScannedBillInputDuplicate string
+
 // SignupRequest defines model for SignupRequest.
 type SignupRequest struct {
 	DisplayName string              `json:"displayName"`
 	Email       openapi_types.Email `json:"email"`
 	Password    string              `json:"password"`
+}
+
+// StorageUsage defines model for StorageUsage.
+type StorageUsage struct {
+	DocumentCount int   `json:"documentCount"`
+	QuotaBytes    int64 `json:"quotaBytes"`
+	UsedBytes     int64 `json:"usedBytes"`
 }
 
 // TypeGroup defines model for TypeGroup.
@@ -587,6 +956,12 @@ type ListBillsParams struct {
 	Limit     *int                `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListDocumentsParams defines parameters for ListDocuments.
+type ListDocumentsParams struct {
+	BillId     *openapi_types.UUID `form:"billId,omitempty" json:"billId,omitempty"`
+	Unattached *bool               `form:"unattached,omitempty" json:"unattached,omitempty"`
+}
+
 // GetHomeParams defines parameters for GetHome.
 type GetHomeParams struct {
 	Month *string `form:"month,omitempty" json:"month,omitempty"`
@@ -622,6 +997,15 @@ type UpdateBillJSONRequestBody = BillInput
 
 // CreatePaymentJSONRequestBody defines body for CreatePayment for application/json ContentType.
 type CreatePaymentJSONRequestBody = PaymentInput
+
+// CreateDocumentJSONRequestBody defines body for CreateDocument for application/json ContentType.
+type CreateDocumentJSONRequestBody = DocumentUploadInput
+
+// UpdateDocumentJSONRequestBody defines body for UpdateDocument for application/json ContentType.
+type UpdateDocumentJSONRequestBody = DocumentUpdate
+
+// SaveScannedBillJSONRequestBody defines body for SaveScannedBill for application/json ContentType.
+type SaveScannedBillJSONRequestBody = ScannedBillInput
 
 // UpdateHouseholdJSONRequestBody defines body for UpdateHousehold for application/json ContentType.
 type UpdateHouseholdJSONRequestBody = HouseholdInput
@@ -695,6 +1079,33 @@ type ServerInterface interface {
 	// (POST /bills/{id}/restore)
 	RestoreBill(w http.ResponseWriter, r *http.Request, id Id)
 
+	// (GET /documents)
+	ListDocuments(w http.ResponseWriter, r *http.Request, params ListDocumentsParams)
+
+	// (POST /documents)
+	CreateDocument(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /documents/{id})
+	DeleteDocument(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (GET /documents/{id})
+	GetDocument(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (PUT /documents/{id})
+	UpdateDocument(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /documents/{id}/bill)
+	SaveScannedBill(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /documents/{id}/complete)
+	CompleteDocument(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (GET /documents/{id}/extraction)
+	GetExtraction(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (POST /documents/{id}/extraction)
+	StartExtraction(w http.ResponseWriter, r *http.Request, id Id)
+
 	// (GET /home)
 	GetHome(w http.ResponseWriter, r *http.Request, params GetHomeParams)
 
@@ -724,6 +1135,9 @@ type ServerInterface interface {
 
 	// (POST /profiles/{id}/archive)
 	ArchiveProfile(w http.ResponseWriter, r *http.Request, id Id)
+
+	// (GET /profiles/{id}/history)
+	GetProfileHistory(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (POST /profiles/{id}/restore)
 	RestoreProfile(w http.ResponseWriter, r *http.Request, id Id)
@@ -831,6 +1245,51 @@ func (_ Unimplemented) RestoreBill(w http.ResponseWriter, r *http.Request, id Id
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (GET /documents)
+func (_ Unimplemented) ListDocuments(w http.ResponseWriter, r *http.Request, params ListDocumentsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /documents)
+func (_ Unimplemented) CreateDocument(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /documents/{id})
+func (_ Unimplemented) DeleteDocument(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /documents/{id})
+func (_ Unimplemented) GetDocument(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /documents/{id})
+func (_ Unimplemented) UpdateDocument(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /documents/{id}/bill)
+func (_ Unimplemented) SaveScannedBill(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /documents/{id}/complete)
+func (_ Unimplemented) CompleteDocument(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /documents/{id}/extraction)
+func (_ Unimplemented) GetExtraction(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /documents/{id}/extraction)
+func (_ Unimplemented) StartExtraction(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /home)
 func (_ Unimplemented) GetHome(w http.ResponseWriter, r *http.Request, params GetHomeParams) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -878,6 +1337,11 @@ func (_ Unimplemented) UpdateProfile(w http.ResponseWriter, r *http.Request, id 
 
 // (POST /profiles/{id}/archive)
 func (_ Unimplemented) ArchiveProfile(w http.ResponseWriter, r *http.Request, id Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /profiles/{id}/history)
+func (_ Unimplemented) GetProfileHistory(w http.ResponseWriter, r *http.Request, id Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1318,6 +1782,248 @@ func (siw *ServerInterfaceWrapper) RestoreBill(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListDocuments operation middleware
+func (siw *ServerInterfaceWrapper) ListDocuments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDocumentsParams
+
+	// ------------- Optional query parameter "billId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "billId", r.URL.Query(), &params.BillId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "billId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "billId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "unattached" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "unattached", r.URL.Query(), &params.Unattached, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "unattached"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "unattached", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDocuments(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDocument operation middleware
+func (siw *ServerInterfaceWrapper) CreateDocument(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDocument(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDocument operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDocument(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDocument operation middleware
+func (siw *ServerInterfaceWrapper) GetDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDocument(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateDocument operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateDocument(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SaveScannedBill operation middleware
+func (siw *ServerInterfaceWrapper) SaveScannedBill(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SaveScannedBill(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteDocument operation middleware
+func (siw *ServerInterfaceWrapper) CompleteDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteDocument(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetExtraction operation middleware
+func (siw *ServerInterfaceWrapper) GetExtraction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetExtraction(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartExtraction operation middleware
+func (siw *ServerInterfaceWrapper) StartExtraction(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartExtraction(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHome operation middleware
 func (siw *ServerInterfaceWrapper) GetHome(w http.ResponseWriter, r *http.Request) {
 
@@ -1535,6 +2241,32 @@ func (siw *ServerInterfaceWrapper) ArchiveProfile(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ArchiveProfile(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProfileHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetProfileHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProfileHistory(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1909,6 +2641,36 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/payments/{id}", wrapper.DeletePayment)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/documents", wrapper.ListDocuments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/documents", wrapper.CreateDocument)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/documents/{id}", wrapper.DeleteDocument)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/documents/{id}", wrapper.GetDocument)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/documents/{id}", wrapper.UpdateDocument)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/documents/{id}/extraction", wrapper.GetExtraction)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/documents/{id}/extraction", wrapper.StartExtraction)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/documents/{id}/bill", wrapper.SaveScannedBill)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/profiles/{id}/history", wrapper.GetProfileHistory)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/documents/{id}/complete", wrapper.CompleteDocument)
+	})
 
 	return r
 }
@@ -1918,76 +2680,110 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"zDzbcts4e6+CYXemm6lsy47/nV3vRUe1k389GyeeOGmb2m4ME58kbEiAC4B2tK5u+wB9xD7JPziQAinw",
-	"oJOTm0QmcfjOR4BPUczTjDNgSkYnT1GGBU5BgTB/nRP9L2XRSZRhNY0GEcMpRCcRJdEgEvBnTgWQ6ESJ",
-	"HAaRjKeQYj1jzEWKVXQS5bkZqWaZniWVoGwSzedzPVlmnEkw+5xyNk5orPTvmDMFzPzEWZbQGCvK2cEf",
-	"kjP9bLHJDwLG0Un0TwcLDA7sW3nwSggu7EYEZCxopheJTsqdJHqkaorgK5WKsgkiWOFoPojOcrsl/BtN",
-	"kt2DM0L3NEnQmAukplSiTPAxTQBhRswbDVrKmZoinAjAZGYhlujHuwJ0Deg5uUNUIgnqhUbiNRf3lBBg",
-	"u0fgE88FEjwBRDhIxLhCOEn4o0FHw/KWq9c8Z2T3oLzlCo3NVvNB9IHzC8xm7+HPHKSSu9/9PVaAEppS",
-	"BQaAjwznasoF/QueCXdJJwwIogxxgR4FZxMUCyDAFMWJ4cW/44QSs69daOdgnbMHvSWiLMtVpN+7KXrF",
-	"UU6oevXgds8Ez0Aoag0Cju0KT3XTMdCvuHhrzNBTxPIkwfcJFCZoebSq2COCFewpmkIUGBtPMZu4/Qmh",
-	"GgKcXHpwVfbg939ArPQ8TWE1+2AeBwCmpI9J9M3ptbWvWEWDghKVXRag3gbAKSxXjaLkj1yqVPPtgjIu",
-	"KjBRpn46XgBFmYIJCEM/EU/pgxVh9/ae8wQws28FYLHSgtqqvc3TexC9+BdjFkOSNAEQC8AKyGgVLudC",
-	"AItnQV7Zl+p0isUEVsKrIvg9ECM5nGEFS3BHg+658DUDJhvnryeBg4jKV1LRVBM0TG0q5QZQM66sKHaO",
-	"5LmSCjNC2WQVFmSYktXGzzQYo7ECcZZD89QGgJeXWml3EJSTV4ysRUw7+3cwYgxfcZrpwdHR8OinveEv",
-	"/Ve4Ulio9SCwocp5P9mSCqtcdjkSbbqu7Mj5IFJ4YmZQBakMqqt7gIXAs+LvngDlGVnNcoQs9IIG5d5V",
-	"7QxblJrhHCwb55pEeVarJKUv7wGVqaqzb0gdYT3b7ttRnzJN3uXUjDZeJUnejaOT6262ntsQYFD3SxqJ",
-	"t/yxSzIu3bD5fAmmWwfVGShMk9WgCgA0pVJxMasIXtsyXhgTkMgMz9Iit+q13KWdsLxWTf7KhQclxLeN",
-	"pLHE315M0OH1U8pomqfRybA7Akjx1zfAJmoanfw0HGweEPR04O0g1py5B+PRcDj4ps69c/5zefEqUfpQ",
-	"pbe/9Zmzuu+tMC86gzHOEyWR4sgJB4qtdKB/QU6U9a+FLkSDjUHanm+vj86wUiA0Zv99c0Oejud7Pw6v",
-	"D/d+uf2fw+vh3tHtix+ib+7slxy3Jysvh4EJKf56bsceDdu8epW1V/n9ni7VTLiY/YqIx2g1haKU8s8S",
-	"KZsz1cHuQLpubz1XHzIyTb7yEk9g2fKWlOnlE5ynWiIMg6/qNBeS98ml6vGL2bgJ6qsyXAOmpf46IgKP",
-	"TXTAtMc20YfQhYVk9rl8YP7jDyBIDpWQ4zbAc71NkTPX3FJrzun4/DtlpItul5ZnZuh8EE0Ez7OuORqk",
-	"v5uB2lTGnC3L3Zs8pgSQfolMPXSTlOtqJhWkYVSZq3IELKmWv7A2rigGpCjqOmyrBC6I5kHqxY1N0qNp",
-	"2BByfAvuedbneGhMefHnYcjBOaKvNmt7HOlmRhPZKZuczuIEfLU1xeNkFumwa/H7zxwLBcL8ngHWP0Iq",
-	"WlYJqzyMOYFq2vlQFhY/jzF1ScZyYOMXrHupx5hCQloKcgHVqKrqa72AUVL0///7f9on3CeQDkzBfQE0",
-	"Ao2ojAJ0TUFKZ8Hb2WaIshgf4tFvPIWrPE2xmC0TVUfFQBqCmKsMGHFdAnANgR8D0cwihnkRCmICgW4O",
-	"V9xqyUaeyIAUKEUcDqOe9Z0qwh+Nl0E45TlTCMeCS6kbC4hnwExnRPZDsPBGmyJYqS1VYXUZm0QpJoBI",
-	"rrFc8KkfmBllDEhvKJ1pDAEqIHYV9Q3wrcl2gYgvo53lh0K0/IjAoVlCGdaSXMKUJyRgeLzS7ULQLn9/",
-	"v4EHbvSxiqbwF2c1SzeSFB/8jgWOpzRaxbl6BZxy5Vb0GxyoTwMvF7ge7f3X7dPL+Q9RP5f2c7dL8wnQ",
-	"y2X1RfENn1DmOnPLCELqqjgBHyvlIxekGyC7hjcjBMZFIPSc+sLXpjcLKdVb8wS6JrznVl9zCaJr7Ec9",
-	"po6TmTjwIHT7hlC7XBTVal1KiLkgEmE0zpMEuSKS7hlqgyW1n5QKMvTjTTRyDWet5v96E72IBjVapaCm",
-	"nPSsZ13Ywc6SvmM9+hZLBS8zb1DsG8bb8vs9SFC61U9FusxkX448lTg8+rmqE6FMVfEvwLoF0A7rEMAK",
-	"tCvrQ1Dkw9sYDiyvbL3rqs27nqHbGp25nhZ7Tbnr337qLaGaA2PQNg/WSMBJVBJ0sJBunyklrj45W1jc",
-	"VObt4HNZ2zoM8XxTcnsa9reeZcL1yF/zbiuWd1rp30Lzi5I8RcoVY2mCJcy+fFYCMzk2hjvGQjPyD/zX",
-	"X24EYDnLMJVYv51q/Y8GEVdTEMFsrAj6VqyX4Fxx27ApDgYsj7mvZY/9GyjlrPltneTaCPAkGDG7U04Z",
-	"TkApQDLhKjJVQCuHP3fJZMyZzFOz3EdGVS+t1nX1WKtQhzZ0V3eLusL6RR9XlA4z48vqtRFzYm+FUxVp",
-	"niiaJTPKJq/NeZqqtvFcT24kBbMbtRaoynxmGT8nvLOejiQT/IESEGvVVjwTsQJ5JBfqnSB29DL/5SKH",
-	"78GjIuNfrT2tZhmNcXKmOzWzFqA9sNyUcyl7T2rJV8p29hdbenL1KKvRFSYumRhfwr2cb0HVSuu5oGbQ",
-	"xrqie4Nf+x4s20ZGqxJ9DrZnw1brVjXUSZd239ww1XbYlp0qeXA4HJpW5AL//eFweLiCJau1o7uqvu1m",
-	"bst2a1XqbWJuSpK+PKzK9Vp2aO3VwoUGh1iLxSj6C2UZXMthUXnKhUG7bLV/TvikLeIqXUGth0eqHbw+",
-	"RG6usenVWhBqrRufamsQ9lUJViBVYR/7VALXPHynz3t/AixaK9h6EIpxAoxggXTnYRtl7BolFxQJ1iWr",
-	"gDaQ3GhuqPOxetzZOyg8zaXiq3YCBYytgXiD7yFpH3JZlAuf+pifSd+TrHLKhXrbBGBvI9QSiyx28OKS",
-	"GuYeBdt42lRV7fTNWyqqLvOry+tWyFs5dDPYHrW7Det7Xm0s8kdmIjkgVBm9eqDw2JC5XtEJy7PGCheh",
-	"Mkvw7O1aBC3LYyXC9smgvX68Wt2vq7w8qOAQIt+iMe3RMFc0oYYK1bpucw3gowyZpRoBN6FRT2uVcG3F",
-	"u6uSZnaxmQ9mucQysbTMaydN1exK+6ZCQ/kXCqNcTcsrafbR4lLaffpZgpT2ukThbDOqD1KZuymUjXmg",
-	"JP7q6gMaXZ6X7VXtCNEFZngCpjh++R+j/Rt2wRnM9CUrnDzimUTO+6BUuxGUM6ovZZlqzgtdTredawTG",
-	"9egHd8bf3O3fMH30TiIsAJ1fvUN3nz59+rR3cbF3dnb3a/XOlx1UDNBTNfrAlLulg3KpF2Lotw8fLvc4",
-	"S2bI4Y8safbRqwcQMySVLruaOyN6cWEV8YaludTXtSRH0npnQHf/uXd69f713gddwL5DU8BEI4lVPC3a",
-	"mnf36edYivFdscuNoTdVWiCiOvVGl+faOICQltzD/cP9oYkzMmA4o9FJ9HJ/uP/SqJOaGl4f4DguQhoC",
-	"CShYZpsWDZInIJEZoZGmDB0eI6K5o+/P6ftQEvFcIdBUeJyCgH2kbZFjCZ5gypA9pSQRVfuRgUoY4mor",
-	"GjmTNbLgnLmNotrtxaPhcejcoYNKOkBNPnQ8PGyKw8olDypXx+blebprnfBOo1v95ED/PEh0I82YA27t",
-	"ahV602dz9zR1EMjJbGtXvio9vHlV7V2KXKPRcGt7X0DortlVcf1tTToPouOjX7on1S8W+uYqOrm+beUW",
-	"z1Uru/T7PsLlcOXuUl37jns4Sbp2HSVJr41HSVLYGIkEPPAvu5Br68YmEAD376AuIHp24Tp1SUouQRjj",
-	"MvX7v9vFvogq9gRIUAex18YMctD1OSvdxB1pfbC/2kv7j0PnZuxiyF5mJL8i3Chdw2761i+39lfMGsGF",
-	"F6cGCe50/9kJvpK5NQTHyKCEEsq+oEcstZ9X0YlO6Zau6o6Nczexmrtk/gw2UZrMoJnUNnPYEXGraUkv",
-	"qh7u2M64SAO5dm8Zx3iObR1V0PN68LH8DMNOGW9P7zUZ+DfUlqvsBbfFxyiuXdD/Zw5itoj5/WP5/b8/",
-	"MdBHurLEnGMd40TCILh4edNusXLvQ3XeNcbaCT2pZiZS1kCa+2ehrceCp2GUmg7LhNdRfBur+O2aci1S",
-	"NDEdBetVq6bFYntjwV+qJxjm8wphGP42rLYB2psxuqWzswiivPUR0G/9Tg4Qg0eQCo2pkGojB1eol9Up",
-	"fd2vIUbwu3O7sKXetdBnNqTe1c9Q4GYN6c5NZ/W7MSHWlKbv4ImSeVtqewkixXqDZGaTW53lm9LAPnqn",
-	"s/xCHc0zXVBn6B7cULKcxZpUdMH8XplrQbLjbtTLL7ys7maCEtwU94cRGD6TIOm39ptBxc1bmwe4u7er",
-	"EyusvVWPF1prMeTgnJjmdJYHCPbR3OLesca7S93Pm/6388nivaHC70LqV7UQB07L61/l6i8WQU8wsqv2",
-	"tgajwvVvRcJrKPq347eIozX6xbnXXWVm3pHL78rlOciQMGe9dV4tQOWCSZPgua87GNfxjEriyULJ9CVx",
-	"ECAVF9uW+Pd21d4S78aTb20Kpry9Dqavk/VLkor7OwvpWr5Frv87Cl0f2Wms7F+JC4iyfo0IltN7jgVB",
-	"shy5oJihUkEw7/JGM9W8+xO7Q6vYJIjU4qWPR/H0dt7q0qsIbN+w1S4gPbNzb6XcVnz7y+55i+8nNnFI",
-	"i1thxwLxfCj+9t3R7kLwsJ1dK7A0ONrySnu55rIY1MsYURYnOYHRWiWFTW3RZrcrG7KCgkg2PbBGioIc",
-	"6B6j63kjbs6QVdjjZnVm7QU4O4pj/CO2zxzHlIT+dnl7MBf1WOMrwQEvDwLmwTjDvPe0YYf8eufkab3W",
-	"iwN1w+5KF7kKu9jkin3B3pE7aZEw98pX2g3T+KpGbzmT/96swLPw6LtN5lcyG7vP5hs1absJ/c6Is9PE",
-	"bxXi7D7360kcc1i1M+xyo3rFXeXB2f5tsueKtgwafcKtYiyKscIJn+SAsiSXKDYHf9GCbjXiuqc9Ii0L",
-	"ys6MrHcG+fljLUfmHQRbDdTWsqxZ2i7HH8yI5xC18pNjPUTNfu3K1PiddJkv9Vt0fITtky7RMtvurhC/",
-	"+OLWNyhFWpJ+ZzF8wZZSBstwdNuR2ffF2uGzsPYbVGI2iczDwrDbmKwUi9UCsh0TZSsqVT3lUz2bf32r",
-	"KSNBPBS0zEUSnUQHOKMHD4eGbm7Bp/J4iZ45H5R/+4crn/z4RfoPPG9feWgjKe+ZLar7g4rKWGXPVF/1",
-	"nf9jAA==",
+	"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",
+	"HqUGSKragj7+7wA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

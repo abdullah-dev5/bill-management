@@ -18,6 +18,7 @@ import { BackLink } from '../bills/bill-pages'
 import { billTitle, BillsList } from '../bills/bill-row'
 import { PaymentSheet } from '../bills/payment-sheet'
 import { ProfileForm } from './profile-form'
+import { HistoryCard } from './history-card'
 
 // --- Profile tile ----------------------------------------------------------------------
 
@@ -274,6 +275,11 @@ function ProfileOverview({ profile, onSeeAll }: { profile: Profile; onSeeAll: ()
         <Stat label={t('profiles.outstanding')} value={formatMoney(s.outstandingMinor, currency)} />
         <Stat label={t('profiles.billCount')} value={s.billCount} />
       </Card>
+      {profile.kind !== 'expense_log' && (
+        <div className="lg:col-span-12">
+          <HistoryCard profileId={profile.id} />
+        </div>
+      )}
       <section className="lg:col-span-12">
         <SectionTitle
           action={

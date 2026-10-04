@@ -76,6 +76,247 @@ func AllBillingCycleValues() []BillingCycle {
 	}
 }
 
+type DocumentKind string
+
+const (
+	DocumentKindBill    DocumentKind = "bill"
+	DocumentKindReceipt DocumentKind = "receipt"
+	DocumentKindOther   DocumentKind = "other"
+)
+
+func (e *DocumentKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DocumentKind(s)
+	case string:
+		*e = DocumentKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DocumentKind: %T", src)
+	}
+	return nil
+}
+
+type NullDocumentKind struct {
+	DocumentKind DocumentKind
+	Valid        bool // Valid is true if DocumentKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDocumentKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.DocumentKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DocumentKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDocumentKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DocumentKind), nil
+}
+
+func (e DocumentKind) Valid() bool {
+	switch e {
+	case DocumentKindBill,
+		DocumentKindReceipt,
+		DocumentKindOther:
+		return true
+	}
+	return false
+}
+
+func AllDocumentKindValues() []DocumentKind {
+	return []DocumentKind{
+		DocumentKindBill,
+		DocumentKindReceipt,
+		DocumentKindOther,
+	}
+}
+
+type DocumentSource string
+
+const (
+	DocumentSourceCamera DocumentSource = "camera"
+	DocumentSourceUpload DocumentSource = "upload"
+)
+
+func (e *DocumentSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DocumentSource(s)
+	case string:
+		*e = DocumentSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DocumentSource: %T", src)
+	}
+	return nil
+}
+
+type NullDocumentSource struct {
+	DocumentSource DocumentSource
+	Valid          bool // Valid is true if DocumentSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDocumentSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.DocumentSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DocumentSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDocumentSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DocumentSource), nil
+}
+
+func (e DocumentSource) Valid() bool {
+	switch e {
+	case DocumentSourceCamera,
+		DocumentSourceUpload:
+		return true
+	}
+	return false
+}
+
+func AllDocumentSourceValues() []DocumentSource {
+	return []DocumentSource{
+		DocumentSourceCamera,
+		DocumentSourceUpload,
+	}
+}
+
+type DocumentStatus string
+
+const (
+	DocumentStatusPending DocumentStatus = "pending"
+	DocumentStatusReady   DocumentStatus = "ready"
+)
+
+func (e *DocumentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DocumentStatus(s)
+	case string:
+		*e = DocumentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DocumentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullDocumentStatus struct {
+	DocumentStatus DocumentStatus
+	Valid          bool // Valid is true if DocumentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDocumentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.DocumentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DocumentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDocumentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DocumentStatus), nil
+}
+
+func (e DocumentStatus) Valid() bool {
+	switch e {
+	case DocumentStatusPending,
+		DocumentStatusReady:
+		return true
+	}
+	return false
+}
+
+func AllDocumentStatusValues() []DocumentStatus {
+	return []DocumentStatus{
+		DocumentStatusPending,
+		DocumentStatusReady,
+	}
+}
+
+type ExtractionStatus string
+
+const (
+	ExtractionStatusQueued    ExtractionStatus = "queued"
+	ExtractionStatusRunning   ExtractionStatus = "running"
+	ExtractionStatusSucceeded ExtractionStatus = "succeeded"
+	ExtractionStatusFailed    ExtractionStatus = "failed"
+)
+
+func (e *ExtractionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ExtractionStatus(s)
+	case string:
+		*e = ExtractionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ExtractionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullExtractionStatus struct {
+	ExtractionStatus ExtractionStatus
+	Valid            bool // Valid is true if ExtractionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullExtractionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ExtractionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ExtractionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullExtractionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ExtractionStatus), nil
+}
+
+func (e ExtractionStatus) Valid() bool {
+	switch e {
+	case ExtractionStatusQueued,
+		ExtractionStatusRunning,
+		ExtractionStatusSucceeded,
+		ExtractionStatusFailed:
+		return true
+	}
+	return false
+}
+
+func AllExtractionStatusValues() []ExtractionStatus {
+	return []ExtractionStatus{
+		ExtractionStatusQueued,
+		ExtractionStatusRunning,
+		ExtractionStatusSucceeded,
+		ExtractionStatusFailed,
+	}
+}
+
 type MemberRole string
 
 const (
@@ -375,6 +616,9 @@ type Bill struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	ArchivedAt           *time.Time
+	LateStepUntil        *time.Time
+	PayableFinalMinor    *int64
+	PaidByStepMinor      int64
 }
 
 type BillProfile struct {
@@ -387,8 +631,6 @@ type BillProfile struct {
 	Icon                string
 	Color               int16
 	ProviderID          *uuid.UUID
-	ReferenceNumber     *string
-	ReferenceDisplay    *string
 	MeterNumber         *string
 	MultiplyingFactor   *float64
 	ConsumptionUnit     *string
@@ -404,6 +646,8 @@ type BillProfile struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	ArchivedAt          *time.Time
+	ReferenceHash       []byte
+	ReferenceEnc        []byte
 }
 
 type Category struct {
@@ -418,6 +662,54 @@ type Category struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	ArchivedAt  *time.Time
+}
+
+type Document struct {
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+	BillID      *uuid.UUID
+	Kind        DocumentKind
+	Source      DocumentSource
+	Status      DocumentStatus
+	StorageKey  string
+	FileName    string
+	ContentType string
+	SizeBytes   int64
+	Sha256      []byte
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	UploadedAt  *time.Time
+	PageCount   *int32
+	OcrText     *string
+}
+
+type Extraction struct {
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+	DocumentID  uuid.UUID
+	Status      ExtractionStatus
+	Attempts    int32
+	LockedUntil *time.Time
+	Result      []byte
+	Trace       []byte
+	Error       *string
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+	StartedAt   *time.Time
+	FinishedAt  *time.Time
+}
+
+type ExtractionCorrection struct {
+	ID           uuid.UUID
+	HouseholdID  uuid.UUID
+	ExtractionID uuid.UUID
+	Field        string
+	Extracted    *string
+	Confirmed    *string
+	Source       *string
+	Confidence   *float64
+	CreatedAt    time.Time
 }
 
 type Household struct {
@@ -460,6 +752,17 @@ type Payment struct {
 	UpdatedAt   time.Time
 }
 
+type ProfileHistory struct {
+	ProfileID   uuid.UUID
+	HouseholdID uuid.UUID
+	PeriodKey   string
+	Units       *float64
+	BilledMinor *int64
+	PaidMinor   *int64
+	DocumentID  *uuid.UUID
+	UpdatedAt   time.Time
+}
+
 type Property struct {
 	ID          uuid.UUID
 	HouseholdID uuid.UUID
@@ -495,6 +798,11 @@ type Session struct {
 	CreatedAt  time.Time
 	LastSeenAt time.Time
 	ExpiresAt  time.Time
+}
+
+type StorageDeletion struct {
+	StorageKey string
+	EnqueuedAt time.Time
 }
 
 type User struct {

@@ -1,11 +1,12 @@
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { Archive, ArrowLeft, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { BillStatus, Profile } from '@/api/client'
 import { useBill, useBillAction, useCreateBill, useDeletePayment, useProfile, useProfiles, useUpdateBill } from '@/api/hooks'
 import { PageHeader } from '@/components/layout/app-shell'
+import { DocumentsSection } from '@/features/documents/documents-section'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/field'
 import { Card, Chip, ErrorNotice, FeaturedCard, IconTile, SectionTitle, Skeleton, StatusBadge } from '@/components/ui/misc'
@@ -137,6 +138,7 @@ export function BillDetailPage() {
   const [payOpen, setPayOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [paymentToDelete, setPaymentToDelete] = useState<string>()
+  const linksRefreshedAt = useRef(0)
 
   if (bill.isError) return <ErrorNotice error={bill.error} onRetry={() => void bill.refetch()} />
   if (!bill.data) return <PageSkeleton />
@@ -231,6 +233,15 @@ export function BillDetailPage() {
           {b.arrearsMinor !== 0 && <Row label={t('bills.arrears')} value={money(b.arrearsMinor)} />}
           {b.adjustmentsMinor !== 0 && <Row label={t('bills.adjustments')} value={money(b.adjustmentsMinor)} />}
           {b.periodKey && <Row label={t('bills.payable')} value={money(b.payableMinor)} strong />}
+          {b.payableAfterDueMinor != null && (
+            <Row
+              label={b.lateStepUntil ? t('bills.afterDueUntil', { date: formatDate(b.lateStepUntil) }) : t('bills.payableAfterDue')}
+              value={money(b.payableAfterDueMinor)}
+            />
+          )}
+          {b.lateStepUntil && b.payableFinalMinor != null && (
+            <Row label={t('bills.afterDate', { date: formatDate(b.lateStepUntil) })} value={money(b.payableFinalMinor)} />
+          )}
           <Row label={t('bills.paidLabel')} value={money(b.paidMinor)} />
           {isOpen(b) && <Row label={t('bills.outstanding')} value={money(b.outstandingMinor)} strong />}
           {b.issueDate && <Row label={t('bills.issueDate')} value={formatDate(b.issueDate)} />}
@@ -276,6 +287,19 @@ export function BillDetailPage() {
         )}
       </Card>
 
+      <DocumentsSection
+        billId={b.id}
+        documents={b.documents}
+        readOnly={b.archived}
+        onLinksExpired={() => {
+          // Signed links last 5 minutes; refresh them at most once a minute.
+          if (Date.now() - linksRefreshedAt.current > 60_000) {
+            linksRefreshedAt.current = Date.now()
+            void bill.refetch()
+          }
+        }}
+      />
+
       <Card>
         <SectionTitle>{t('bills.history')}</SectionTitle>
         <ol className="flex flex-col gap-3 text-sm">
@@ -287,6 +311,9 @@ export function BillDetailPage() {
                 {t(`bills.actions.${h.action as 'update'}`, { defaultValue: h.action })}
                 <span className="block text-muted">{new Date(h.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                 {h.action === 'update' && <ChangeList changes={h.changes} />}
+                {(h.action === 'attach_document' || h.action === 'remove_document') && (
+                  <span className="block text-muted">{documentName(h.changes)}</span>
+                )}
               </span>
             </li>
           ))}
@@ -351,6 +378,11 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
       <dd className={strong ? 'font-semibold text-ink' : 'text-ink'}>{value}</dd>
     </div>
   )
+}
+
+function documentName(changes: Record<string, unknown>): string {
+  const pair = changes.document
+  return Array.isArray(pair) ? String(pair.find((v) => typeof v === 'string') ?? '') : ''
 }
 
 function ChangeList({ changes }: { changes: Record<string, unknown> }) {

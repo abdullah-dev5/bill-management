@@ -20,6 +20,7 @@ tags:
   - name: profiles
   - name: bills
   - name: payments
+  - name: documents
   - name: home
 
 paths:
@@ -498,6 +499,184 @@ paths:
         '204': { description: Deleted }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /documents:
+    get:
+      tags: [documents]
+      operationId: listDocuments
+      description: Ready documents of a bill, or documents not attached to any bill yet.
+      parameters:
+        - name: billId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: unattached
+          in: query
+          required: false
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+    post:
+      tags: [documents]
+      operationId: createDocument
+      description: |
+        Starts an upload. Returns where to PUT the file; call `complete` afterwards.
+        If the household already has this exact file (same SHA-256), the existing
+        document is returned with `duplicate: true` and no upload is needed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentUploadInput' }
+      responses:
+        '200':
+          description: Same file already stored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentUpload' }
+        '201':
+          description: Upload started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentUpload' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /documents/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [documents]
+      operationId: getDocument
+      description: Includes fresh signed links (valid for 5 minutes).
+      responses:
+        '200':
+          description: Document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [documents]
+      operationId: updateDocument
+      description: Attach to a bill, detach (billId null) or change the kind.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentUpdate' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [documents]
+      operationId: deleteDocument
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{id}/extraction:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [documents]
+      operationId: getExtraction
+      description: The latest extraction of this document.
+      responses:
+        '200':
+          description: Extraction
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Extraction' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [documents]
+      operationId: startExtraction
+      description: |
+        Reads the document in the background (docs/05). Poll GET until the status is
+        `succeeded` or `failed`. If a run is already queued or running it is returned.
+      responses:
+        '202':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Extraction' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /documents/{id}/bill:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [documents]
+      operationId: saveScannedBill
+      description: |
+        Saves a checked (verified) bill from a scanned or uploaded document and attaches the document
+        (FR-EXTR-08, FR-RECO-01…03). If the profile already has this bill (same billing month or bill
+        number) the response is 409 `duplicate_bill`; a bill that looks the same gives 409
+        `probable_duplicate`. Repeat the request with `duplicate` set to attach the document to that
+        bill, or (for probable duplicates) to keep the new bill separate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScannedBillInput' }
+      responses:
+        '200':
+          description: Document attached to the existing bill
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '201':
+          description: Bill created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/DuplicateBill' }
+  /profiles/{id}/history:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [profiles]
+      operationId: getProfileHistory
+      description: Month by month, from the profile's bills and from history printed on its bills.
+      responses:
+        '200':
+          description: Months, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HistoryMonth' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /documents/{id}/complete:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [documents]
+      operationId: completeDocument
+      description: Verifies the uploaded file (type, size, SHA-256) and makes it available.
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     cookieAuth:
@@ -579,12 +758,24 @@ components:
 
     Household:
       type: object
-      required: [id, name, currency, timezone]
+      required: [id, name, currency, timezone, aiExtractionConsent, storage]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         currency: { type: string, example: PKR }
         timezone: { type: string, example: Asia/Karachi }
+        aiExtractionConsent:
+          type: boolean
+          description: Bill images may be sent to a third-party AI service to read them (docs/08 §5)
+        storage: { $ref: '#/components/schemas/StorageUsage' }
+
+    StorageUsage:
+      type: object
+      required: [usedBytes, quotaBytes, documentCount]
+      properties:
+        usedBytes: { type: integer, format: int64 }
+        quotaBytes: { type: integer, format: int64 }
+        documentCount: { type: integer }
 
     HouseholdInput:
       type: object
@@ -593,6 +784,7 @@ components:
         name: { type: string, minLength: 1, maxLength: 80 }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         timezone: { type: string }
+        aiExtractionConsent: { type: boolean, description: Unchanged when omitted }
 
     Me:
       type: object
@@ -778,6 +970,12 @@ components:
         adjustmentsMinor: { type: integer, format: int64 }
         payableMinor: { type: integer, format: int64 }
         payableAfterDueMinor: { type: integer, format: int64, nullable: true }
+        lateStepUntil:
+          type: string
+          format: date
+          nullable: true
+          description: The after-due amount applies until this date; payableFinalMinor applies after it
+        payableFinalMinor: { type: integer, format: int64, nullable: true }
         currency: { type: string }
         status: { $ref: '#/components/schemas/BillStatus' }
         paidMinor: { type: integer, format: int64 }
@@ -811,6 +1009,8 @@ components:
         adjustmentsMinor: { type: integer, format: int64 }
         payableMinor: { type: integer, format: int64, minimum: 0, nullable: true, description: Defaults to current charges + arrears + adjustments }
         payableAfterDueMinor: { type: integer, format: int64, minimum: 0, nullable: true }
+        lateStepUntil: { type: string, format: date, nullable: true }
+        payableFinalMinor: { type: integer, format: int64, minimum: 0, nullable: true }
         isEstimated: { type: boolean }
         cancelled: { type: boolean }
         notes: { type: string, maxLength: 2000, nullable: true }
@@ -826,6 +1026,44 @@ components:
           properties:
             paidNow:
               $ref: '#/components/schemas/PaidNow'
+
+    ScannedBillInput:
+      type: object
+      required: [bill]
+      properties:
+        bill: { $ref: '#/components/schemas/BillInput' }
+        extractionId:
+          type: string
+          format: uuid
+          description: The extraction the values came from, to record corrections
+        history:
+          type: array
+          description: Bill history printed on the document, saved to the profile
+          items: { $ref: '#/components/schemas/HistoryEntry' }
+        duplicate:
+          type: string
+          enum: [attach, keep_separate]
+          description: How to handle a duplicate reported by a previous attempt
+
+    HistoryEntry:
+      type: object
+      required: [month]
+      properties:
+        month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        units: { type: number, nullable: true }
+        billedMinor: { type: integer, format: int64, nullable: true }
+        paidMinor: { type: integer, format: int64, nullable: true }
+
+    HistoryMonth:
+      type: object
+      required: [month, source]
+      properties:
+        month: { type: string, example: '2026-08' }
+        units: { type: number, nullable: true }
+        billedMinor: { type: integer, format: int64, nullable: true, description: Spend for the month (excludes arrears for bills) }
+        paidMinor: { type: integer, format: int64, nullable: true }
+        source: { type: string, enum: [bill, printed] }
+        billId: { type: string, format: uuid, nullable: true }
 
     PaidNow:
       type: object
@@ -848,7 +1086,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/Bill'
         - type: object
-          required: [payments, history]
+          required: [payments, history, documents]
           properties:
             payments:
               type: array
@@ -856,6 +1094,9 @@ components:
             history:
               type: array
               items: { $ref: '#/components/schemas/AuditEvent' }
+            documents:
+              type: array
+              items: { $ref: '#/components/schemas/Document' }
 
     PaymentMethod:
       type: string
@@ -883,6 +1124,137 @@ components:
         method: { $ref: '#/components/schemas/PaymentMethod' }
         reference: { type: string, maxLength: 80, nullable: true }
         notes: { type: string, maxLength: 500, nullable: true }
+
+    DocumentKind:
+      type: string
+      enum: [bill, receipt, other]
+
+    DocumentSource:
+      type: string
+      enum: [camera, upload]
+
+    Document:
+      type: object
+      required: [id, kind, source, status, fileName, contentType, sizeBytes, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        billId: { type: string, format: uuid, nullable: true }
+        kind: { $ref: '#/components/schemas/DocumentKind' }
+        source: { $ref: '#/components/schemas/DocumentSource' }
+        status: { type: string, enum: [pending, ready] }
+        fileName: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        viewUrl: { type: string, nullable: true, description: Signed link for showing the file inline }
+        downloadUrl: { type: string, nullable: true, description: Signed link that downloads the file }
+        urlsExpireAt: { type: string, format: date-time, nullable: true }
+        pageCount: { type: integer, nullable: true }
+
+    ExtractedField:
+      type: object
+      required: [value, confidence, source]
+      properties:
+        value:
+          type: string
+          description: Money in minor units, dates YYYY-MM-DD, months YYYY-MM, numbers as decimals
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        source: { type: string, example: pdf-text+pitc }
+
+    Extraction:
+      type: object
+      required: [id, documentId, status, tiers, fields, lineItems, lateFees, history, warnings, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, succeeded, failed] }
+        tiers:
+          type: array
+          items:
+            type: object
+            required: [tier, outcome, ms]
+            properties:
+              tier: { type: string, example: gemini }
+              outcome: { type: string, enum: [used, skipped, failed, not_needed] }
+              message: { type: string }
+              ms: { type: integer, format: int64 }
+        fields:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/ExtractedField' }
+        lineItems:
+          type: array
+          items:
+            type: object
+            required: [label, amountMinor]
+            properties:
+              label: { type: string }
+              amountMinor: { type: integer, format: int64 }
+        lateFees:
+          type: array
+          items:
+            type: object
+            required: [amountMinor]
+            properties:
+              until: { type: string, format: date }
+              amountMinor: { type: integer, format: int64 }
+        history:
+          type: array
+          items:
+            type: object
+            required: [month]
+            properties:
+              month: { type: string, example: '2026-08' }
+              units: { type: number }
+              billedMinor: { type: integer, format: int64 }
+              paidMinor: { type: integer, format: int64 }
+        warnings:
+          type: array
+          items:
+            type: object
+            required: [message]
+            properties:
+              field: { type: string }
+              message: { type: string }
+        providerId: { type: string, format: uuid, nullable: true }
+        error: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time, nullable: true }
+
+    DocumentUploadInput:
+      type: object
+      required: [fileName, contentType, sizeBytes, sha256, kind, source]
+      properties:
+        fileName: { type: string, minLength: 1, maxLength: 200 }
+        contentType: { type: string, enum: [image/jpeg, image/png, image/webp, application/pdf] }
+        sizeBytes: { type: integer, format: int64, minimum: 1, maximum: 10485760 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        kind: { $ref: '#/components/schemas/DocumentKind' }
+        source: { $ref: '#/components/schemas/DocumentSource' }
+        billId: { type: string, format: uuid }
+
+    DocumentUpload:
+      type: object
+      required: [document, duplicate]
+      properties:
+        document: { $ref: '#/components/schemas/Document' }
+        duplicate: { type: boolean }
+        upload:
+          type: object
+          nullable: true
+          required: [url, method, headers]
+          properties:
+            url: { type: string }
+            method: { type: string, enum: [PUT] }
+            headers:
+              type: object
+              additionalProperties: { type: string }
+
+    DocumentUpdate:
+      type: object
+      required: [kind]
+      properties:
+        billId: { type: string, format: uuid, nullable: true }
+        kind: { $ref: '#/components/schemas/DocumentKind' }
 
     AuditEvent:
       type: object
