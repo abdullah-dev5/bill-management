@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 import type { Schemas } from '@/api/client'
 import { useAnalytics } from '@/api/hooks'
 import { PageHeader } from '@/components/layout/app-shell'
-import { Input } from '@/components/ui/field'
+import { DateInput } from '@/components/ui/date-input'
+import { Field } from '@/components/ui/field'
 import { Card, Chip, EmptyState, ErrorNotice, IconTile, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { cn } from '@/lib/cn'
 import { currentMonthKey, formatMonth, formatMonthShort, shiftMonth } from '@/lib/dates'
@@ -93,26 +94,16 @@ export function AnalyticsPage() {
         </div>
         {preset === 'custom' && (
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-sm text-ink">
-              {t('analytics.from')}
-              <Input
-                type="month"
-                className="h-11 w-44"
-                value={range.from}
-                max={range.to}
-                onChange={(e) => e.target.value && set({ preset: 'custom', from: e.target.value, to: range.to })}
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm text-ink">
-              {t('analytics.to')}
-              <Input
-                type="month"
-                className="h-11 w-44"
-                value={range.to}
-                min={range.from}
-                onChange={(e) => e.target.value && set({ preset: 'custom', from: range.from, to: e.target.value })}
-              />
-            </label>
+            <Field label={t('analytics.from')} className="w-44">
+              {(p) => (
+                <DateInput {...p} mode="month" required className="h-11" value={range.from} max={range.to} onChange={(v) => v && set({ preset: 'custom', from: v, to: range.to })} />
+              )}
+            </Field>
+            <Field label={t('analytics.to')} className="w-44">
+              {(p) => (
+                <DateInput {...p} mode="month" required className="h-11" value={range.to} min={range.from} onChange={(v) => v && set({ preset: 'custom', from: range.from, to: v })} />
+              )}
+            </Field>
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('analytics.basis')}>

@@ -6,6 +6,7 @@ import { ApiError, type BillType } from '@/api/client'
 import { useCreateProfile, useProviders, useTypes } from '@/api/hooks'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select } from '@/components/ui/field'
+import { providerOptions } from '@/features/profiles/options'
 import { Card, Chip, Skeleton } from '@/components/ui/misc'
 import { NamedIcon } from '@/lib/icons'
 import { suggestName } from '../profiles/profile-form'
@@ -138,15 +139,7 @@ function DraftCard({ type, draft, onChange }: { type: BillType; draft: Draft; on
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('onboarding.provider')} optional>
             {(p) => (
-              <Select {...p} value={draft.providerId} onChange={(e) => onChange({ providerId: e.target.value, error: undefined })}>
-                <option value="">{t('profiles.noProvider')}</option>
-                {(providers ?? []).map((pr) => (
-                  <option key={pr.id} value={pr.id}>
-                    {pr.shortName}
-                    {pr.region ? ` — ${pr.region}` : ''}
-                  </option>
-                ))}
-              </Select>
+              <Select {...p} value={draft.providerId} onChange={(v) => onChange({ providerId: v, error: undefined })} options={providerOptions(providers, t)} />
             )}
           </Field>
           <Field label={t('onboarding.reference')} optional>

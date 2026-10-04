@@ -3,6 +3,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { BillType, Profile, ProfileInput, ProfileKind } from '@/api/client'
 import { useProviders, useTypes } from '@/api/hooks'
+import { providerOptions } from './options'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select, Toggle } from '@/components/ui/field'
 import { MoneyInput } from '@/components/ui/money-input'
@@ -77,6 +78,8 @@ export function ProfileForm({ profile, defaultTypeId, submitLabel, onSubmit, onC
   const kind = watch('kind')
   const icon = watch('icon')
   const { data: providers } = useProviders(typeId || undefined)
+  const providerId = watch('providerId')
+  const selectedProvider = providers?.find((pr) => pr.id === providerId)
 
   const topLevel = useMemo(() => (types ?? []).filter((ty) => !ty.parentId && !ty.archived), [types])
   const selectedType = topLevel.find((ty) => ty.id === typeId)
@@ -130,20 +133,20 @@ export function ProfileForm({ profile, defaultTypeId, submitLabel, onSubmit, onC
     <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
       <Field label={t('profiles.type')} error={errors.typeId?.message}>
         {(p) => (
-          <Select {...p} {...register('typeId', { required: t('validation.required') })} disabled={profile?.isDefault}>
-            <option value="">{t('profiles.chooseType')}</option>
-            {grouped.map(({ g, items }) =>
-              items.length ? (
-                <optgroup key={g} label={t(`group.${g}`)}>
-                  {items.map((ty) => (
-                    <option key={ty.id} value={ty.id}>
-                      {ty.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null,
+          <Controller
+            control={control}
+            name="typeId"
+            rules={{ required: t('validation.required') }}
+            render={({ field }) => (
+              <Select
+                {...p}
+                {...field}
+                disabled={profile?.isDefault}
+                placeholder={t('profiles.chooseType')}
+                options={grouped.flatMap(({ g, items }) => items.map((ty) => ({ value: ty.id, label: ty.name, group: t(`group.${g}`) })))}
+              />
             )}
-          </Select>
+          />
         )}
       </Field>
 
@@ -188,18 +191,12 @@ export function ProfileForm({ profile, defaultTypeId, submitLabel, onSubmit, onC
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label={t('profiles.provider')} error={errors.providerId?.message} optional>
             {(p) => (
-              <Select {...p} {...register('providerId')}>
-                <option value="">{t('profiles.noProvider')}</option>
-                {(providers ?? []).map((pr) => (
-                  <option key={pr.id} value={pr.id}>
-                    {pr.shortName}
-                    {pr.region ? ` — ${pr.region}` : ''}
-                  </option>
-                ))}
-              </Select>
+              <Controller control={control} name="providerId" render={({ field }) => <Select {...p} {...field} options={providerOptions(providers, t)} />} />
             )}
           </Field>
-          <Field label={t('profiles.reference')} hint={t('profiles.referenceHint')} error={errors.referenceNumber?.message} optional>
+          <Field
+            label={t('profiles.reference')}
+            hint={selectedProvider ? t('profiles.referenceHintAs', { label: selectedProvider.refNumberLabel }) : t('profiles.referenceHint')} error={errors.referenceNumber?.message} optional>
             {(p) => <Input {...p} inputMode="text" autoComplete="off" {...register('referenceNumber')} />}
           </Field>
         </div>
@@ -242,13 +239,13 @@ export function ProfileForm({ profile, defaultTypeId, submitLabel, onSubmit, onC
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label={t('profiles.cycle')}>
             {(p) => (
-              <Select {...p} {...register('billingCycle')}>
-                {CYCLES.map((c) => (
-                  <option key={c} value={c}>
-                    {t(`profiles.cycles.${c}`)}
-                  </option>
-                ))}
-              </Select>
+              <Controller
+                control={control}
+                name="billingCycle"
+                render={({ field }) => (
+                  <Select {...p} {...field} options={CYCLES.map((c) => ({ value: c, label: t(`profiles.cycles.${c}`), hint: t(`profiles.cycleHints.${c}`) }))} />
+                )}
+              />
             )}
           </Field>
           <Field label={t('profiles.dueDay')} hint={t('profiles.dueDayHint')} error={errors.typicalDueDay?.message} optional>

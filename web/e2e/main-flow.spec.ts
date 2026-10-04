@@ -30,7 +30,9 @@ test('sign up, onboard, add a bill, pay it, log an expense', async ({ page }) =>
   // Pick Electricity and Maintenance; give the electricity profile a LESCO reference.
   await page.getByRole('button', { name: 'Electricity' }).click()
   await page.getByRole('button', { name: 'Maintenance' }).click()
-  await page.getByLabel(/^Provider/).selectOption({ label: 'LESCO — Lahore' })
+  await page.getByLabel(/^Provider/).click()
+  await page.getByRole('option', { name: 'LESCO — Lahore' }).click()
+  await expect(page.getByLabel(/^Provider/)).toHaveText('LESCO — Lahore')
   await page.getByLabel(/^Reference \/ account no\./).fill(uniqueReference())
   await shot(page, '02-onboarding')
   await page.getByRole('button', { name: 'Create 2 profiles' }).click()

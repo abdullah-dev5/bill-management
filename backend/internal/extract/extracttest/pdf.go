@@ -55,6 +55,11 @@ func TextPDF(lines []string, pages int) []byte {
 //go:embed hesco-masked.txt
 var HescoText string
 
+// SsgcText is the OCR text of an SSGC gas bill with personal details replaced.
+//
+//go:embed ssgc-masked.txt
+var SsgcText string
+
 // LatinLines keeps the ASCII part of each non-empty line (the test PDF font is Latin-only).
 func LatinLines(text string) []string {
 	var out []string

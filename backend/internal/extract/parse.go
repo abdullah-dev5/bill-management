@@ -25,6 +25,8 @@ func ParseText(text string, providers []Provider, source string) Result {
 	}
 	if looksLikePITC(text) {
 		parsePITC(&r, text, source+"+pitc")
+	} else if looksLikeSSGC(text) {
+		parseSSGC(&r, text, source+"+ssgc")
 	}
 	parseGeneric(&r, text, source+"+generic")
 	r.History = sortHistory(r.History)

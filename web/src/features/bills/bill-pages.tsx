@@ -83,13 +83,7 @@ function ProfileSwitcher({ profiles, current, onChange }: { profiles: Profile[];
       <label className="sr-only" htmlFor="profile-switch">
         {t('bills.profile')}
       </label>
-      <Select id="profile-switch" value={current.id} onChange={(e) => onChange(e.target.value)} className="h-11 max-w-xs">
-        {profiles.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </Select>
+      <Select id="profile-switch" value={current.id} onChange={onChange} className="h-11 max-w-xs" options={profiles.map((p) => ({ value: p.id, label: p.name }))} />
     </div>
   )
 }
@@ -470,14 +464,13 @@ export function BillsPage() {
           <label className="sr-only" htmlFor="bills-profile">
             {t('bills.filterProfile')}
           </label>
-          <Select id="bills-profile" className="h-11 sm:w-60" value={search.profileId ?? ''} onChange={(e) => set({ profileId: e.target.value || undefined })}>
-            <option value="">{t('bills.allProfiles')}</option>
-            {(profiles ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
+          <Select
+            id="bills-profile"
+            className="h-11 sm:w-60"
+            value={search.profileId ?? ''}
+            onChange={(v) => set({ profileId: v || undefined })}
+            options={[{ value: '', label: t('bills.allProfiles') }, ...(profiles ?? []).map((p) => ({ value: p.id, label: p.name }))]}
+          />
         </div>
       </div>
       <Toggle label={t('bills.archivedView')} checked={Boolean(search.archived)} onChange={(v) => set({ archived: v || undefined })} />

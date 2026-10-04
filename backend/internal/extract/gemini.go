@@ -37,7 +37,10 @@ with the date until which it applies.
 amounts); leave out subtotals, totals, arrears and amounts payable.
 "history" is the table of previous months (month, units, bill amount, payment), if the bill prints one.
 "current_charges" is the total of this period's charges including taxes and fuel adjustments, excluding arrears
-(usually the grand total minus arrears).`
+(usually the grand total minus arrears).
+"reference_number" is the account identifier: the 14-digit reference number on electricity bills, the customer or
+consumer number on gas bills (leave out a check digit printed in brackets after it, as on SSGC bills).
+"arrears" includes a "previous balance" carried into this bill.`
 
 var geminiFields = map[string]string{
 	"provider_name": FProvider, "reference_number": FReference, "bill_number": FBillNumber,
