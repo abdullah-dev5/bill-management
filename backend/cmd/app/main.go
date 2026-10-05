@@ -99,6 +99,10 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger, keys *secur
 
 	api := httpapi.New(store.NewDB(pool), cfg, log, mailer, keys, files)
 	api.StartWorkers(ctx, 2)
+	if !cfg.IsProduction() {
+		// Production is ticked by cron-job.org; locally nothing calls /internal/tick.
+		api.StartTicker(ctx, 10*time.Minute)
+	}
 	if cfg.GeminiAPIKey == "" && cfg.OCRSpaceAPIKey == "" {
 		log.Warn("no GEMINI_API_KEY or OCRSPACE_API_KEY: only text PDFs can be read automatically (see docs/setup-external-services.md)")
 	}

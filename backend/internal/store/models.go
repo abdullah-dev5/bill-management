@@ -378,6 +378,73 @@ func AllMemberRoleValues() []MemberRole {
 	}
 }
 
+type NotificationKind string
+
+const (
+	NotificationKindDueSoon     NotificationKind = "due_soon"
+	NotificationKindDueToday    NotificationKind = "due_today"
+	NotificationKindOverdue     NotificationKind = "overdue"
+	NotificationKindMissingBill NotificationKind = "missing_bill"
+	NotificationKindBillCreated NotificationKind = "bill_created"
+)
+
+func (e *NotificationKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationKind(s)
+	case string:
+		*e = NotificationKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationKind: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationKind struct {
+	NotificationKind NotificationKind
+	Valid            bool // Valid is true if NotificationKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationKind), nil
+}
+
+func (e NotificationKind) Valid() bool {
+	switch e {
+	case NotificationKindDueSoon,
+		NotificationKindDueToday,
+		NotificationKindOverdue,
+		NotificationKindMissingBill,
+		NotificationKindBillCreated:
+		return true
+	}
+	return false
+}
+
+func AllNotificationKindValues() []NotificationKind {
+	return []NotificationKind{
+		NotificationKindDueSoon,
+		NotificationKindDueToday,
+		NotificationKindOverdue,
+		NotificationKindMissingBill,
+		NotificationKindBillCreated,
+	}
+}
+
 type PaymentMethod string
 
 const (
@@ -736,6 +803,35 @@ type Membership struct {
 	CreatedAt   time.Time
 }
 
+type Notification struct {
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+	UserID      uuid.UUID
+	Kind        NotificationKind
+	ProfileID   *uuid.UUID
+	BillID      *uuid.UUID
+	PeriodKey   *string
+	DueDate     *time.Time
+	AmountMinor *int64
+	DedupeKey   string
+	CreatedAt   time.Time
+	ReadAt      *time.Time
+	PushedAt    *time.Time
+}
+
+type NotificationSetting struct {
+	UserID      uuid.UUID
+	HouseholdID uuid.UUID
+	LeadDays    int16
+	DueSoon     bool
+	Overdue     bool
+	Missing     bool
+	Push        bool
+	QuietStart  *int16
+	QuietEnd    *int16
+	UpdatedAt   time.Time
+}
+
 type PasswordResetToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -794,6 +890,19 @@ type Provider struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ArchivedAt       *time.Time
+}
+
+type PushSubscription struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	HouseholdID uuid.UUID
+	Endpoint    string
+	P256dh      string
+	Auth        string
+	UserAgent   *string
+	CreatedAt   time.Time
+	LastUsedAt  *time.Time
+	Failures    int32
 }
 
 type Session struct {

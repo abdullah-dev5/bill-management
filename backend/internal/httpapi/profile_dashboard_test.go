@@ -46,7 +46,7 @@ func TestProfileDashboardLists(t *testing.T) {
 
 	var months []apigen.HistoryMonth
 	cl.must(http.StatusOK, http.MethodGet, "/api/v1/profiles/"+p.Id.String()+"/history", nil, &months)
-	if len(months) != 2 || months[0].Status == nil || *months[0].Status != apigen.Paid || *months[1].Status != apigen.PartiallyPaid {
+	if len(months) != 2 || months[0].Status == nil || *months[0].Status != apigen.BillStatusPaid || *months[1].Status != apigen.BillStatusPartiallyPaid {
 		t.Fatalf("history statuses = %+v", months)
 	}
 
@@ -74,7 +74,7 @@ func TestBillsFilterByManyStatuses(t *testing.T) {
 		t.Fatalf("open bills = %d, want 2", len(page.Items))
 	}
 	for _, b := range page.Items {
-		if b.Status == apigen.Paid {
+		if b.Status == apigen.BillStatusPaid {
 			t.Errorf("a paid bill was returned: %s", *b.PeriodKey)
 		}
 	}

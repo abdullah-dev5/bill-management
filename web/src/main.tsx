@@ -6,10 +6,12 @@ import { Toaster } from 'sonner'
 import { ApiError } from '@/api/client'
 import '@/i18n'
 import '@/index.css'
+import { registerServiceWorker } from '@/lib/pwa'
 import { applyTheme } from '@/lib/theme'
 import { makeRouter } from '@/router'
 
 applyTheme()
+registerServiceWorker()
 
 const queryClient = new QueryClient({
   defaultOptions: {

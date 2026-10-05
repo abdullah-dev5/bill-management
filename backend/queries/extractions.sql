@@ -44,3 +44,9 @@ UPDATE documents SET ocr_text = $2, updated_at = now() WHERE id = $1;
 SELECT id, short_name, name, ref_number_pattern FROM providers
 WHERE (household_id IS NULL OR household_id = $1) AND archived_at IS NULL
 ORDER BY household_id NULLS LAST, short_name;
+
+-- name: CreateFinishedExtraction :one
+-- An extraction done outside the queue (text read on the device).
+INSERT INTO extractions (id, household_id, document_id, created_by, status, attempts, result, trace, error, started_at, finished_at)
+VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8, $9, $9)
+RETURNING *;

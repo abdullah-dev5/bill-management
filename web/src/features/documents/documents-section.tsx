@@ -127,7 +127,7 @@ export function DocumentViewer({ id, billId, readOnly, onClose }: { id?: string;
             ) : (
               d.viewUrl && <img src={d.viewUrl} alt={d.fileName} className="max-h-[60dvh] w-full rounded-field bg-card-muted object-contain" />
             )}
-            {d.kind === 'bill' && <ExtractionPanel documentId={d.id} />}
+            {d.kind === 'bill' && <ExtractionPanel documentId={d.id} doc={d} />}
             <div className="flex flex-wrap gap-2">
               {d.viewUrl && isPdfDoc(d) && (
                 <a href={d.viewUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-full bg-featured px-4 text-sm font-semibold text-on-featured">

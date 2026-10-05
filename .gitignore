@@ -36,3 +36,5 @@ Thumbs.db
 
 # Personal brainstorming notes (not part of the repo)
 /IDEAS.md
+# On-device OCR engine, copied from node_modules by web/scripts/copy-tesseract.mjs
+/web/public/tesseract/

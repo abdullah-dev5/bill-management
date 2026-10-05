@@ -77,7 +77,7 @@ func TestArrearsSettlement(t *testing.T) {
 	// September's bill carries August's late amount as arrears.
 	sep := cl.createBill(map[string]any{"profileId": p.Id, "periodKey": "2026-09", "dueDate": "2026-10-08",
 		"currentChargesMinor": 800000, "arrearsMinor": 735000})
-	if got := cl.getBill(aug.Id.String()); got.Status != apigen.Overdue {
+	if got := cl.getBill(aug.Id.String()); got.Status != apigen.BillStatusOverdue {
 		t.Fatalf("August before paying September: %s", got.Status)
 	}
 	// August's late amount is inside September's arrears, so it isn't counted again as "earlier".
@@ -90,11 +90,11 @@ func TestArrearsSettlement(t *testing.T) {
 	var paid apigen.BillDetail
 	cl.must(http.StatusCreated, http.MethodPost, "/api/v1/bills/"+sep.Id.String()+"/payments",
 		map[string]any{"paidOn": "2026-09-20", "amountMinor": 1535000, "method": "bank_transfer"}, &paid)
-	if paid.Status != apigen.Paid {
+	if paid.Status != apigen.BillStatusPaid {
 		t.Fatalf("September after paying: %s", paid.Status)
 	}
 	got := cl.getBill(aug.Id.String())
-	if got.Status != apigen.Paid || got.OutstandingMinor != 0 || got.SettledByBillId == nil || *got.SettledByBillId != sep.Id {
+	if got.Status != apigen.BillStatusPaid || got.OutstandingMinor != 0 || got.SettledByBillId == nil || *got.SettledByBillId != sep.Id {
 		t.Fatalf("August should be settled via September: %s %d %v", got.Status, got.OutstandingMinor, got.SettledByBillId)
 	}
 	if got.History[0].Action != "settled" {
@@ -104,7 +104,7 @@ func TestArrearsSettlement(t *testing.T) {
 	// Undoing September's payment undoes the settlement.
 	cl.must(http.StatusNoContent, http.MethodDelete, "/api/v1/payments/"+paid.Payments[0].Id.String(), nil, nil)
 	got = cl.getBill(aug.Id.String())
-	if got.Status != apigen.Overdue || got.SettledByBillId != nil || got.History[0].Action != "unsettled" {
+	if got.Status != apigen.BillStatusOverdue || got.SettledByBillId != nil || got.History[0].Action != "unsettled" {
 		t.Fatalf("after removing the payment: %s %v %q", got.Status, got.SettledByBillId, got.History[0].Action)
 	}
 }
@@ -118,7 +118,7 @@ func TestArrearsSettlementNeedsMatchingAmount(t *testing.T) {
 	// Arrears that don't match August's amount (e.g. an older balance) settle nothing.
 	cl.createBill(map[string]any{"profileId": p.Id, "periodKey": "2026-09", "currentChargesMinor": 200000, "arrearsMinor": 50000,
 		"paidNow": map[string]any{"paidOn": "2026-09-20", "method": "cash"}})
-	if got := cl.getBill(aug.Id.String()); got.SettledByBillId != nil || got.Status != apigen.Overdue {
+	if got := cl.getBill(aug.Id.String()); got.SettledByBillId != nil || got.Status != apigen.BillStatusOverdue {
 		t.Fatalf("August must stay open: %s %v", got.Status, got.SettledByBillId)
 	}
 

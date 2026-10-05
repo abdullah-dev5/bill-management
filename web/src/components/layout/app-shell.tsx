@@ -6,6 +6,8 @@ import { useProfiles } from '@/api/hooks'
 import { IconTile } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { CaptureSheet } from '@/features/documents/capture-sheet'
+import { NotificationBell } from '@/features/notifications/notifications'
+import { ConnectionBanner } from '@/features/documents/upload-queue'
 import { cn } from '@/lib/cn'
 
 const NAV = [
@@ -21,7 +23,8 @@ const BOTTOM_NAV = NAV.filter((n) => n.key !== 'bills')
 
 export function AppShell() {
   const { t } = useTranslation()
-  const [addOpen, setAddOpen] = useState(false)
+  // The installed app's "Scan a bill" shortcut opens /?add=scan.
+  const [addOpen, setAddOpen] = useState(() => new URLSearchParams(window.location.search).get('add') === 'scan')
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isActive = (to: string, exact?: boolean) => (exact ? pathname === to : pathname === to || pathname.startsWith(to + '/'))
   const navigate = useNavigate()
@@ -47,6 +50,7 @@ export function AppShell() {
       <Sidebar isActive={isActive} onAdd={() => setAddOpen(true)} />
 
       <main id="main" className="mx-auto w-full max-w-[1200px] px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-28 sm:px-6 lg:px-10 lg:pt-10 lg:pb-12">
+        <ConnectionBanner />
         <Outlet />
       </main>
 
@@ -110,9 +114,10 @@ function Sidebar({ isActive, onAdd }: { isActive: (to: string, exact?: boolean) 
       >
         <Plus className="size-5" aria-hidden /> {t('nav.add')}
       </button>
+      <div className="flex items-center gap-2">
       <Link
         to="/search"
-        className="flex h-11 items-center gap-3 rounded-full border border-line bg-card px-4 text-sm text-muted hover:border-[var(--text-muted)]"
+        className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-full border border-line bg-card px-4 text-sm text-muted hover:border-[var(--text-muted)]"
         aria-keyshortcuts="/"
       >
         <Search className="size-4.5" aria-hidden />
@@ -121,6 +126,8 @@ function Sidebar({ isActive, onAdd }: { isActive: (to: string, exact?: boolean) 
           /
         </kbd>
       </Link>
+      <NotificationBell className="shrink-0 border border-line" />
+      </div>
       <nav aria-label="Primary">
         <ul className="flex flex-col gap-1">
           {NAV.map((n) => {
@@ -246,13 +253,16 @@ function AddRow({ onClick, icon, title, sub }: { onClick: () => void; icon: Reac
   )
 }
 
-/** Search button for phone headers (the desktop sidebar has its own). */
+/** Search and notification buttons for phone headers (the desktop sidebar has its own). */
 export function SearchButton() {
   const { t } = useTranslation()
   return (
-    <Link to="/search" aria-label={t('search.open')} className="grid size-11 place-items-center rounded-full bg-card text-ink hover:bg-card-muted lg:hidden">
-      <Search className="size-5" aria-hidden />
-    </Link>
+    <span className="flex items-center gap-2 lg:hidden">
+      <NotificationBell />
+      <Link to="/search" aria-label={t('search.open')} className="grid size-11 place-items-center rounded-full bg-card text-ink hover:bg-card-muted">
+        <Search className="size-5" aria-hidden />
+      </Link>
+    </span>
   )
 }
 

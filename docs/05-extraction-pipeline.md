@@ -134,7 +134,12 @@ shared by all DISCOs. Everything else is read by two **layout readers that work 
   otherwise the row is ignored. History tables ("Month · Units · Bill · Payment") are read the same way.
 - **Label: value pairs**, one per line or with the value on the line below.
 
-New providers are added by extending the label vocabulary, not by writing a parser. Tests cover an SSGC sample
+New providers are added by extending the label vocabulary, not by writing a parser.
+
+**Tier 3 as built (M5):** on a photo whose reading failed (or before reading it), **Read on this phone** runs
+Tesseract.js (LSTM engine, compact English model, served by the app and cached for offline use). The recognised text is
+sent to `POST /documents/{id}/extraction/device` and parsed and validated like OCR text; low recognition confidence lowers
+every field's confidence. No outside reading service sees the photo. Tests cover an SSGC sample
 (masked) plus layouts written in the style of SNGPL, telecom and water bills.
 
 ## 6. Validation rules (deterministic)

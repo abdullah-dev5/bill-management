@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useHome, useMe, useProfiles } from '@/api/hooks'
 import { SearchButton } from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
-import { Card, EmptyState, ErrorNotice, SectionTitle, Skeleton } from '@/components/ui/misc'
+import { Card, EmptyState, ErrorNotice, IconTile, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { currentMonthKey, formatMonth, shiftMonth } from '@/lib/dates'
 import { BillRow } from '../bills/bill-row'
 import { ProfileTile } from '../profiles/profile-pages'
@@ -79,6 +79,32 @@ export function HomePage() {
                 }
               />
             </Card>
+          )}
+
+          {home.data.expectedMissing.length > 0 && (
+            <section data-testid="expected-missing">
+              <SectionTitle>{t('expected.title')}</SectionTitle>
+              <ul className="divide-y divide-line overflow-hidden rounded-card bg-card">
+                {home.data.expectedMissing.map((m) => (
+                  <li key={m.profileId} className="flex items-center gap-3 px-4 py-3 sm:px-5">
+                    <IconTile icon={m.icon} color={m.color} size="sm" />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-medium text-ink">{m.profileName}</span>
+                      <span className="truncate text-sm text-[var(--st-soon-fg)]">{t('expected.line', { month: formatMonth(m.periodKey) })}</span>
+                    </span>
+                    <Link
+                      to="/bills/new"
+                      search={{ profileId: m.profileId, period: m.periodKey }}
+                      className="inline-flex h-10 shrink-0 items-center rounded-full bg-featured px-4 text-sm font-semibold text-on-featured"
+                      aria-label={`${t('expected.add')}: ${m.profileName} ${formatMonth(m.periodKey)}`}
+                    >
+                      {t('expected.add')}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-sm text-muted">{t('expected.hint')}</p>
+            </section>
           )}
 
           {(home.data.overdue.length > 0 || home.data.dueSoon.length > 0 || hasRealProfiles) && (

@@ -31,7 +31,27 @@ func (s *Server) GetHome(w http.ResponseWriter, r *http.Request, params apigen.G
 		return
 	}
 
-	out := apigen.HomeSummary{Month: month, DueSoon: []apigen.Bill{}, Overdue: []apigen.Bill{}, Pinned: []apigen.Profile{}, Recent: []apigen.Bill{}}
+	out := apigen.HomeSummary{Month: month, DueSoon: []apigen.Bill{}, Overdue: []apigen.Bill{}, Pinned: []apigen.Profile{}, Recent: []apigen.Bill{},
+		ExpectedMissing: []apigen.ExpectedBill{}}
+
+	// FR-DASH-04: computed live, so Home is right even between ticks.
+	cycleProfiles, err := s.db.ListCycleProfiles(ctx, a.HouseholdID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	loc, lerr := time.LoadLocation(hh.Timezone)
+	if lerr != nil {
+		loc = time.UTC
+	}
+	for _, mb := range expectedMissing(cycleProfiles, today, func(t time.Time) time.Time {
+		y, m, d := t.In(loc).Date()
+		return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	}) {
+		out.ExpectedMissing = append(out.ExpectedMissing, apigen.ExpectedBill{
+			ProfileId: mb.Profile.ID, ProfileName: mb.Profile.Name, Icon: mb.Profile.Icon, Color: int(mb.Profile.Color), PeriodKey: mb.Period,
+		})
+	}
 	if out.BilledMinor, err = s.db.MonthBilled(ctx, store.MonthBilledParams{HouseholdID: a.HouseholdID, Month: month}); err != nil {
 		s.fail(w, r, err)
 		return
@@ -54,7 +74,7 @@ func (s *Server) GetHome(w http.ResponseWriter, r *http.Request, params apigen.G
 	}
 	for _, row := range due {
 		b := toBill(billView(row))
-		if b.Status == apigen.Overdue {
+		if b.Status == apigen.BillStatusOverdue {
 			out.Overdue = append(out.Overdue, b)
 		} else {
 			out.DueSoon = append(out.DueSoon, b)
@@ -121,21 +141,28 @@ func (s *Server) tick(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errUnauthorized("bad_token", "Invalid tick token."))
 		return
 	}
-	ctx := r.Context()
-	sessions, err := s.db.DeleteExpiredSessions(ctx, s.now())
+	out, err := s.RunTick(r.Context())
 	if err != nil {
 		s.fail(w, r, err)
 		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// RunTick does the periodic housekeeping and reminders. Production calls it every 10 minutes
+// through POST /internal/tick (cron-job.org); development runs it in-process (StartTicker).
+func (s *Server) RunTick(ctx context.Context) (map[string]any, error) {
+	sessions, err := s.db.DeleteExpiredSessions(ctx, s.now())
+	if err != nil {
+		return nil, err
 	}
 	tokens, err := s.db.DeleteExpiredPasswordResetTokens(ctx, s.now())
 	if err != nil {
-		s.fail(w, r, err)
-		return
+		return nil, err
 	}
 	due, err := s.db.ListUsersDueForPurge(ctx, ptr(s.now().Add(-accountDeletionTTL)))
 	if err != nil {
-		s.fail(w, r, err)
-		return
+		return nil, err
 	}
 	for _, userID := range due {
 		err := s.db.InTx(ctx, func(q *store.Queries) error {
@@ -145,30 +172,55 @@ func (s *Server) tick(w http.ResponseWriter, r *http.Request) {
 			return q.DeleteUser(ctx, userID)
 		})
 		if err != nil {
-			s.fail(w, r, err)
-			return
+			return nil, err
 		}
 		s.log.InfoContext(ctx, "purged account after deletion grace period", "user_id", userID)
 	}
 	stale, err := s.db.DeleteStalePendingDocuments(ctx, s.now().Add(-stalePendingAfter))
 	if err != nil {
-		s.fail(w, r, err)
-		return
+		return nil, err
 	}
 	if _, err := s.db.FailAbandonedExtractions(ctx, s.now()); err != nil {
-		s.fail(w, r, err)
-		return
+		return nil, err
 	}
 	filesDeleted, err := s.drainStorageDeletions(ctx)
 	if err != nil {
-		s.fail(w, r, err)
-		return
+		return nil, err
+	}
+	reminders, err := s.runReminders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pushed, err := s.sendPushes(ctx)
+	if err != nil {
+		return nil, err
 	}
 	s.lastTick.Store(s.now().Unix())
-	writeJSON(w, http.StatusOK, map[string]any{
+	return map[string]any{
 		"sessionsDeleted": sessions, "resetTokensDeleted": tokens, "accountsPurged": len(due),
 		"staleUploadsDeleted": stale, "filesDeleted": filesDeleted,
-	})
+		"billsCreated": reminders.BillsCreated, "notifications": reminders.Notifications, "pushed": pushed,
+	}, nil
+}
+
+// StartTicker runs RunTick every interval in-process (development, where nothing calls /internal/tick).
+func (s *Server) StartTicker(ctx context.Context, every time.Duration) {
+	go func() {
+		t := time.NewTicker(every)
+		defer t.Stop()
+		for {
+			if out, err := s.RunTick(ctx); err != nil && ctx.Err() == nil {
+				s.log.ErrorContext(ctx, "tick failed", "err", err)
+			} else if err == nil {
+				s.log.InfoContext(ctx, "tick", "result", out)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+		}
+	}()
 }
 
 // drainStorageDeletions removes objects queued by deleted documents (including cascades).

@@ -198,6 +198,170 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/export/bills.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bills as CSV (FR-EXP-01), by bill date; amounts in rupees. */
+        get: operations["exportBillsCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/export/payments.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Payments as CSV (FR-EXP-01), by payment date. */
+        get: operations["exportPaymentsCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/export/backup.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Full backup (FR-EXP-02) — JSON data and every document. Owner only; includes reference numbers. */
+        get: operations["exportBackup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getNotificationSettings"];
+        put: operations["updateNotificationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The VAPID public key browsers subscribe with (FR-REM-03). */
+        get: operations["getPushKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["subscribePush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["unsubscribePush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["testPush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/types": {
         parameters: {
             query?: never;
@@ -539,6 +703,28 @@ export interface paths {
          *     `succeeded` or `failed`. If a run is already queued or running it is returned.
          */
         post: operations["startExtraction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{id}/extraction/device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Tier 3 (docs/05): text the phone read itself (Tesseract.js) goes through the same
+         *     parsers and validation as OCR text. No outside reading service sees the document.
+         */
+        post: operations["extractFromDeviceText"];
         delete?: never;
         options?: never;
         head?: never;
@@ -907,6 +1093,70 @@ export interface components {
             currency?: string | null;
             /** @description e.g. the file name or payment method */
             detail?: string | null;
+        };
+        /** @enum {string} */
+        NotificationKind: "due_soon" | "due_today" | "overdue" | "missing_bill" | "bill_created";
+        Notification: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["NotificationKind"];
+            /** Format: date-time */
+            createdAt: string;
+            read: boolean;
+            /** Format: uuid */
+            profileId?: string | null;
+            profileName?: string | null;
+            profileIcon?: string | null;
+            profileColor?: number | null;
+            /** Format: uuid */
+            billId?: string | null;
+            periodKey?: string | null;
+            description?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            /** Format: int64 */
+            amountMinor?: number | null;
+        };
+        NotificationList: {
+            items: components["schemas"]["Notification"][];
+            unreadCount: number;
+        };
+        NotificationSettings: {
+            /** @description Remind this many days before the due date */
+            leadDays: number;
+            /** @description Due soon and due today */
+            dueSoon: boolean;
+            overdue: boolean;
+            /** @description Expected bills not added yet */
+            missing: boolean;
+            /** @description Also send push notifications to devices that allowed them */
+            push: boolean;
+            /** @description No push from this hour… */
+            quietStart?: number | null;
+            /** @description …until this hour (household time) */
+            quietEnd?: number | null;
+        };
+        ExpectedBill: {
+            /** Format: uuid */
+            profileId: string;
+            profileName: string;
+            icon: string;
+            color: number;
+            periodKey: string;
+        };
+        PushKey: {
+            publicKey: string;
+        };
+        PushSubscriptionInput: {
+            endpoint: string;
+            keys: {
+                p256dh: string;
+                auth: string;
+            };
+        };
+        PushTestResult: {
+            devices: number;
+            delivered: number;
         };
         Bill: {
             /** Format: uuid */
@@ -1410,6 +1660,8 @@ export interface components {
             overdue: components["schemas"]["Bill"][];
             pinned: components["schemas"]["Profile"][];
             recent: components["schemas"]["Bill"][];
+            /** @description Bills expected by now but not added yet (FR-DASH-04, FR-REM-04) */
+            expectedMissing: components["schemas"]["ExpectedBill"][];
         };
     };
     responses: {
@@ -1770,6 +2022,249 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityItem"][];
+                };
+            };
+        };
+    };
+    exportBillsCsv: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    exportPaymentsCsv: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    exportBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ZIP file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Your reminders, newest first (FR-REM-01/04) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationList"];
+                };
+            };
+        };
+    };
+    markNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids?: string[];
+                    all?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Marked as read */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Your reminder settings for this household (FR-REM-02) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+        };
+    };
+    updateNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettings"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+        };
+    };
+    getPushKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public key */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushKey"];
+                };
+            };
+        };
+    };
+    subscribePush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionInput"];
+            };
+        };
+        responses: {
+            /** @description This device will receive push notifications */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    unsubscribePush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    endpoint: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    testPush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many of your devices got the test notification */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushTestResult"];
                 };
             };
         };
@@ -2511,6 +3006,42 @@ export interface operations {
         responses: {
             /** @description Queued */
             202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Extraction"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    extractFromDeviceText: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    /**
+                     * Format: double
+                     * @description The on-device OCR's mean confidence
+                     */
+                    confidence?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The finished extraction */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

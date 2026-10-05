@@ -28,6 +28,7 @@ const SettingsPage = lazyRouteComponent(() => import('@/features/settings/settin
 const ScanPage = lazyRouteComponent(() => import('@/features/scan/scan-page'), 'ScanPage')
 const AnalyticsPage = lazyRouteComponent(() => import('@/features/analytics/analytics-page'), 'AnalyticsPage')
 const SearchPage = lazyRouteComponent(() => import('@/features/search/search-page'), 'SearchPage')
+const NotificationsPage = lazyRouteComponent(() => import('@/features/notifications/notifications'), 'NotificationsPage')
 
 interface RouterContext {
   queryClient: QueryClient
@@ -160,7 +161,10 @@ const newBillRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/bills/new',
   component: NewBillPage,
-  validateSearch: (s: Record<string, unknown>): { profileId?: string } => ({ profileId: str(s.profileId) }),
+  validateSearch: (s: Record<string, unknown>): { profileId?: string; period?: string } => ({
+    profileId: str(s.profileId),
+    period: typeof s.period === 'string' && monthRe.test(s.period) ? s.period : undefined,
+  }),
 })
 const billRoute = createRoute({ getParentRoute: () => appRoute, path: '/bills/$billId', component: BillDetailPage })
 const editBillRoute = createRoute({ getParentRoute: () => appRoute, path: '/bills/$billId/edit', component: EditBillPage })
@@ -190,6 +194,8 @@ const searchRoute = createRoute({
   validateSearch: (s: Record<string, unknown>): { q?: string } => ({ q: typeof s.q === 'string' && s.q.trim() ? s.q.slice(0, 200) : undefined }),
 })
 
+const notificationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/notifications', component: NotificationsPage })
+
 const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute, forgotRoute, resetRoute]),
   appRoute.addChildren([
@@ -206,6 +212,7 @@ const routeTree = rootRoute.addChildren([
     scanRoute,
     analyticsRoute,
     searchRoute,
+    notificationsRoute,
   ]),
 ])
 

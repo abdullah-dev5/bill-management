@@ -352,3 +352,32 @@ export const useActivity = (limit = 8) =>
     queryKey: ['activity', limit] as const,
     queryFn: () => unwrap(api.GET('/activity', { params: { query: { limit } } })),
   })
+
+// --- Reminders (FR-REM-01/02/04) -------------------------------------------------
+
+export const useNotifications = () =>
+  useQuery({
+    queryKey: ['notifications'] as const,
+    queryFn: () => unwrap(api.GET('/notifications', { params: { query: { limit: 50 } } })),
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
+
+export function useMarkNotificationsRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { ids?: string[]; all?: boolean }) => unwrap(api.POST('/notifications/read', { body })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+}
+
+export const useNotificationSettings = () =>
+  useQuery({ queryKey: ['notificationSettings'] as const, queryFn: () => unwrap(api.GET('/notification-settings')) })
+
+export function useSaveNotificationSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: Schemas['NotificationSettings']) => unwrap(api.PUT('/notification-settings', { body })),
+    onSuccess: (data) => qc.setQueryData(['notificationSettings'], data),
+  })
+}

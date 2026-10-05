@@ -138,6 +138,7 @@ API routes are under **`/api/v1/`** (see [`api/openapi.yaml`](api/openapi.yaml))
 | Regenerate after editing `queries/*.sql` | `cd backend && sqlc generate` |
 | Web unit tests / lint / types | `cd web && pnpm test && pnpm lint && pnpm typecheck` |
 | End-to-end tests (starts both servers if needed) | `cd web && pnpm exec playwright test` |
+| Also test the installed app (service worker, offline) | `cd web && pnpm build && pnpm exec vite preview` in another terminal, then the e2e tests (the offline test is skipped without it) |
 | Production build of the web app | `cd web && pnpm build` |
 
 ## Next step

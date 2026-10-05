@@ -10,6 +10,7 @@ import { keys } from '@/api/hooks'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/field'
 import { applyServerErrors } from '@/lib/forms'
+import { clearOfflineData } from '@/lib/pwa'
 
 export function AuthLayout() {
   const { t } = useTranslation()
@@ -51,6 +52,7 @@ export function SignInPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     setError(undefined)
     try {
+      clearOfflineData()
       const me = await unwrap(api.POST('/auth/login', { body: values }))
       qc.setQueryData(keys.me, me)
       await navigate({ to: search.redirect?.startsWith('/') ? search.redirect : '/' })
@@ -105,6 +107,7 @@ export function SignUpPage() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
+      clearOfflineData()
       const me = await unwrap(api.POST('/auth/signup', { body: values }))
       qc.setQueryData(keys.me, me)
       await navigate({ to: '/onboarding' })

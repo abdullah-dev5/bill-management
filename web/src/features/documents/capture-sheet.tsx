@@ -12,6 +12,8 @@ import {
   type CropRect, type Rotation,
 } from '@/lib/image'
 import { CropEditor } from './crop-editor'
+import { enqueue } from '@/lib/offline-queue'
+import { isNetworkError } from './upload-queue'
 import { uploadDocument, type PreparedUpload, type UploadResult } from './upload'
 
 type Step =
@@ -57,7 +59,16 @@ export function CaptureSheet({ open, onOpenChange, billId, defaultKind = 'bill',
     onOpenChange(o)
   }
 
+  // No connection: keep the photo on this device and upload it later (FR-EXTR-13).
+  const queue = async (file: PreparedUpload) => {
+    await enqueue({ ...file, kind, billId })
+    toast.info(t('queue.saved'))
+    reset()
+    onOpenChange(false)
+  }
+
   const send = async (file: PreparedUpload) => {
+    if (!navigator.onLine) return queue(file)
     setStep({ name: 'uploading', progress: 0 })
     try {
       const result = await uploadDocument(file, {
@@ -75,6 +86,7 @@ export function CaptureSheet({ open, onOpenChange, billId, defaultKind = 'bill',
       reset()
       onOpenChange(false)
     } catch (err) {
+      if (isNetworkError(err)) return queue(file)
       setError(err instanceof Error ? err : new Error(String(err)))
       setStep({ name: 'pick' })
     }

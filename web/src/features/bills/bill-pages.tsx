@@ -43,7 +43,7 @@ function PageSkeleton() {
 export function NewBillPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { profileId } = useSearch({ from: '/app/bills/new' })
+  const { profileId, period } = useSearch({ from: '/app/bills/new' })
   const { data: profiles } = useProfiles()
   const create = useCreateBill()
   const profile = profiles?.find((p) => p.id === profileId) ?? profiles?.find((p) => p.isDefault)
@@ -63,6 +63,7 @@ export function NewBillPage() {
         <BillForm
           key={profile.id}
           profile={profile}
+          period={profile.id === profileId ? period : undefined}
           onCancel={() => window.history.back()}
           onSubmit={async (body) => {
             const bill = await create.mutateAsync(body)

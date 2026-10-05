@@ -29,9 +29,9 @@ func TestSteppedLateFees(t *testing.T) {
 		status      apigen.BillStatus
 		outstanding int64
 	}{
-		{"2026-10-05", apigen.Unpaid, 326600},
-		{"2026-10-07", apigen.Overdue, 338900},
-		{"2026-10-09", apigen.Overdue, 351200},
+		{"2026-10-05", apigen.BillStatusUnpaid, 326600},
+		{"2026-10-07", apigen.BillStatusOverdue, 338900},
+		{"2026-10-09", apigen.BillStatusOverdue, 351200},
 	} {
 		e.setDate(tc.date)
 		got := cl.getBill(id)
@@ -44,7 +44,7 @@ func TestSteppedLateFees(t *testing.T) {
 	e.setDate("2026-10-07")
 	cl.must(http.StatusCreated, http.MethodPost, "/api/v1/bills/"+id+"/payments", map[string]any{"paidOn": "2026-10-07", "amountMinor": 338900, "method": "cash"}, nil)
 	e.setDate("2026-10-20")
-	if got := cl.getBill(id); got.Status != apigen.Paid || got.OutstandingMinor != 0 {
+	if got := cl.getBill(id); got.Status != apigen.BillStatusPaid || got.OutstandingMinor != 0 {
 		t.Errorf("paid within the step: %s %d", got.Status, got.OutstandingMinor)
 	}
 
@@ -52,14 +52,14 @@ func TestSteppedLateFees(t *testing.T) {
 	step["periodKey"] = "2026-08"
 	late := cl.createBill(step)
 	cl.must(http.StatusCreated, http.MethodPost, "/api/v1/bills/"+late.Id.String()+"/payments", map[string]any{"paidOn": "2026-10-10", "amountMinor": 338900, "method": "cash"}, nil)
-	if got := cl.getBill(late.Id.String()); got.Status != apigen.Overdue || got.OutstandingMinor != 12300 {
+	if got := cl.getBill(late.Id.String()); got.Status != apigen.BillStatusOverdue || got.OutstandingMinor != 12300 {
 		t.Errorf("paid after the step: %s %d", got.Status, got.OutstandingMinor)
 	}
 
 	// "Already paid" after the step pays the final amount.
 	step["periodKey"] = "2026-07"
 	step["paidNow"] = map[string]any{"paidOn": "2026-10-12", "method": "cash"}
-	if got := cl.createBill(step); got.PaidMinor != 351200 || got.Status != apigen.Paid {
+	if got := cl.createBill(step); got.PaidMinor != 351200 || got.Status != apigen.BillStatusPaid {
 		t.Errorf("already paid after the step: paid %d status %s", got.PaidMinor, got.Status)
 	}
 }
@@ -122,7 +122,7 @@ func TestSaveScannedBill(t *testing.T) {
 		// The user corrected the billing month on the verification screen.
 		"bill": scannedBill(p.Id, nil), "extractionId": ex.ID, "history": history,
 	}, &bill)
-	if bill.Status != apigen.Unpaid || len(bill.Documents) != 1 || bill.Documents[0].Id != doc.Id {
+	if bill.Status != apigen.BillStatusUnpaid || len(bill.Documents) != 1 || bill.Documents[0].Id != doc.Id {
 		t.Fatalf("saved bill: status %s, documents %+v", bill.Status, bill.Documents)
 	}
 
