@@ -59,10 +59,10 @@ export function unitsFromReadings(prev: number | null, cur: number | null, mf: n
   return Math.round((cur - prev) * (mf && mf > 0 ? mf : 1) * 100) / 100
 }
 
-function toValues(profile: Profile, bill?: BillDetail): BillFormValues {
+function toValues(profile: Profile, bill?: BillDetail, period?: string): BillFormValues {
   const expenseLog = profile.kind === 'expense_log'
   return {
-    periodKey: bill?.periodKey ?? (expenseLog ? '' : currentMonthKey()),
+    periodKey: bill?.periodKey ?? (expenseLog ? '' : (period ?? currentMonthKey())),
     issueDate: bill?.issueDate ?? '',
     dueDate: bill?.dueDate ?? '',
     expenseDate: bill?.expenseDate ?? todayISO(),
@@ -104,18 +104,20 @@ interface BillFormProps {
   profile: Profile
   bill?: BillDetail
   review?: BillReview
+  /** Billing month for a new bill (e.g. from a "not added yet" reminder). */
+  period?: string
   onSubmit: (body: BillCreate) => Promise<unknown>
   onCancel: () => void
 }
 
 const CHECK_BELOW = 0.85
 
-export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillFormProps) {
+export function BillForm({ profile, bill, review, period, onSubmit, onCancel }: BillFormProps) {
   const { t } = useTranslation()
   const { data: types } = useTypes()
   const expenseLog = profile.kind === 'expense_log'
   const form = useForm<BillFormValues>({
-    defaultValues: { ...toValues(profile, bill), ...review?.values, ...(review ? { paidNow: false } : {}) },
+    defaultValues: { ...toValues(profile, bill, period), ...review?.values, ...(review ? { paidNow: false } : {}) },
   })
   const { register, control, watch, formState } = form
   const { errors } = formState

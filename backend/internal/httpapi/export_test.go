@@ -164,7 +164,7 @@ func TestBackupZIP(t *testing.T) {
 	var payments []map[string]any
 	_ = json.Unmarshal(files["bills.json"], &bills)
 	_ = json.Unmarshal(files["payments.json"], &payments)
-	if len(bills) != 1 || bills[0].Status != apigen.Paid || len(payments) != 1 || payments[0]["billId"] != bill.Id.String() {
+	if len(bills) != 1 || bills[0].Status != apigen.BillStatusPaid || len(payments) != 1 || payments[0]["billId"] != bill.Id.String() {
 		t.Errorf("bills %+v payments %+v", bills, payments)
 	}
 	var hh map[string]any

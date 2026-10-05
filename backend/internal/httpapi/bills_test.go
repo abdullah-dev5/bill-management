@@ -100,7 +100,7 @@ func TestBillStatusLifecycle(t *testing.T) {
 		"profileId": p.Id, "periodKey": "2026-09", "issueDate": "2026-09-24", "dueDate": "2026-10-08",
 		"currentChargesMinor": 842000, "payableAfterDueMinor": 926200,
 	})
-	if bill.Status != apigen.Unpaid || bill.OutstandingMinor != 842000 || bill.PayableMinor != 842000 {
+	if bill.Status != apigen.BillStatusUnpaid || bill.OutstandingMinor != 842000 || bill.PayableMinor != 842000 {
 		t.Fatalf("new bill: status %s outstanding %d payable %d", bill.Status, bill.OutstandingMinor, bill.PayableMinor)
 	}
 	if bill.ExpenseDate.Format("2006-01-02") != "2026-09-24" {
@@ -118,26 +118,26 @@ func TestBillStatusLifecycle(t *testing.T) {
 	var after apigen.BillDetail
 	cl.must(http.StatusCreated, http.MethodPost, "/api/v1/bills/"+bill.Id.String()+"/payments",
 		map[string]any{"paidOn": "2026-10-03", "amountMinor": 400000, "method": "jazzcash"}, &after)
-	if after.Status != apigen.PartiallyPaid || after.OutstandingMinor != 442000 {
+	if after.Status != apigen.BillStatusPartiallyPaid || after.OutstandingMinor != 442000 {
 		t.Fatalf("partial: %s %d", after.Status, after.OutstandingMinor)
 	}
 
 	// After the due date the after-due amount applies to what's still owed.
 	e.setDate("2026-10-09")
 	b := cl.getBill(bill.Id.String())
-	if b.Status != apigen.Overdue || b.OutstandingMinor != 526200 {
+	if b.Status != apigen.BillStatusOverdue || b.OutstandingMinor != 526200 {
 		t.Fatalf("overdue: %s %d (want 926200-400000)", b.Status, b.OutstandingMinor)
 	}
 
 	cl.must(http.StatusCreated, http.MethodPost, "/api/v1/bills/"+bill.Id.String()+"/payments",
 		map[string]any{"paidOn": "2026-10-09", "amountMinor": 526200, "method": "bank_transfer"}, &after)
-	if after.Status != apigen.Paid || after.OutstandingMinor != 0 || after.PaidMinor != 926200 {
+	if after.Status != apigen.BillStatusPaid || after.OutstandingMinor != 0 || after.PaidMinor != 926200 {
 		t.Fatalf("paid late in full: %s %d %d", after.Status, after.OutstandingMinor, after.PaidMinor)
 	}
 
 	// Deleting a payment re-derives the status.
 	cl.must(http.StatusNoContent, http.MethodDelete, "/api/v1/payments/"+after.Payments[1].Id.String(), nil, nil)
-	if b := cl.getBill(bill.Id.String()); b.Status != apigen.Overdue {
+	if b := cl.getBill(bill.Id.String()); b.Status != apigen.BillStatusOverdue {
 		t.Fatalf("after deleting payment: %s", b.Status)
 	}
 }
@@ -151,11 +151,11 @@ func TestPaidOnTimeStaysPaid(t *testing.T) {
 		"currentChargesMinor": 842000, "payableAfterDueMinor": 926200,
 		"paidNow": map[string]any{"paidOn": "2026-10-03", "method": "cash"},
 	})
-	if bill.Status != apigen.Paid || bill.PaidMinor != 842000 {
+	if bill.Status != apigen.BillStatusPaid || bill.PaidMinor != 842000 {
 		t.Fatalf("paid now: %s %d", bill.Status, bill.PaidMinor)
 	}
 	e.setDate("2026-10-30")
-	if b := cl.getBill(bill.Id.String()); b.Status != apigen.Paid || b.OutstandingMinor != 0 {
+	if b := cl.getBill(bill.Id.String()); b.Status != apigen.BillStatusPaid || b.OutstandingMinor != 0 {
 		t.Fatalf("a bill paid on time must stay paid after the due date: %s %d", b.Status, b.OutstandingMinor)
 	}
 }
@@ -175,7 +175,7 @@ func TestExpenseLogEntries(t *testing.T) {
 			"expenseDate": "2026-09-28", "currentChargesMinor": amount,
 			"paidNow": map[string]any{"paidOn": "2026-09-28", "method": "cash"},
 		})
-		if b.Status != apigen.Paid || b.PeriodKey != nil || b.TypeId.String() != typeElectrician {
+		if b.Status != apigen.BillStatusPaid || b.PeriodKey != nil || b.TypeId.String() != typeElectrician {
 			t.Fatalf("entry = %+v", b)
 		}
 	}

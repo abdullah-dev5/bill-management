@@ -18,6 +18,7 @@ import { ICON_NAMES, NamedIcon } from '@/lib/icons'
 import { applyTheme, getTheme, type ThemeChoice } from '@/lib/theme'
 import { cn } from '@/lib/cn'
 import { DataSection } from './data-section'
+import { RemindersSection } from './reminders-section'
 
 const TIMEZONES = ['Asia/Karachi', 'Asia/Dubai', 'Asia/Riyadh', 'Europe/London', 'America/New_York', 'UTC']
 
@@ -27,6 +28,7 @@ export function SettingsPage() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <PageHeader title={t('settings.title')} />
       <HouseholdSection />
+      <RemindersSection />
       <PrivacySection />
       <StorageSection />
       <DataSection />

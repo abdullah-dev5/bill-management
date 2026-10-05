@@ -198,6 +198,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/export/bills.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bills as CSV (FR-EXP-01), by bill date; amounts in rupees. */
+        get: operations["exportBillsCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/export/payments.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Payments as CSV (FR-EXP-01), by payment date. */
+        get: operations["exportPaymentsCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/export/backup.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Full backup (FR-EXP-02) — JSON data and every document. Owner only; includes reference numbers. */
+        get: operations["exportBackup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notification-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getNotificationSettings"];
+        put: operations["updateNotificationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/types": {
         parameters: {
             query?: never;
@@ -908,6 +1007,56 @@ export interface components {
             /** @description e.g. the file name or payment method */
             detail?: string | null;
         };
+        /** @enum {string} */
+        NotificationKind: "due_soon" | "due_today" | "overdue" | "missing_bill" | "bill_created";
+        Notification: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["NotificationKind"];
+            /** Format: date-time */
+            createdAt: string;
+            read: boolean;
+            /** Format: uuid */
+            profileId?: string | null;
+            profileName?: string | null;
+            profileIcon?: string | null;
+            profileColor?: number | null;
+            /** Format: uuid */
+            billId?: string | null;
+            periodKey?: string | null;
+            description?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            /** Format: int64 */
+            amountMinor?: number | null;
+        };
+        NotificationList: {
+            items: components["schemas"]["Notification"][];
+            unreadCount: number;
+        };
+        NotificationSettings: {
+            /** @description Remind this many days before the due date */
+            leadDays: number;
+            /** @description Due soon and due today */
+            dueSoon: boolean;
+            overdue: boolean;
+            /** @description Expected bills not added yet */
+            missing: boolean;
+            /** @description Also send push notifications to devices that allowed them */
+            push: boolean;
+            /** @description No push from this hour… */
+            quietStart?: number | null;
+            /** @description …until this hour (household time) */
+            quietEnd?: number | null;
+        };
+        ExpectedBill: {
+            /** Format: uuid */
+            profileId: string;
+            profileName: string;
+            icon: string;
+            color: number;
+            periodKey: string;
+        };
         Bill: {
             /** Format: uuid */
             id: string;
@@ -1410,6 +1559,8 @@ export interface components {
             overdue: components["schemas"]["Bill"][];
             pinned: components["schemas"]["Profile"][];
             recent: components["schemas"]["Bill"][];
+            /** @description Bills expected by now but not added yet (FR-DASH-04, FR-REM-04) */
+            expectedMissing: components["schemas"]["ExpectedBill"][];
         };
     };
     responses: {
@@ -1770,6 +1921,163 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityItem"][];
+                };
+            };
+        };
+    };
+    exportBillsCsv: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    exportPaymentsCsv: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    exportBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ZIP file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Your reminders, newest first (FR-REM-01/04) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationList"];
+                };
+            };
+        };
+    };
+    markNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids?: string[];
+                    all?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Marked as read */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Your reminder settings for this household (FR-REM-02) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+        };
+    };
+    updateNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettings"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
                 };
             };
         };

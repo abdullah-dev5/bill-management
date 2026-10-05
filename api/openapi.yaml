@@ -242,6 +242,63 @@ paths:
             application/zip:
               schema: { type: string, format: binary }
 
+  /notifications:
+    get:
+      tags: [notifications]
+      operationId: listNotifications
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 30 }
+      responses:
+        '200':
+          description: Your reminders, newest first (FR-REM-01/04)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationList' }
+
+  /notifications/read:
+    post:
+      tags: [notifications]
+      operationId: markNotificationsRead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids: { type: array, items: { type: string, format: uuid }, maxItems: 200 }
+                all: { type: boolean }
+      responses:
+        '204': { description: Marked as read }
+
+  /notification-settings:
+    get:
+      tags: [notifications]
+      operationId: getNotificationSettings
+      responses:
+        '200':
+          description: Your reminder settings for this household (FR-REM-02)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationSettings' }
+    put:
+      tags: [notifications]
+      operationId: updateNotificationSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationSettings' }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationSettings' }
+
   /types:
     get:
       tags: [types]
@@ -1189,6 +1246,57 @@ components:
         currency: { type: string, nullable: true }
         detail: { type: string, nullable: true, description: e.g. the file name or payment method }
 
+    NotificationKind:
+      type: string
+      enum: [due_soon, due_today, overdue, missing_bill, bill_created]
+
+    Notification:
+      type: object
+      required: [id, kind, createdAt, read]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/NotificationKind' }
+        createdAt: { type: string, format: date-time }
+        read: { type: boolean }
+        profileId: { type: string, format: uuid, nullable: true }
+        profileName: { type: string, nullable: true }
+        profileIcon: { type: string, nullable: true }
+        profileColor: { type: integer, nullable: true }
+        billId: { type: string, format: uuid, nullable: true }
+        periodKey: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        amountMinor: { type: integer, format: int64, nullable: true }
+
+    NotificationList:
+      type: object
+      required: [items, unreadCount]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Notification' } }
+        unreadCount: { type: integer }
+
+    NotificationSettings:
+      type: object
+      required: [leadDays, dueSoon, overdue, missing, push]
+      properties:
+        leadDays: { type: integer, minimum: 0, maximum: 14, description: Remind this many days before the due date }
+        dueSoon: { type: boolean, description: Due soon and due today }
+        overdue: { type: boolean }
+        missing: { type: boolean, description: Expected bills not added yet }
+        push: { type: boolean, description: Also send push notifications to devices that allowed them }
+        quietStart: { type: integer, minimum: 0, maximum: 23, nullable: true, description: No push from this hour… }
+        quietEnd: { type: integer, minimum: 0, maximum: 23, nullable: true, description: …until this hour (household time) }
+
+    ExpectedBill:
+      type: object
+      required: [profileId, profileName, icon, color, periodKey]
+      properties:
+        profileId: { type: string, format: uuid }
+        profileName: { type: string }
+        icon: { type: string }
+        color: { type: integer }
+        periodKey: { type: string }
+
     Bill:
       type: object
       required: [id, profileId, typeId, expenseDate, currentChargesMinor, arrearsMinor, adjustmentsMinor, payableMinor, currency, status, paidMinor, outstandingMinor, isEstimated, meterReplaced, cancelled, tags, archived, createdAt, updatedAt]
@@ -1643,7 +1751,7 @@ components:
 
     HomeSummary:
       type: object
-      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent, monthTotal]
+      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent, monthTotal, expectedMissing]
       properties:
         monthTotal: { $ref: '#/components/schemas/MonthTotal' }
         month: { type: string, example: '2026-10' }
@@ -1662,3 +1770,7 @@ components:
         recent:
           type: array
           items: { $ref: '#/components/schemas/Bill' }
+        expectedMissing:
+          type: array
+          description: Bills expected by now but not added yet (FR-DASH-04, FR-REM-04)
+          items: { $ref: '#/components/schemas/ExpectedBill' }
