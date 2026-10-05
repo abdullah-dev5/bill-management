@@ -48,6 +48,32 @@ func (s *Server) ListBills(w http.ResponseWriter, r *http.Request, params apigen
 			q.Statuses = append(q.Statuses, string(st))
 		}
 	}
+	q.ProviderID, q.MinAmount, q.MaxAmount = params.ProviderId, params.MinAmount, params.MaxAmount
+	if q.MinAmount != nil && q.MaxAmount != nil && *q.MinAmount > *q.MaxAmount {
+		s.fail(w, r, errField("maxAmount", "The highest amount is below the lowest."))
+		return
+	}
+	if params.Source != nil {
+		for _, src := range *params.Source {
+			q.Sources = append(q.Sources, string(src))
+		}
+	}
+	if params.TypeId != nil && len(*params.TypeId) > 0 {
+		// A type includes its sub-categories (e.g. Maintenance → Electrician, Plumber).
+		types, err := s.db.ListCategories(ctx, &a.HouseholdID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		for _, id := range *params.TypeId {
+			q.TypeIds = append(q.TypeIds, id)
+			for _, t := range types {
+				if t.ParentID != nil && *t.ParentID == id {
+					q.TypeIds = append(q.TypeIds, t.ID)
+				}
+			}
+		}
+	}
 	if params.Cursor != nil {
 		d, id, ok := decodeCursor(*params.Cursor)
 		if !ok {

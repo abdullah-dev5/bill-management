@@ -2,10 +2,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Archive, Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api, unwrap, type BillType, type ProfileKind } from '@/api/client'
+import { api, unwrap, type BillType, type Household, type ProfileKind } from '@/api/client'
 import { useArchiveType, useHousehold, useMe, useSaveType, useTypes, useUpdateHousehold } from '@/api/hooks'
 import { PageHeader } from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import { formatBytes } from '@/lib/image'
 import { ICON_NAMES, NamedIcon } from '@/lib/icons'
 import { applyTheme, getTheme, type ThemeChoice } from '@/lib/theme'
 import { cn } from '@/lib/cn'
+import { DataSection } from './data-section'
 
 const TIMEZONES = ['Asia/Karachi', 'Asia/Dubai', 'Asia/Riyadh', 'Europe/London', 'America/New_York', 'UTC']
 
@@ -28,6 +29,7 @@ export function SettingsPage() {
       <HouseholdSection />
       <PrivacySection />
       <StorageSection />
+      <DataSection />
       <AppearanceSection />
       <TypesSection />
       <AccountSection />
@@ -36,14 +38,18 @@ export function SettingsPage() {
 }
 
 function HouseholdSection() {
-  const { t } = useTranslation()
   const { data: me } = useMe()
   const { data: hh } = useHousehold()
-  const save = useUpdateHousehold()
   const isOwner = me?.role === 'owner'
-  const form = useForm({ values: hh ? { name: hh.name, currency: hh.currency, timezone: hh.timezone } : undefined })
-
   if (!hh) return <Skeleton className="h-56 rounded-card" />
+  return <HouseholdForm hh={hh} isOwner={isOwner} />
+}
+
+// Mounted once the household has loaded, so every field (including the dropdowns) starts with its value.
+function HouseholdForm({ hh, isOwner }: { hh: Household; isOwner: boolean }) {
+  const { t } = useTranslation()
+  const save = useUpdateHousehold()
+  const form = useForm({ defaultValues: { name: hh.name, currency: hh.currency, timezone: hh.timezone } })
   const timezones = TIMEZONES.includes(hh.timezone) ? TIMEZONES : [hh.timezone, ...TIMEZONES]
 
   return (
@@ -68,20 +74,20 @@ function HouseholdSection() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('settings.currency')} error={form.formState.errors.currency?.message}>
             {(p) => (
-              <Select {...p} disabled={!isOwner} {...form.register('currency')}>
-                <option value="PKR">{t('settings.pkr')}</option>
-              </Select>
+              <Controller
+                control={form.control}
+                name="currency"
+                render={({ field }) => <Select {...p} {...field} disabled={!isOwner} options={[{ value: 'PKR', label: t('settings.pkr') }]} />}
+              />
             )}
           </Field>
           <Field label={t('settings.timezone')} error={form.formState.errors.timezone?.message}>
             {(p) => (
-              <Select {...p} disabled={!isOwner} {...form.register('timezone')}>
-                {timezones.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz}
-                  </option>
-                ))}
-              </Select>
+              <Controller
+                control={form.control}
+                name="timezone"
+                render={({ field }) => <Select {...p} {...field} disabled={!isOwner} options={timezones.map((tz) => ({ value: tz, label: tz.replace(/_/g, ' ') }))} />}
+              />
             )}
           </Field>
         </div>
@@ -289,37 +295,38 @@ function TypeSheet({ type, types, onClose }: { type?: BillType; types: BillType[
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('settings.defaultKind')}>
             {(p) => (
-              <Select {...p} {...form.register('defaultKind')}>
-                {(['metered', 'recurring', 'expense_log'] as const).map((k) => (
-                  <option key={k} value={k}>
-                    {t(`kind.${k}`)}
-                  </option>
-                ))}
-              </Select>
+              <Controller
+                control={form.control}
+                name="defaultKind"
+                render={({ field }) => (
+                  <Select
+                    {...p}
+                    {...field}
+                    options={(['metered', 'recurring', 'expense_log'] as const).map((k) => ({ value: k, label: t(`kind.${k}`), hint: t(`kind.${k}Hint`) }))}
+                  />
+                )}
+              />
             )}
           </Field>
           <Field label={t('settings.typeGroup')}>
             {(p) => (
-              <Select {...p} {...form.register('group')}>
-                {(['utilities', 'household', 'other'] as const).map((g) => (
-                  <option key={g} value={g}>
-                    {t(`group.${g}`)}
-                  </option>
-                ))}
-              </Select>
+              <Controller
+                control={form.control}
+                name="group"
+                render={({ field }) => <Select {...p} {...field} options={(['utilities', 'household', 'other'] as const).map((g) => ({ value: g, label: t(`group.${g}`) }))} />}
+              />
             )}
           </Field>
         </div>
         <Field label={t('settings.parentType')} error={form.formState.errors.parentId?.message} optional>
           {(p) => (
-            <Select {...p} {...form.register('parentId')}>
-              <option value="">{t('settings.noParent')}</option>
-              {parents.map((ty) => (
-                <option key={ty.id} value={ty.id}>
-                  {ty.name}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              control={form.control}
+              name="parentId"
+              render={({ field }) => (
+                <Select {...p} {...field} options={[{ value: '', label: t('settings.noParent') }, ...parents.map((ty) => ({ value: ty.id, label: ty.name }))]} />
+              )}
+            />
           )}
         </Field>
         <fieldset>

@@ -126,6 +126,17 @@ Templates work in two ways:
 
 Templates are data (JSON/YAML), versioned, and each has its own test fixtures (sample bills with the expected output).
 
+**As built (M4):** a dedicated parser exists only where a layout has something unusual: the PITC barcode line
+shared by all DISCOs. Everything else is read by two **layout readers that work for any provider**:
+- **Label rows:** a line made only of known bill labels ("Previous Balance · Current Charges · Payable Within Due
+  Date · Due Date", "Customer Number · Total Amount Due · After Due Date", "Meter No · Previous Reading · Present
+  Reading") with the values on the next line. Each value must fit its column (amount, date, month, reference),
+  otherwise the row is ignored. History tables ("Month · Units · Bill · Payment") are read the same way.
+- **Label: value pairs**, one per line or with the value on the line below.
+
+New providers are added by extending the label vocabulary, not by writing a parser. Tests cover an SSGC sample
+(masked) plus layouts written in the style of SNGPL, telecom and water bills.
+
 ## 6. Validation rules (deterministic)
 
 | Rule | Effect when violated |

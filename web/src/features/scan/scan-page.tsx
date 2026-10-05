@@ -17,6 +17,7 @@ import {
 import { PageHeader } from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select, Toggle } from '@/components/ui/field'
+import { providerOptions } from '@/features/profiles/options'
 import { Card, ErrorNotice, Skeleton } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { BackLink } from '@/features/bills/bill-pages'
@@ -261,14 +262,15 @@ export function ScanPage() {
               <Card className="flex flex-col gap-4">
                 <Field label={t('scan.profile')} hint={matched ? t('scan.matched') : undefined}>
                   {(p) => (
-                    <Select {...p} value={selected ?? ''} onChange={(ev) => setChoice(ev.target.value)}>
-                      {active.map((pr) => (
-                        <option key={pr.id} value={pr.id}>
-                          {pr.name}
-                        </option>
-                      ))}
-                      <option value={NEW}>{t('scan.newProfile')}</option>
-                    </Select>
+                    <Select
+                      {...p}
+                      value={selected ?? ''}
+                      onChange={setChoice}
+                      options={[
+                        ...active.map((pr) => ({ value: pr.id, label: pr.name, hint: matched?.id === pr.id ? t('scan.matchedOption') : undefined })),
+                        { value: NEW, label: t('scan.newProfile'), hint: t('scan.newProfileHint') },
+                      ]}
+                    />
                   )}
                 </Field>
                 {matched && selected === matched.id && (
@@ -283,15 +285,14 @@ export function ScanPage() {
                     </Field>
                     <Field label={t('profiles.type')}>
                       {(p) => (
-                        <Select {...p} value={newProfile.typeId} onChange={(ev) => setDraft({ ...newProfile, typeId: ev.target.value })}>
-                          {(types.data ?? [])
+                        <Select
+                          {...p}
+                          value={newProfile.typeId}
+                          onChange={(v) => setDraft({ ...newProfile, typeId: v, providerId: '' })}
+                          options={(types.data ?? [])
                             .filter((ty) => !ty.archived && !ty.parentId)
-                            .map((ty) => (
-                              <option key={ty.id} value={ty.id}>
-                                {ty.name}
-                              </option>
-                            ))}
-                        </Select>
+                            .map((ty) => ({ value: ty.id, label: ty.name, group: t(`group.${ty.group}`) }))}
+                        />
                       )}
                     </Field>
                     <Field label={t('profiles.provider')} optional>
@@ -299,22 +300,12 @@ export function ScanPage() {
                         <Select
                           {...p}
                           value={newProfile.providerId}
-                          onChange={(ev) =>
-                            setDraft({
-                              ...newProfile,
-                              providerId: ev.target.value,
-                            })
-                          }
-                        >
-                          <option value="">{t('common.none')}</option>
-                          {(providers.data ?? [])
-                            .filter((pv) => pv.typeId === newProfile.typeId)
-                            .map((pv) => (
-                              <option key={pv.id} value={pv.id}>
-                                {pv.shortName}
-                              </option>
-                            ))}
-                        </Select>
+                          onChange={(v) => setDraft({ ...newProfile, providerId: v })}
+                          options={providerOptions(
+                            (providers.data ?? []).filter((pv) => pv.typeId === newProfile.typeId),
+                            t,
+                          )}
+                        />
                       )}
                     </Field>
                     <Field label={t('profiles.reference')} optional className="sm:col-span-2">

@@ -1,0 +1,37 @@
+Sui Southern Gas Company Limited
+Block 14, Sir Shah Suleman Road, Gulshan-e-Iqbal, Karachi 75300
+This is Gas Bill. Customer name and address mentioned herein does not constitute proof of title / ownership of property.
+Billing Group: A-15 / 0000000 / 32  Issue Date: 26-Sep-2024
+Name: AHMED ALI KHAN
+Address: HOUSE 12 STREET 3 BLOCK 9 GULISTAN-E-JAUHAR KARACHI
+ACCOUNT INFORMATION
+Customer Number: 1234567890 (4)
+Bill Month: Sep-2024
+Tariff/Customer Type: Domestic
+Gas Supply Deposit (Rs.): Rs. 1,500.00
+ACCOUNT SUMMARY AS OF 25-Sep-24
+Previous Balance (Rs.) Current Charges (Rs.) Payable Within Due Date (Rs.) Late Payment Surcharge (Rs.) Payment After Due Date (Rs.) Due Date
+3 2,738 2,740 65 2,810 11-Oct-24
+MONTHLY CONSUMPTION
+BILL & PAYMENT HISTORY
+Month Bill Amount (Rs.) Payment Date Amount Paid (Rs.)
+Sep-2023 2,110 09-Oct-2023 2,110
+Oct-2023 950 08-Nov-2023 950
+Nov-2023 980 07-Dec-2023 980
+Dec-2023 1,340 08-Jan-2024 1,340
+Jan-2024 1,920 06-Feb-2024 1,920
+Feb-2024 1,610 07-Mar-2024 1,610
+Mar-2024 1,180 08-Apr-2024 1,180
+Apr-2024 880 07-May-2024 880
+May-2024 830 06-Jun-2024 830
+Jun-2024 1,400 08-Jul-2024 1,400
+Jul-2024 1,620 07-Aug-2024 1,620
+Aug-2024 3,190 09-Sep-2024 3,187
+METER INFORMATION
+METER NO CURRENT READING PREVIOUS READING MEASURING QTY
+AB01234 2061 20-Sep-2024 2050 20-Aug-2024 1.0000
+GAS CHARGES CALCULATION
+MMBTU 2.920 GCV 950.5 Pressure Factor 1.0000
+Gas Charges Calculation Formula: MMBTU = CM x 35.3147 x GCV / 1000000
+Customer Number Total Amount Due Due Date After Due Date
+1234567890 (4) 2,740 11-Oct-2024 2,810

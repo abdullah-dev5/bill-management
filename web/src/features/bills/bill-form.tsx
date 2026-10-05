@@ -6,12 +6,13 @@ import { useTranslation } from 'react-i18next'
 import { ApiError, type BillCreate, type BillDetail, type PaymentMethod, type Profile } from '@/api/client'
 import { useTypes } from '@/api/hooks'
 import { Button } from '@/components/ui/button'
+import { DateInput } from '@/components/ui/date-input'
 import { Field, Input, Select, Textarea, Toggle } from '@/components/ui/field'
 import { MoneyInput } from '@/components/ui/money-input'
 import { currentMonthKey, todayISO } from '@/lib/dates'
 import { applyServerErrors } from '@/lib/forms'
 import { formatMoney } from '@/lib/money'
-import { METHODS } from './payment-sheet'
+import { methodOptions } from './payment-sheet'
 
 export interface BillFormValues {
   periodKey: string
@@ -219,6 +220,18 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
       )
     }
 
+  const date = (name: 'issueDate' | 'dueDate' | 'expenseDate' | 'lateStepUntil' | 'paidOn' | 'periodKey', opts: { required?: boolean; max?: string } = {}) =>
+    function DateField(p: { id: string }) {
+      return (
+        <Controller
+          control={control}
+          name={name}
+          rules={opts.required ? { required: t('validation.required') } : undefined}
+          render={({ field }) => <DateInput {...p} {...field} mode={name === 'periodKey' ? 'month' : 'date'} required={opts.required} max={opts.max} />}
+        />
+      )
+    }
+
   return (
     <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
       {duplicateId && (
@@ -241,20 +254,23 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
               {money('currentChargesMinor')}
             </Field>
             <Field label={t('bills.date')} error={errors.expenseDate?.message}>
-              {(p) => <Input {...p} type="date" {...register('expenseDate', { required: t('validation.required') })} />}
+              {date('expenseDate', { required: true })}
             </Field>
           </div>
           {subCategories.length > 0 && (
             <Field label={t('bills.subCategory')} optional>
               {(p) => (
-                <Select {...p} {...register('typeId')}>
-                  <option value={profile.typeId}>{t('common.none')}</option>
-                  {subCategories.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </Select>
+                <Controller
+                  control={control}
+                  name="typeId"
+                  render={({ field }) => (
+                    <Select
+                      {...p}
+                      {...field}
+                      options={[{ value: profile.typeId, label: t('bills.noSubCategory') }, ...subCategories.map((sc) => ({ value: sc.id, label: sc.name }))]}
+                    />
+                  )}
+                />
               )}
             </Field>
           )}
@@ -263,13 +279,13 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
         <>
           <div className="grid gap-5 sm:grid-cols-3">
             <Field label={t('bills.month')} error={errors.periodKey?.message} {...check('periodKey')}>
-              {(p) => <Input {...p} type="month" {...register('periodKey', { required: t('validation.required') })} />}
+              {date('periodKey', { required: true })}
             </Field>
             <Field label={t('bills.issueDate')} error={errors.issueDate?.message} optional {...check('issueDate')}>
-              {(p) => <Input {...p} type="date" {...register('issueDate')} />}
+              {date('issueDate')}
             </Field>
             <Field label={t('bills.dueDate')} error={errors.dueDate?.message} optional {...check('dueDate')}>
-              {(p) => <Input {...p} type="date" {...register('dueDate')} />}
+              {date('dueDate')}
             </Field>
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
@@ -316,7 +332,7 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
           {valid(afterDue) && (
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label={t('bills.lateStepUntil')} hint={t('bills.lateStepHint')} error={errors.lateStepUntil?.message} optional>
-                {(p) => <Input {...p} type="date" {...register('lateStepUntil')} />}
+                {date('lateStepUntil')}
               </Field>
               <Field label={t('bills.payableFinal')} error={errors.payableFinalMinor?.message} optional>
                 {money('payableFinalMinor')}
@@ -377,17 +393,11 @@ export function BillForm({ profile, bill, review, onSubmit, onCancel }: BillForm
           {paidNow && (
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label={t('bills.paidOn')}>
-                {(p) => <Input {...p} type="date" max={todayISO()} {...register('paidOn', { required: true })} />}
+                {date('paidOn', { required: true, max: todayISO() })}
               </Field>
               <Field label={t('bills.method')}>
                 {(p) => (
-                  <Select {...p} {...register('method')}>
-                    {METHODS.map((m) => (
-                      <option key={m} value={m}>
-                        {t(`method.${m}`)}
-                      </option>
-                    ))}
-                  </Select>
+                  <Controller control={control} name="method" render={({ field }) => <Select {...p} {...field} options={methodOptions(t)} />} />
                 )}
               </Field>
             </div>

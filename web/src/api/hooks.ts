@@ -21,8 +21,17 @@ export interface BillFilters {
   profileId?: string
   status?: BillStatus[]
   archived?: boolean
+  typeIds?: string[]
+  providerId?: string
+  minAmount?: number
+  maxAmount?: number
+  sources?: BillSource[]
+  from?: string
+  to?: string
   limit?: number
 }
+
+export type BillSource = 'camera' | 'upload' | 'manual'
 
 // --- Queries ------------------------------------------------------------------
 
@@ -75,6 +84,13 @@ export async function fetchBillsPage(filters: BillFilters, cursor?: string) {
           profileId: filters.profileId,
           status: filters.status?.length ? filters.status : undefined,
           archived: filters.archived || undefined,
+          typeId: filters.typeIds?.length ? filters.typeIds : undefined,
+          providerId: filters.providerId,
+          minAmount: filters.minAmount,
+          maxAmount: filters.maxAmount,
+          source: filters.sources?.length ? filters.sources : undefined,
+          from: filters.from,
+          to: filters.to,
           limit: filters.limit,
           cursor,
         },
@@ -104,6 +120,9 @@ function useInvalidateAll() {
       qc.invalidateQueries({ queryKey: ['profilePayments'] }),
       qc.invalidateQueries({ queryKey: ['profileDocuments'] }),
       qc.invalidateQueries({ queryKey: ['profileHistory'] }),
+      qc.invalidateQueries({ queryKey: ['analytics'] }),
+      qc.invalidateQueries({ queryKey: ['search'] }),
+      qc.invalidateQueries({ queryKey: ['activity'] }),
     ])
 }
 
@@ -309,4 +328,27 @@ export const useProfileDocuments = (profileId: string) =>
     queryKey: ['profileDocuments', profileId] as const,
     queryFn: () => unwrap(api.GET('/profiles/{id}/documents', { params: { path: { id: profileId } } })),
     staleTime: 60_000,
+  })
+
+// --- Analytics ---------------------------------------------------------------------
+
+export const useAnalytics = (from: string, to: string, basis: 'spend' | 'cash') =>
+  useQuery({
+    queryKey: ['analytics', from, to, basis] as const,
+    queryFn: () => unwrap(api.GET('/analytics', { params: { query: { from, to, basis } } })),
+    placeholderData: (prev) => prev,
+  })
+
+export const useSearchResults = (q: string) =>
+  useQuery({
+    queryKey: ['search', q] as const,
+    queryFn: () => unwrap(api.GET('/search', { params: { query: { q } } })),
+    enabled: q.trim().length > 0,
+    placeholderData: (prev) => prev,
+  })
+
+export const useActivity = (limit = 8) =>
+  useQuery({
+    queryKey: ['activity', limit] as const,
+    queryFn: () => unwrap(api.GET('/activity', { params: { query: { limit } } })),
   })

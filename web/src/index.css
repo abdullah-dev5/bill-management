@@ -10,6 +10,11 @@
   --card: #f8f8f8;
   --card-muted: #e4e4e0;
   --featured: #2d2d2d;
+  /* Chart series (categorical, fixed order; validated for colour-blind separation on --card) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --chart-grid: #e4e4e0;
   --on-featured: #ffffff;
   --text: #000000;
   --text-body: #29303d;
@@ -41,6 +46,10 @@
   --card: #1d1d1e;
   --card-muted: #29292a;
   --featured: #303031;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --chart-grid: #333334;
   --text: #f7f7f7;
   --text-body: #e2e2e2;
   --text-muted: #9f9f9f;
@@ -66,6 +75,10 @@
     --card: #1d1d1e;
     --card-muted: #29292a;
     --featured: #303031;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --chart-grid: #333334;
     --text: #f7f7f7;
     --text-body: #e2e2e2;
     --text-muted: #9f9f9f;

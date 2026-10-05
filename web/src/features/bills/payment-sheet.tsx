@@ -2,11 +2,13 @@ import { Paperclip } from 'lucide-react'
 import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { toast } from 'sonner'
 import type { BillDetail, Doc, PaymentMethod } from '@/api/client'
 import { useAddPayment } from '@/api/hooks'
 import { Button } from '@/components/ui/button'
-import { Field, Input, Select } from '@/components/ui/field'
+import { DateInput } from '@/components/ui/date-input'
+import { Field, Input, Select, type SelectOption } from '@/components/ui/field'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Sheet } from '@/components/ui/sheet'
 import { todayISO } from '@/lib/dates'
@@ -14,6 +16,16 @@ import { applyServerErrors } from '@/lib/forms'
 import { CaptureSheet } from '@/features/documents/capture-sheet'
 
 export const METHODS: PaymentMethod[] = ['cash', 'bank_transfer', 'card', 'jazzcash', 'easypaisa', 'cheque', 'other']
+
+const METHOD_GROUP: Record<PaymentMethod, 'inPerson' | 'bank' | 'wallet' | 'other'> = {
+  cash: 'inPerson', cheque: 'inPerson', bank_transfer: 'bank', card: 'bank', jazzcash: 'wallet', easypaisa: 'wallet', other: 'other',
+}
+
+/** Payment methods grouped as people think of them: in person, bank & card, mobile wallets. */
+export function methodOptions(t: TFunction): SelectOption[] {
+  const order = ['cash', 'cheque', 'bank_transfer', 'card', 'jazzcash', 'easypaisa', 'other'] as const
+  return order.map((m) => ({ value: m, label: t(`method.${m}`), group: t(`methodGroup.${METHOD_GROUP[m]}`) }))
+}
 
 /** The amount that applies if paid on `paidOn` (late amount after the due date, FR-PAY-05). */
 type DueFields = Pick<BillDetail, 'payableMinor' | 'payableAfterDueMinor' | 'dueDate' | 'paidMinor' | 'lateStepUntil' | 'payableFinalMinor'>
@@ -85,14 +97,22 @@ export function PaymentSheet({ bill, open, onOpenChange }: { bill: BillDetail; o
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <Field label={t('bills.paidOn')} error={form.formState.errors.paidOn?.message}>
           {(p) => (
-            <Input
-              {...p}
-              type="date"
-              max={todayISO()}
-              {...form.register('paidOn', {
-                required: true,
-                onChange: (e) => form.setValue('amountMinor', amountDueOn(bill, e.target.value)),
-              })}
+            <Controller
+              control={form.control}
+              name="paidOn"
+              rules={{ required: true }}
+              render={({ field }) => (
+                <DateInput
+                  {...p}
+                  {...field}
+                  required
+                  max={todayISO()}
+                  onChange={(v) => {
+                    field.onChange(v)
+                    if (v) form.setValue('amountMinor', amountDueOn(bill, v))
+                  }}
+                />
+              )}
             />
           )}
         </Field>
@@ -108,13 +128,11 @@ export function PaymentSheet({ bill, open, onOpenChange }: { bill: BillDetail; o
         </Field>
         <Field label={t('bills.method')}>
           {(p) => (
-            <Select {...p} {...form.register('method')}>
-              {METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {t(`method.${m}`)}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              control={form.control}
+              name="method"
+              render={({ field }) => <Select {...p} {...field} options={methodOptions(t)} />}
+            />
           )}
         </Field>
         <Field label={t('bills.reference')} optional>

@@ -58,7 +58,9 @@ test('track a full month of household bills', async ({ page }) => {
     .setInputFiles({ name: 'hesco-sep-26.pdf', mimeType: 'application/pdf', buffer: textPdf(hescoLines()) })
   await expect(page.getByText('We filled in what we could read.')).toBeVisible({ timeout: 20_000 })
   const profileSelect = main.getByLabel('Profile', { exact: true })
-  await profileSelect.selectOption({ label: 'Home Electricity' })
+  await profileSelect.click()
+  await page.getByRole('option', { name: 'Home Electricity' }).click()
+  await expect(profileSelect).toHaveText('Home Electricity')
   await main.getByRole('button', { name: 'Save bill' }).click()
   await expect(page.getByRole('heading', { name: 'September 2026', exact: true })).toBeVisible({ timeout: 15_000 })
   const electricityBill = page.url()
@@ -83,7 +85,8 @@ test('track a full month of household bills', async ({ page }) => {
     .setInputFiles({ name: 'gas-receipt.pdf', mimeType: 'application/pdf', buffer: textPdf(['SNGPL', 'Paid Rs 1,850']) })
   await expect(pay.getByTestId('receipt-name')).toHaveText('gas-receipt.pdf')
   await pay.getByRole('button', { name: 'Save' }).click()
-  await expect(main.getByText('Paid', { exact: true }).first()).toBeVisible()
+  await expect(pay).toBeHidden() // the page behind an open sheet is hidden from the test
+  await expect(main.getByRole('button', { name: 'Mark as paid' })).toHaveCount(0)
 
   // 4. Rent: typed in, paid in two parts.
   await openProfile(page, 'Rent')
@@ -131,7 +134,9 @@ test('track a full month of household bills', async ({ page }) => {
   await main.getByRole('button', { name: 'Add payment' }).click()
   await expect(pay.getByLabel(/^Amount/)).toHaveValue('25,000')
   await pay.getByRole('button', { name: 'Save' }).click()
-  await expect(main.getByText('Paid', { exact: true }).first()).toBeVisible()
+  await expect(pay).toBeHidden()
+  // Fully paid: the bill no longer offers to add a payment.
+  await expect(main.getByRole('button', { name: 'Add payment' })).toHaveCount(0)
   await page.goto('/')
   await expect(main.getByText(/^Left to pay:/)).toContainText('Rs 0')
 

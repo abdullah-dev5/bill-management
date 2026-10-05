@@ -22,6 +22,7 @@ tags:
   - name: payments
   - name: documents
   - name: home
+  - name: analytics
 
 paths:
   /auth/signup:
@@ -163,6 +164,83 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/HomeSummary' }
+
+  /search:
+    get:
+      tags: [search]
+      operationId: search
+      description: Global search (FR-SRCH-01/02). Phrases like "electricity september 2025" become filters; other words are matched as text.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: Matching profiles, bills and documents
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResult' }
+
+  /activity:
+    get:
+      tags: [home]
+      operationId: listActivity
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        '200':
+          description: Recent activity, newest first (FR-DASH-05)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ActivityItem' }
+
+  /export/bills.csv:
+    get:
+      tags: [export]
+      operationId: exportBillsCsv
+      description: Bills as CSV (FR-EXP-01), by bill date; amounts in rupees.
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string }
+
+  /export/payments.csv:
+    get:
+      tags: [export]
+      operationId: exportPaymentsCsv
+      description: Payments as CSV (FR-EXP-01), by payment date.
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string }
+
+  /export/backup.zip:
+    get:
+      tags: [export]
+      operationId: exportBackup
+      description: Full backup (FR-EXP-02) — JSON data and every document. Owner only; includes reference numbers.
+      responses:
+        '200':
+          description: ZIP file
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
 
   /types:
     get:
@@ -383,6 +461,38 @@ paths:
           in: query
           required: false
           schema: { type: boolean, default: false }
+        - name: typeId
+          in: query
+          required: false
+          description: Bill types (repeatable); a type includes its sub-categories
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string, format: uuid }
+        - name: providerId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+        - name: minAmount
+          in: query
+          required: false
+          description: Minimum payable amount, minor units
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: maxAmount
+          in: query
+          required: false
+          description: Maximum payable amount, minor units
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: source
+          in: query
+          required: false
+          description: How the bill arrived (repeatable)
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/BillSource' }
         - name: cursor
           in: query
           required: false
@@ -500,6 +610,35 @@ paths:
         '204': { description: Deleted }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /analytics:
+    get:
+      tags: [analytics]
+      operationId: getAnalytics
+      description: |
+        Spending (or cash paid) month by month over a range, broken down by group, type, provider and
+        profile, with the previous period and the same period last year for comparison (FR-ANLT-02…06).
+        Spending is current charges + adjustments + late fees paid, never arrears.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        - name: basis
+          in: query
+          required: false
+          description: "spend (default): bill spending by billing month. cash: payments by the month they were made."
+          schema: { type: string, enum: [spend, cash] }
+      responses:
+        '200':
+          description: Analytics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Analytics' }
+        '400': { $ref: '#/components/responses/ValidationError' }
   /documents:
     get:
       tags: [documents]
@@ -984,6 +1123,72 @@ components:
       type: string
       enum: [draft, unpaid, partially_paid, paid, overdue, cancelled]
 
+    BillSource:
+      type: string
+      enum: [camera, upload, manual]
+
+    SearchInterpretation:
+      type: object
+      required: [typeNames, providerNames, statuses, terms]
+      properties:
+        typeNames: { type: array, items: { type: string } }
+        providerNames: { type: array, items: { type: string } }
+        from: { type: string, nullable: true, example: '2025-09' }
+        to: { type: string, nullable: true, example: '2025-09' }
+        statuses: { type: array, items: { $ref: '#/components/schemas/BillStatus' } }
+        terms: { type: array, items: { type: string }, description: Words searched as text }
+        referenceMatch: { type: boolean, description: A word matched a profile's reference number }
+
+    SearchProfile:
+      type: object
+      required: [id, name, icon, color, typeName]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        icon: { type: string }
+        color: { type: integer }
+        typeName: { type: string }
+        providerName: { type: string, nullable: true }
+        referenceDisplay: { type: string, nullable: true, description: Masked, e.g. "•••• 2345" }
+
+    SearchDocument:
+      type: object
+      required: [id, fileName, kind, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        kind: { type: string, enum: [bill, receipt, other] }
+        billId: { type: string, format: uuid, nullable: true }
+        snippet: { type: string, nullable: true, description: Text around the first match }
+        createdAt: { type: string, format: date-time }
+
+    SearchResult:
+      type: object
+      required: [query, interpretation, profiles, bills, documents]
+      properties:
+        query: { type: string }
+        interpretation: { $ref: '#/components/schemas/SearchInterpretation' }
+        profiles: { type: array, items: { $ref: '#/components/schemas/SearchProfile' } }
+        bills: { type: array, items: { $ref: '#/components/schemas/Bill' } }
+        documents: { type: array, items: { $ref: '#/components/schemas/SearchDocument' } }
+
+    ActivityItem:
+      type: object
+      required: [id, at, action, profileId, profileName]
+      properties:
+        id: { type: string, format: uuid }
+        at: { type: string, format: date-time }
+        action: { type: string, enum: [bill_added, payment_added, payment_removed, document_added, profile_added] }
+        actorName: { type: string, nullable: true }
+        profileId: { type: string, format: uuid }
+        profileName: { type: string }
+        billId: { type: string, format: uuid, nullable: true }
+        periodKey: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        amountMinor: { type: integer, format: int64, nullable: true }
+        currency: { type: string, nullable: true }
+        detail: { type: string, nullable: true, description: e.g. the file name or payment method }
+
     Bill:
       type: object
       required: [id, profileId, typeId, expenseDate, currentChargesMinor, arrearsMinor, adjustmentsMinor, payableMinor, currency, status, paidMinor, outstandingMinor, isEstimated, meterReplaced, cancelled, tags, archived, createdAt, updatedAt]
@@ -1389,6 +1594,52 @@ components:
           allOf:
             - $ref: '#/components/schemas/Bill'
           nullable: true
+
+    AnalyticsSeries:
+      type: object
+      description: One line of a breakdown (the whole household, a group, a type, a provider or a profile).
+      required: [key, name, totalMinor, previousMinor, lastYearMinor, months, billCount]
+      properties:
+        key: { type: string, description: 'Group name, type id, provider id ("none" for no provider) or profile id' }
+        name: { type: string }
+        icon: { type: string, nullable: true }
+        color: { type: integer, nullable: true }
+        group: { allOf: [{ $ref: '#/components/schemas/TypeGroup' }], nullable: true }
+        kind: { allOf: [{ $ref: '#/components/schemas/ProfileKind' }], nullable: true }
+        unit: { type: string, nullable: true, description: Consumption unit (profiles) }
+        totalMinor: { type: integer, format: int64 }
+        previousMinor: { type: integer, format: int64, description: Same-length period just before }
+        lastYearMinor: { type: integer, format: int64, description: Same months a year earlier }
+        months:
+          type: array
+          description: One amount per month of the range, in order
+          items: { type: integer, format: int64 }
+        billCount: { type: integer }
+        avgMinor: { type: integer, format: int64, nullable: true, description: Average bill (profiles, spend basis) }
+        maxMinor: { type: integer, format: int64, nullable: true }
+        minMinor: { type: integer, format: int64, nullable: true }
+        maxBillId: { type: string, format: uuid, nullable: true }
+        unitsTotal: { type: number, format: double, nullable: true }
+        unitsPrevious: { type: number, format: double, nullable: true }
+        unitsLastYear: { type: number, format: double, nullable: true }
+        unitsMonths:
+          type: array
+          nullable: true
+          items: { type: number, format: double, nullable: true }
+
+    Analytics:
+      type: object
+      required: [from, to, basis, months, total, groups, types, providers, profiles]
+      properties:
+        from: { type: string }
+        to: { type: string }
+        basis: { type: string, enum: [spend, cash] }
+        months: { type: array, items: { type: string } }
+        total: { $ref: '#/components/schemas/AnalyticsSeries' }
+        groups: { type: array, items: { $ref: '#/components/schemas/AnalyticsSeries' } }
+        types: { type: array, items: { $ref: '#/components/schemas/AnalyticsSeries' } }
+        providers: { type: array, items: { $ref: '#/components/schemas/AnalyticsSeries' } }
+        profiles: { type: array, items: { $ref: '#/components/schemas/AnalyticsSeries' } }
 
     HomeSummary:
       type: object

@@ -201,3 +201,44 @@ func TestParseOCRDoesNotMistakeNeighbours(t *testing.T) {
 		t.Errorf("current charges = %q, want the payable (no arrears)", r.Text(FCurrentCharges))
 	}
 }
+
+// SSGC gas bill: no SSGC-specific code; the label rows and history table are read generically.
+func TestParseSSGC(t *testing.T) {
+	r := ParseText(extracttest.SsgcText, append(catalogue, Provider{ShortName: "SSGC"}), "ocr")
+	Validate(&r, Context{ReferencePattern: `^\d{10}$`})
+
+	wantFields(t, r, map[string]string{
+		FReference:       "1234567890",
+		FBillingMonth:    "2024-09",
+		FIssueDate:       "2024-09-26",
+		FDueDate:         "2024-10-11",
+		FArrears:         "300",
+		FCurrentCharges:  "273800",
+		FPayable:         "274000",
+		FPayableAfterDue: "281000",
+		FCurrentReading:  "2061",
+		FPreviousReading: "2050",
+		FCustomerName:    "AHMED ALI KHAN",
+	})
+	if len(r.Warnings) != 0 {
+		t.Errorf("unexpected warnings: %+v", r.Warnings)
+	}
+	if !r.Complete() || r.Score() < 0.8 {
+		t.Errorf("score %.2f, complete %v", r.Score(), r.Complete())
+	}
+	if len(r.LateFees) != 1 || r.LateFees[0].AmountMinor != 281000 {
+		t.Errorf("late fees = %+v", r.LateFees)
+	}
+	if len(r.History) != 12 || r.History[0].Month != "2023-09" || r.History[11].Month != "2024-08" || *r.History[11].PaidMinor != 318700 {
+		t.Fatalf("history = %+v", r.History)
+	}
+}
+
+func TestLabelRowMustFitColumns(t *testing.T) {
+	// OCR dropped a digit from the current charges: the row is ignored rather than trusted.
+	text := "Sui Southern Gas Company Limited\nPrevious Balance Current Charges Payable\n3 238 2,740 65 2,810 11-Oct-24\n"
+	r := ParseText(text, nil, "ocr")
+	if _, ok := r.Fields[FCurrentCharges]; ok {
+		t.Errorf("current charges taken from a row that doesn't add up: %+v", r.Fields[FCurrentCharges])
+	}
+}

@@ -64,19 +64,28 @@ SELECT
         late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, sqlc.arg(today)::date
     )::bigint AS outstanding_minor
 FROM bills
-WHERE household_id = sqlc.arg(household_id)
-  AND (sqlc.narg(profile_id)::uuid IS NULL OR profile_id = sqlc.narg(profile_id)::uuid)
-  AND (CASE WHEN sqlc.arg(archived)::boolean THEN archived_at IS NOT NULL ELSE archived_at IS NULL END)
-  AND (sqlc.narg(from_date)::date IS NULL OR expense_date >= sqlc.narg(from_date)::date)
-  AND (sqlc.narg(to_date)::date IS NULL OR expense_date <= sqlc.narg(to_date)::date)
+WHERE bills.household_id = sqlc.arg(household_id)
+  AND (sqlc.narg(profile_id)::uuid IS NULL OR bills.profile_id = sqlc.narg(profile_id)::uuid)
+  AND (CASE WHEN sqlc.arg(archived)::boolean THEN bills.archived_at IS NOT NULL ELSE bills.archived_at IS NULL END)
+  AND (sqlc.narg(from_date)::date IS NULL OR bills.expense_date >= sqlc.narg(from_date)::date)
+  AND (sqlc.narg(to_date)::date IS NULL OR bills.expense_date <= sqlc.narg(to_date)::date)
   AND (sqlc.narg(statuses)::text[] IS NULL OR bill_status(
-        cancelled, verified_at IS NOT NULL, due_date, payable_minor,
-        payable_after_due_minor, paid_minor, paid_on_time_minor,
-        late_step_until, payable_final_minor, paid_by_step_minor, settled_by_bill_id IS NOT NULL, sqlc.arg(today)::date
+        bills.cancelled, bills.verified_at IS NOT NULL, bills.due_date, bills.payable_minor,
+        bills.payable_after_due_minor, bills.paid_minor, bills.paid_on_time_minor,
+        bills.late_step_until, bills.payable_final_minor, bills.paid_by_step_minor, bills.settled_by_bill_id IS NOT NULL, sqlc.arg(today)::date
       ) = ANY (sqlc.narg(statuses)::text[]))
+  AND (coalesce(cardinality(sqlc.arg(type_ids)::uuid[]), 0) = 0 OR bills.category_id = ANY (sqlc.arg(type_ids)::uuid[]))
+  AND (sqlc.narg(provider_id)::uuid IS NULL
+       OR bills.profile_id IN (SELECT bp.id FROM bill_profiles bp WHERE bp.provider_id = sqlc.narg(provider_id)::uuid))
+  AND (sqlc.narg(min_amount)::bigint IS NULL OR bills.payable_minor >= sqlc.narg(min_amount)::bigint)
+  AND (sqlc.narg(max_amount)::bigint IS NULL OR bills.payable_minor <= sqlc.narg(max_amount)::bigint)
+  -- Source: how the bill arrived; the first bill document's source, or manual entry.
+  AND (coalesce(cardinality(sqlc.arg(sources)::text[]), 0) = 0 OR coalesce(
+        (SELECT d.source::text FROM documents d WHERE d.bill_id = bills.id AND d.kind = 'bill' ORDER BY d.created_at LIMIT 1),
+        'manual') = ANY (sqlc.arg(sources)::text[]))
   AND (sqlc.narg(cursor_date)::date IS NULL
-       OR (expense_date, id) < (sqlc.narg(cursor_date)::date, sqlc.narg(cursor_id)::uuid))
-ORDER BY expense_date DESC, id DESC
+       OR (bills.expense_date, bills.id) < (sqlc.narg(cursor_date)::date, sqlc.narg(cursor_id)::uuid))
+ORDER BY bills.expense_date DESC, bills.id DESC
 LIMIT sqlc.arg(row_limit);
 
 -- name: ArchiveBill :execrows

@@ -164,7 +164,7 @@ func TestAccountDeletionPurgedByTick(t *testing.T) {
 
 	// Pretend the grace period has passed.
 	if _, err := testDB.Pool.Exec(context.Background(),
-		"UPDATE users SET deletion_requested_at = now() - interval '15 days' WHERE id = $1", me.User.Id); err != nil {
+		"UPDATE users SET deletion_requested_at = $2 WHERE id = $1", me.User.Id, e.server.now().AddDate(0, 0, -15)); err != nil {
 		t.Fatal(err)
 	}
 	req, _ := http.NewRequest(http.MethodPost, e.http.URL+"/internal/tick", nil)

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { BillStatus, Profile } from '@/api/client'
 import { useBill, useBillAction, useCreateBill, useDeletePayment, useProfile, useProfiles, useUpdateBill } from '@/api/hooks'
-import { PageHeader } from '@/components/layout/app-shell'
+import { PageHeader, SearchButton } from '@/components/layout/app-shell'
 import { DocumentsSection, DocumentViewer } from '@/features/documents/documents-section'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/field'
@@ -16,6 +16,7 @@ import { formatDate } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
 import { isOpen } from '@/lib/status'
 import { BillForm } from './bill-form'
+import { apiFilters, BillFilterBar } from './bill-filters'
 import { billTitle, BillsList } from './bill-row'
 import { PaymentSheet } from './payment-sheet'
 
@@ -83,13 +84,7 @@ function ProfileSwitcher({ profiles, current, onChange }: { profiles: Profile[];
       <label className="sr-only" htmlFor="profile-switch">
         {t('bills.profile')}
       </label>
-      <Select id="profile-switch" value={current.id} onChange={(e) => onChange(e.target.value)} className="h-11 max-w-xs">
-        {profiles.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </Select>
+      <Select id="profile-switch" value={current.id} onChange={onChange} className="h-11 max-w-xs" options={profiles.map((p) => ({ value: p.id, label: p.name }))} />
     </div>
   )
 }
@@ -457,7 +452,7 @@ export function BillsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title={t('bills.all')} />
+      <PageHeader title={t('bills.all')} actions={<SearchButton />} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" role="group" aria-label={t('bills.filterStatus')}>
           {STATUS_FILTERS.map((f) => (
@@ -470,18 +465,18 @@ export function BillsPage() {
           <label className="sr-only" htmlFor="bills-profile">
             {t('bills.filterProfile')}
           </label>
-          <Select id="bills-profile" className="h-11 sm:w-60" value={search.profileId ?? ''} onChange={(e) => set({ profileId: e.target.value || undefined })}>
-            <option value="">{t('bills.allProfiles')}</option>
-            {(profiles ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
+          <Select
+            id="bills-profile"
+            className="h-11 sm:w-60"
+            value={search.profileId ?? ''}
+            onChange={(v) => set({ profileId: v || undefined })}
+            options={[{ value: '', label: t('bills.allProfiles') }, ...(profiles ?? []).map((p) => ({ value: p.id, label: p.name }))]}
+          />
         </div>
       </div>
+      <BillFilterBar search={search} onChange={set} />
       <Toggle label={t('bills.archivedView')} checked={Boolean(search.archived)} onChange={(v) => set({ archived: v || undefined })} />
-      <BillsList filters={{ profileId: search.profileId, status: statuses, archived: search.archived }} profilesById={byId} />
+      <BillsList filters={{ profileId: search.profileId, status: statuses, archived: search.archived, ...apiFilters(search) }} profilesById={byId} />
     </div>
   )
 }

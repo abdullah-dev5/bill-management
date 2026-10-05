@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { LayoutGrid, Plus, Receipt, Settings, House, ChevronRight, ScanLine } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { ChartColumn, LayoutGrid, Plus, Receipt, Settings, House, ChevronRight, ScanLine, Search } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useProfiles } from '@/api/hooks'
 import { IconTile } from '@/components/ui/misc'
@@ -12,14 +12,32 @@ const NAV = [
   { to: '/', key: 'home', Icon: House, exact: true },
   { to: '/profiles', key: 'profiles', Icon: LayoutGrid },
   { to: '/bills', key: 'bills', Icon: Receipt },
+  { to: '/analytics', key: 'analytics', Icon: ChartColumn },
   { to: '/settings', key: 'settings', Icon: Settings },
 ] as const
+
+// Phones: Home · Profiles · ＋ · Analytics · Settings (bills are one tap away from Home and Analytics).
+const BOTTOM_NAV = NAV.filter((n) => n.key !== 'bills')
 
 export function AppShell() {
   const { t } = useTranslation()
   const [addOpen, setAddOpen] = useState(false)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isActive = (to: string, exact?: boolean) => (exact ? pathname === to : pathname === to || pathname.startsWith(to + '/'))
+  const navigate = useNavigate()
+
+  // "/" opens search from anywhere, unless the person is typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const el = e.target as HTMLElement | null
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.closest('[role="dialog"]'))) return
+      e.preventDefault()
+      void navigate({ to: '/search' })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navigate])
 
   return (
     <div className="min-h-dvh lg:flex">
@@ -38,7 +56,7 @@ export function AppShell() {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         <ul className="mx-auto grid h-16 max-w-lg grid-cols-5 items-center">
-          {NAV.slice(0, 2).map((n) => (
+          {BOTTOM_NAV.slice(0, 2).map((n) => (
             <BottomItem key={n.to} to={n.to} label={t(`nav.${n.key}`)} Icon={n.Icon} active={isActive(n.to, 'exact' in n)} />
           ))}
           <li className="flex justify-center">
@@ -51,7 +69,7 @@ export function AppShell() {
               <Plus className="size-7" strokeWidth={2.25} />
             </button>
           </li>
-          {NAV.slice(2).map((n) => (
+          {BOTTOM_NAV.slice(2).map((n) => (
             <BottomItem key={n.to} to={n.to} label={t(`nav.${n.key}`)} Icon={n.Icon} active={isActive(n.to)} />
           ))}
         </ul>
@@ -92,6 +110,17 @@ function Sidebar({ isActive, onAdd }: { isActive: (to: string, exact?: boolean) 
       >
         <Plus className="size-5" aria-hidden /> {t('nav.add')}
       </button>
+      <Link
+        to="/search"
+        className="flex h-11 items-center gap-3 rounded-full border border-line bg-card px-4 text-sm text-muted hover:border-[var(--text-muted)]"
+        aria-keyshortcuts="/"
+      >
+        <Search className="size-4.5" aria-hidden />
+        <span className="flex-1">{t('search.open')}</span>
+        <kbd className="rounded-md border border-line px-1.5 font-sans text-xs" aria-hidden>
+          /
+        </kbd>
+      </Link>
       <nav aria-label="Primary">
         <ul className="flex flex-col gap-1">
           {NAV.map((n) => {
@@ -214,6 +243,16 @@ function AddRow({ onClick, icon, title, sub }: { onClick: () => void; icon: Reac
       </span>
       <ChevronRight className="size-5 text-muted" aria-hidden />
     </button>
+  )
+}
+
+/** Search button for phone headers (the desktop sidebar has its own). */
+export function SearchButton() {
+  const { t } = useTranslation()
+  return (
+    <Link to="/search" aria-label={t('search.open')} className="grid size-11 place-items-center rounded-full bg-card text-ink hover:bg-card-muted lg:hidden">
+      <Search className="size-5" aria-hidden />
+    </Link>
   )
 }
 

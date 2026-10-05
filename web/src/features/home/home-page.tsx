@@ -3,11 +3,13 @@ import { ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHome, useMe, useProfiles } from '@/api/hooks'
+import { SearchButton } from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, EmptyState, ErrorNotice, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { currentMonthKey, formatMonth, shiftMonth } from '@/lib/dates'
 import { BillRow } from '../bills/bill-row'
 import { ProfileTile } from '../profiles/profile-pages'
+import { RecentActivity } from './activity'
 import { MonthProfiles, MonthTotalCard } from './month-total'
 
 export function HomePage() {
@@ -24,6 +26,8 @@ export function HomePage() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold sm:text-[28px]">{t('home.greeting', { name: me?.user.displayName.split(' ')[0] ?? '' })}</h1>
+        <div className="flex items-center gap-2">
+        <SearchButton />
         <div className="flex items-center gap-1 rounded-full bg-card p-1">
           <Button size="icon" variant="ghost" className="rounded-full" aria-label={t('home.prevMonth')} onClick={() => setMonth((m) => shiftMonth(m, -1))}>
             <ChevronLeft className="size-5" />
@@ -39,6 +43,7 @@ export function HomePage() {
           >
             <ChevronRight className="size-5" />
           </Button>
+        </div>
         </div>
       </header>
 
@@ -126,18 +131,7 @@ export function HomePage() {
             </section>
           )}
 
-          {home.data.recent.length > 0 && (
-            <section>
-              <SectionTitle>{t('home.recent')}</SectionTitle>
-              <ul className="divide-y divide-line overflow-hidden rounded-card bg-card">
-                {home.data.recent.map((b) => (
-                  <li key={b.id}>
-                    <BillRow bill={b} profile={byId.get(b.profileId)} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {hasRealProfiles && <RecentActivity />}
         </>
       )}
     </div>

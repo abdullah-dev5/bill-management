@@ -165,6 +165,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Global search (FR-SRCH-01/02). Phrases like "electricity september 2025" become filters; other words are matched as text. */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/types": {
         parameters: {
             query?: never;
@@ -421,6 +454,27 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deletePayment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Spending (or cash paid) month by month over a range, broken down by group, type, provider and
+         *     profile, with the previous period and the same period last year for comparison (FR-ANLT-02…06).
+         *     Spending is current charges + adjustments + late fees paid, never arrears.
+         */
+        get: operations["getAnalytics"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -787,6 +841,73 @@ export interface components {
         };
         /** @enum {string} */
         BillStatus: "draft" | "unpaid" | "partially_paid" | "paid" | "overdue" | "cancelled";
+        /** @enum {string} */
+        BillSource: "camera" | "upload" | "manual";
+        SearchInterpretation: {
+            typeNames: string[];
+            providerNames: string[];
+            /** @example 2025-09 */
+            from?: string | null;
+            /** @example 2025-09 */
+            to?: string | null;
+            statuses: components["schemas"]["BillStatus"][];
+            /** @description Words searched as text */
+            terms: string[];
+            /** @description A word matched a profile's reference number */
+            referenceMatch?: boolean;
+        };
+        SearchProfile: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            icon: string;
+            color: number;
+            typeName: string;
+            providerName?: string | null;
+            /** @description Masked */
+            referenceDisplay?: string | null;
+        };
+        SearchDocument: {
+            /** Format: uuid */
+            id: string;
+            fileName: string;
+            /** @enum {string} */
+            kind: "bill" | "receipt" | "other";
+            /** Format: uuid */
+            billId?: string | null;
+            /** @description Text around the first match */
+            snippet?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        SearchResult: {
+            query: string;
+            interpretation: components["schemas"]["SearchInterpretation"];
+            profiles: components["schemas"]["SearchProfile"][];
+            bills: components["schemas"]["Bill"][];
+            documents: components["schemas"]["SearchDocument"][];
+        };
+        ActivityItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            at: string;
+            /** @enum {string} */
+            action: "bill_added" | "payment_added" | "payment_removed" | "document_added" | "profile_added";
+            actorName?: string | null;
+            /** Format: uuid */
+            profileId: string;
+            profileName: string;
+            /** Format: uuid */
+            billId?: string | null;
+            periodKey?: string | null;
+            description?: string | null;
+            /** Format: int64 */
+            amountMinor?: number | null;
+            currency?: string | null;
+            /** @description e.g. the file name or payment method */
+            detail?: string | null;
+        };
         Bill: {
             /** Format: uuid */
             id: string;
@@ -1209,6 +1330,63 @@ export interface components {
             profiles: components["schemas"]["MonthTotalProfile"][];
             nextDue?: components["schemas"]["Bill"] | null;
         };
+        /** @description One line of a breakdown (the whole household, a group, a type, a provider or a profile). */
+        AnalyticsSeries: {
+            /** @description Group name, type id, provider id ("none" for no provider) or profile id */
+            key: string;
+            name: string;
+            icon?: string | null;
+            color?: number | null;
+            group?: components["schemas"]["TypeGroup"] | null;
+            kind?: components["schemas"]["ProfileKind"] | null;
+            /** @description Consumption unit (profiles) */
+            unit?: string | null;
+            /** Format: int64 */
+            totalMinor: number;
+            /**
+             * Format: int64
+             * @description Same-length period just before
+             */
+            previousMinor: number;
+            /**
+             * Format: int64
+             * @description Same months a year earlier
+             */
+            lastYearMinor: number;
+            /** @description One amount per month of the range, in order */
+            months: number[];
+            billCount: number;
+            /**
+             * Format: int64
+             * @description Average bill (profiles
+             */
+            avgMinor?: number | null;
+            /** Format: int64 */
+            maxMinor?: number | null;
+            /** Format: int64 */
+            minMinor?: number | null;
+            /** Format: uuid */
+            maxBillId?: string | null;
+            /** Format: double */
+            unitsTotal?: number | null;
+            /** Format: double */
+            unitsPrevious?: number | null;
+            /** Format: double */
+            unitsLastYear?: number | null;
+            unitsMonths?: (number | null)[] | null;
+        };
+        Analytics: {
+            from: string;
+            to: string;
+            /** @enum {string} */
+            basis: "spend" | "cash";
+            months: string[];
+            total: components["schemas"]["AnalyticsSeries"];
+            groups: components["schemas"]["AnalyticsSeries"][];
+            types: components["schemas"]["AnalyticsSeries"][];
+            providers: components["schemas"]["AnalyticsSeries"][];
+            profiles: components["schemas"]["AnalyticsSeries"][];
+        };
         HomeSummary: {
             monthTotal: components["schemas"]["MonthTotal"];
             /** @example 2026-10 */
@@ -1552,6 +1730,50 @@ export interface operations {
             };
         };
     };
+    search: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching profiles, bills and documents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+        };
+    };
+    listActivity: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent activity, newest first (FR-DASH-05) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityItem"][];
+                };
+            };
+        };
+    };
     listTypes: {
         parameters: {
             query?: never;
@@ -1873,6 +2095,15 @@ export interface operations {
                 from?: string;
                 to?: string;
                 archived?: boolean;
+                /** @description Bill types (repeatable); a type includes its sub-categories */
+                typeId?: string[];
+                providerId?: string;
+                /** @description Minimum payable amount, minor units */
+                minAmount?: number;
+                /** @description Maximum payable amount, minor units */
+                maxAmount?: number;
+                /** @description How the bill arrived (repeatable) */
+                source?: components["schemas"]["BillSource"][];
                 cursor?: string;
                 limit?: number;
             };
@@ -2084,6 +2315,32 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    getAnalytics: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                /** @description spend (default): bill spending by billing month. cash: payments by the month they were made. */
+                basis?: "spend" | "cash";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Analytics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Analytics"];
+                };
+            };
+            400: components["responses"]["ValidationError"];
         };
     };
     listDocuments: {

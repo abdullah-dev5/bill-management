@@ -13,7 +13,8 @@ type Provider struct {
 }
 
 // ParseText extracts fields from document text (a PDF text layer or OCR output).
-// Provider-specific parsers run first; the generic label parser fills the gaps.
+// The PITC parser (electricity) runs first; then label rows and tables, which fit most
+// other bills (gas, water, telecom); then single "label: value" pairs fill the gaps.
 func ParseText(text string, providers []Provider, source string) Result {
 	r := NewResult()
 	r.RawText = text
@@ -26,6 +27,7 @@ func ParseText(text string, providers []Provider, source string) Result {
 	if looksLikePITC(text) {
 		parsePITC(&r, text, source+"+pitc")
 	}
+	parseTables(&r, text, source+"+table")
 	parseGeneric(&r, text, source+"+generic")
 	r.History = sortHistory(r.History)
 	return r
@@ -264,7 +266,7 @@ var genericLabels = []struct {
 	{FDueDate, kindDate, []string{"due date", "last date", "pay by", "payment due"}},
 	{FIssueDate, kindDate, []string{"issue date", "bill date", "date of issue", "invoice date", "billing date"}},
 	{FBillingMonth, kindMonth, []string{"bill month", "billing month", "billing period", "bill period", "month of"}},
-	{FReference, kindReference, []string{"reference no", "reference number", "consumer no", "consumer number", "account no", "account number", "customer id", "customer no", "consumer id", "ref no"}},
+	{FReference, kindReference, []string{"reference no", "reference number", "consumer no", "consumer number", "account no", "account number", "customer id", "customer number", "customer no", "consumer id", "ref no"}},
 	{FBillNumber, kindReference, []string{"bill no", "bill number", "invoice no", "invoice number"}},
 	{FArrears, kindMoney, []string{"arrears", "previous balance", "outstanding balance", "balance b/f", "previous dues"}},
 	{FCurrentCharges, kindMoney, []string{"current charges", "current bill", "charges for the month", "current amount"}},
@@ -313,6 +315,9 @@ func parseValue(s string, kind valueKind) (string, bool) {
 
 func parseGeneric(r *Result, text, source string) {
 	const conf = 0.7
+	if m := customerName.FindStringSubmatch(text); m != nil {
+		r.set(FCustomerName, strings.TrimSpace(m[1]), 0.6, source)
+	}
 	lines := strings.Split(text, "\n")
 	lower := make([]string, len(lines))
 	for i, l := range lines {
@@ -347,6 +352,9 @@ func parseGeneric(r *Result, text, source string) {
 		}
 	}
 }
+
+// customerName finds "Name: …" for redaction only (the name is never stored).
+var customerName = regexp.MustCompile(`(?im)^\s*(?:customer\s+|consumer\s+)?name\s*[:\-]\s*([A-Za-z][A-Za-z .'\-]{2,60}?)\s*$`)
 
 func countDigits(s string) int {
 	n := 0

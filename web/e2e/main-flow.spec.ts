@@ -30,7 +30,9 @@ test('sign up, onboard, add a bill, pay it, log an expense', async ({ page }) =>
   // Pick Electricity and Maintenance; give the electricity profile a LESCO reference.
   await page.getByRole('button', { name: 'Electricity' }).click()
   await page.getByRole('button', { name: 'Maintenance' }).click()
-  await page.getByLabel(/^Provider/).selectOption({ label: 'LESCO — Lahore' })
+  await page.getByLabel(/^Provider/).click()
+  await page.getByRole('option', { name: 'LESCO — Lahore' }).click()
+  await expect(page.getByLabel(/^Provider/)).toHaveText('LESCO — Lahore')
   await page.getByLabel(/^Reference \/ account no\./).fill(uniqueReference())
   await shot(page, '02-onboarding')
   await page.getByRole('button', { name: 'Create 2 profiles' }).click()
@@ -38,12 +40,12 @@ test('sign up, onboard, add a bill, pay it, log an expense', async ({ page }) =>
   // Home lists the pinned profiles.
   await expect(page.getByRole('heading', { name: 'Hello, Ayesha' })).toBeVisible()
   const main = page.locator('#main')
-  await expect(main.getByRole('link', { name: /Home Electricity/ })).toBeVisible()
-  await expect(main.getByRole('link', { name: /Maintenance/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /Home Electricity/ }).first()).toBeVisible()
+  await expect(main.getByRole('link', { name: /Maintenance/ }).first()).toBeVisible()
   await shot(page, '03-home-empty')
 
   // Open the profile dashboard and add September's bill.
-  await main.getByRole('link', { name: /Home Electricity/ }).click()
+  await main.getByRole('link', { name: /Home Electricity/ }).first().click() // the pinned tile (before recent activity)
   await expect(page.getByRole('heading', { name: 'Home Electricity', exact: true })).toBeVisible()
   await main.getByRole('link', { name: 'Add bill' }).first().click()
   await expect(page.getByRole('heading', { name: 'New bill' })).toBeVisible()

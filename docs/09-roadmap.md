@@ -55,6 +55,7 @@ gantt
 ### M4 — Dashboard, analytics & export
 - Dashboard (FR-DASH-01…03, 05, 06), analytics with ranges, comparisons and the spend rule, global search, CSV export + full backup ZIP.
 - **Exit:** answers every question in [01](01-product-vision.md) §3 from the UI; dashboard < 1 s.
+- **Done:** see [milestones/M4](milestones/M4-dashboard-analytics.md).
 
 ### M5 — Reminders, expected bills & PWA *(MVP complete)*
 - 10-minute tick (cron-job.org), due/overdue notifications, expected-bill detection, recurring templates.
