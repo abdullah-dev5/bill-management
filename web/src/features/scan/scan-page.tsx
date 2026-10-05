@@ -76,7 +76,7 @@ export function ScanPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { documentId } = useParams({ from: '/app/scan/$documentId' })
-  const { official } = useSearch({ from: '/app/scan/$documentId' })
+  const { official, profileId: fromProfile } = useSearch({ from: '/app/scan/$documentId' })
   const doc = useDocument(documentId)
   const extraction = useExtraction(documentId)
   const start = useStartExtraction()
@@ -110,8 +110,12 @@ export function ScanPage() {
   const extractedRef = normalizeRef(e?.fields.referenceNumber?.value)
   const matched = extractedRef ? active.find((p) => normalizeRef(p.referenceNumber) === extractedRef) : undefined
   const provider = (providers.data ?? []).find((p) => p.id === e?.providerId)
+  // Uploaded from a profile's Official bill card? Prefer that profile, unless the bill's own
+  // reference matches a different one.
+  const fromProfileActive = fromProfile ? active.find((p) => p.id === fromProfile) : undefined
   const selected =
-    choice ?? (matched ? matched.id : e?.status === 'succeeded' && (extractedRef || provider) ? NEW : active.find((p) => p.isDefault)?.id)
+    choice ??
+    (matched ? matched.id : fromProfileActive ? fromProfileActive.id : e?.status === 'succeeded' && (extractedRef || provider) ? NEW : active.find((p) => p.isDefault)?.id)
 
   const [draft, setDraft] = useState<{
     name: string

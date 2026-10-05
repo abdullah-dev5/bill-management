@@ -71,7 +71,7 @@ function Assisted({ profile }: { profile: Profile }) {
         onOpenChange={setCapturing}
         title={t('official.uploadTitle')}
         onUploaded={async ({ document }) => {
-          await navigate({ to: '/scan/$documentId', params: { documentId: document.id }, search: { official: true } })
+          await navigate({ to: '/scan/$documentId', params: { documentId: document.id }, search: { official: true, profileId: profile.id } })
         }}
       />
     </>

@@ -1,5 +1,8 @@
 # M6 — Official retrieval & full reconciliation: progress notes
 
+**Status: complete.** Both exit criteria pass (a retrieved and a scanned bill of the same month merge into one
+record; a broken connector is contained). Automatic fetch is ready but off, pending a provider granting access.
+
 Branch `m6-retrieval-reconciliation` (PR #8 → `main`). Exit criteria from [09-roadmap](../09-roadmap.md) M6: a retrieved bill and a scanned bill of the same
 month merge into one record; when a connector is broken, nothing else is affected.
 
@@ -7,7 +10,20 @@ month merge into one record; when a connector is broken, nothing else is affecte
 |---|---|---|
 | 1 — Reconciliation | Sources per bill, field conflicts, resolution, side-by-side sources, undo merge | **Done** |
 | 2 — Official retrieval | Assisted retrieval for providers with CAPTCHAs; connector framework (throttled, health-tracked, contained); scheduler; Fetch now | **Done** |
-| 3 — Exit | Exit checks end to end, docs, public lookup page decision | Next |
+| 3 — Exit | Exit checks, connector template, outreach docs | **Done** |
+
+## Phase 3 — Exit (delivered)
+| Area | What's in |
+|---|---|
+| Exit criteria | Go tests prove both: a retrieved bill and a scanned bill of the same month merge into one record (TestRetrievedAndScannedBillMerge), and a failing or panicking connector is contained while bills, Home and the tick keep working (TestBrokenConnectorIsContained). |
+| Connector template | `backend/internal/retrieval/template.go`: where an authorized connector plugs in. Its Fetch is left unimplemented on purpose — a connector is added only once a provider permits automated access, never to work around a CAPTCHA or login (in code or via a solver service). |
+| Docs | [retrieval-connectors.md](../retrieval-connectors.md) (when a connector is allowed, how to add one, how to request access) and [retrieval-outreach.md](../retrieval-outreach.md) (a tracker for provider access requests — start early, they're slow). |
+
+**Decision on automatic fetch:** the official pages for the PITC electricity companies and SSGC use CAPTCHAs, and
+SNGPL's didn't respond. A CAPTCHA is the provider forbidding automated access, so we don't fetch from those sites and
+do not bypass the CAPTCHA by any means. Automatic retrieval is therefore **blocked on a provider granting access, not
+on the app** — the framework is ready and lights up the day that happens. Until then, assisted retrieval is the
+official channel. (ADR-002 updated.)
 
 ## Phase 2 — Official retrieval (delivered)
 **What we found:** the official lookup pages for the PITC electricity companies (LESCO, HESCO, IESCO…) and SSGC use a CAPTCHA

@@ -177,7 +177,10 @@ const scanRoute = createRoute({
   path: '/scan/$documentId',
   component: ScanPage,
   // official: the person saved this from the provider's site (assisted retrieval).
-  validateSearch: (s: Record<string, unknown>): { official?: true } => ({ official: s.official === true || s.official === 'true' ? true : undefined }),
+  validateSearch: (s: Record<string, unknown>): { official?: true; profileId?: string } => ({
+    official: s.official === true || s.official === 'true' ? true : undefined,
+    profileId: str(s.profileId),
+  }),
 })
 const monthRe = /^\d{4}-(0[1-9]|1[0-2])$/
 const presets = ['month', '3m', 'year', '12m', 'custom'] as const

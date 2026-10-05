@@ -66,6 +66,7 @@ gantt
 - Connector framework (sandboxed, rate-limited, health-tracked); pilot connectors for 1–2 providers with public bill lookup.
 - Field conflicts + resolution UI, source comparison, undo merge.
 - **Exit:** a retrieved bill and a scanned bill of the same month merge into one record; when a connector is broken, nothing else is affected.
+- **Done:** see [milestones/M6](milestones/M6-retrieval-reconciliation.md). Automatic fetch is ready but off, pending provider access (official pages use CAPTCHAs); assisted retrieval ships.
 
 ### M7 — Expansion
 - Multi-property UI, email ingestion (forwarding address), email notifications, budgets.

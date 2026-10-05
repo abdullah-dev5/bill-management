@@ -21,6 +21,10 @@ import (
 // a connector failure.
 var ErrNotFound = errors.New("no bill found for this reference number")
 
+// ErrNotImplemented is returned by the connector template until a real Fetch is written against
+// a provider-authorized source.
+var ErrNotImplemented = errors.New("this connector is not implemented yet")
+
 // Request is what a connector looks up.
 type Request struct {
 	Provider  string // catalogue short name, e.g. "HESCO"
