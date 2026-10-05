@@ -19,6 +19,7 @@ import (
 	"github.com/abdullah-dev5/bill-management/backend/internal/extract"
 	"github.com/abdullah-dev5/bill-management/backend/internal/mail"
 	"github.com/abdullah-dev5/bill-management/backend/internal/ratelimit"
+	"github.com/abdullah-dev5/bill-management/backend/internal/retrieval"
 	"github.com/abdullah-dev5/bill-management/backend/internal/secure"
 	"github.com/abdullah-dev5/bill-management/backend/internal/storage"
 	"github.com/abdullah-dev5/bill-management/backend/internal/store"
@@ -46,6 +47,7 @@ type Server struct {
 	uploadsByHH  *ratelimit.Limiter
 	backupsByHH  *ratelimit.Limiter
 	push         pushSender
+	retrieval    *retrieval.Registry
 
 	lastTick atomic.Int64 // unix seconds of the last successful tick
 }
@@ -71,7 +73,18 @@ func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, 
 		uploadsByHH:  ratelimit.New(100, time.Hour),
 		backupsByHH:  ratelimit.New(10, time.Hour), // a backup reads every document
 		push:         webPushSender{publicKey: vapidPub, privateKey: vapidPriv, subject: pushSubject(cfg)},
+		retrieval:    retrieval.NewRegistry(6, connectors(cfg)...),
 	}
+}
+
+// connectors are the automatic retrieval connectors in use. None of the providers seen so far
+// permits automated lookups (PITC and SSGC pages have CAPTCHAs), so production has none and those
+// providers use the assisted flow; the sample connector exists for development and tests.
+func connectors(cfg config.Config) []retrieval.Connector {
+	if cfg.RetrievalSample && !cfg.IsProduction() {
+		return []retrieval.Connector{retrieval.Sample{}}
+	}
+	return nil
 }
 
 // pushSubject identifies the sender to push services (an https URL or mailto:).

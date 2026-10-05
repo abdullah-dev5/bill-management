@@ -402,6 +402,62 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /profiles/{id}/retrieve:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [profiles]
+      operationId: retrieveProfileBill
+      description: Fetch now (FR-RETR-06), for profiles with an automatic connector; throttled.
+      responses:
+        '200':
+          description: What happened
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RetrievalResult' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /profiles/{id}/retrieval:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      tags: [profiles]
+      operationId: setProfileRetrieval
+      description: Turn automatic checks of the official site on or off (FR-RETR-01).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: The profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /retrieval/connectors:
+    get:
+      tags: [profiles]
+      operationId: listConnectors
+      description: Automatic connectors and their health (FR-RETR-05).
+      responses:
+        '200':
+          description: Connectors
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConnectorStatus' }
+
   /types:
     get:
       tags: [types]
@@ -1272,6 +1328,7 @@ components:
         sortOrder: { type: integer }
         archived: { type: boolean }
         summary: { $ref: '#/components/schemas/ProfileSummary' }
+        retrieval: { $ref: '#/components/schemas/ProfileRetrieval' }
 
     ProfileSummary:
       type: object
@@ -1303,6 +1360,7 @@ components:
         expectedAmountMinor: { type: integer, format: int64, minimum: 0, nullable: true }
         autoCreateBill: { type: boolean }
         pinned: { type: boolean }
+        retrievalEnabled: { type: boolean, description: Check the official site automatically (only where a connector exists) }
 
     ProfileOrder:
       type: object
@@ -1384,7 +1442,7 @@ components:
 
     NotificationKind:
       type: string
-      enum: [due_soon, due_today, overdue, missing_bill, bill_created]
+      enum: [due_soon, due_today, overdue, missing_bill, bill_created, bill_retrieved]
 
     Notification:
       type: object
@@ -1457,6 +1515,43 @@ components:
       properties:
         devices: { type: integer }
         delivered: { type: integer }
+
+    ProfileRetrieval:
+      type: object
+      required: [mode, enabled]
+      description: How this profile's bill can come from the official source (M6)
+      properties:
+        mode:
+          type: string
+          enum: [automatic, assisted, none]
+          description: automatic = a connector fetches it; assisted = open the official lookup page yourself and upload the bill; none = no official source known
+        lookupUrl: { type: string, nullable: true, description: The provider's official bill lookup page }
+        enabled: { type: boolean, description: Automatic checks are on }
+        connectorPaused: { type: boolean, description: The connector is switched off after repeated failures }
+        lastAt: { type: string, format: date-time, nullable: true }
+        lastOutcome: { type: string, nullable: true, enum: [created, merged, unchanged, not_found, failed, skipped] }
+        lastMessage: { type: string, nullable: true }
+
+    RetrievalResult:
+      type: object
+      required: [outcome, message]
+      properties:
+        outcome: { type: string, enum: [created, merged, unchanged, not_found, failed, skipped] }
+        message: { type: string }
+        billId: { type: string, format: uuid, nullable: true }
+
+    ConnectorStatus:
+      type: object
+      required: [id, name, providers, healthy]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        providers: { type: array, items: { type: string } }
+        healthy: { type: boolean }
+        disabledUntil: { type: string, format: date-time, nullable: true }
+        consecutiveFailures: { type: integer }
+        lastSuccessAt: { type: string, format: date-time, nullable: true }
+        lastFailureAt: { type: string, format: date-time, nullable: true }
 
     Bill:
       type: object
@@ -1567,6 +1662,9 @@ components:
           type: string
           enum: [attach, keep_separate]
           description: How to handle a duplicate reported by a previous attempt
+        officialCopy:
+          type: boolean
+          description: The person saved this from the provider's official site (assisted retrieval); recorded as an official copy
 
     HistoryEntry:
       type: object

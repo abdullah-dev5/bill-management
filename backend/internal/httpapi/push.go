@@ -176,6 +176,8 @@ func pushText(n store.ListUnpushedNotificationsRow, today time.Time) pushMessage
 		if n.ProfileID != nil && n.PeriodKey != nil {
 			msg.URL = "/bills/new?profileId=" + n.ProfileID.String() + "&period=" + *n.PeriodKey
 		}
+	case store.NotificationKindBillRetrieved:
+		msg.Body = "Fetched from the official site · " + amount + ". Check it."
 	case store.NotificationKindBillCreated:
 		msg.Body = "Added automatically · " + amount
 		if day != "" {

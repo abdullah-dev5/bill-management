@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { CheckCircle2, ExternalLink, FileText, Link2, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -76,6 +76,7 @@ export function ScanPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { documentId } = useParams({ from: '/app/scan/$documentId' })
+  const { official } = useSearch({ from: '/app/scan/$documentId' })
   const doc = useDocument(documentId)
   const extraction = useExtraction(documentId)
   const start = useStartExtraction()
@@ -169,6 +170,7 @@ export function ScanPage() {
               }))
             : undefined,
         duplicate: duplicateChoice,
+        officialCopy: official || undefined,
       })
       setDuplicate(undefined)
       const differs = saved.conflicts.filter((c) => c.status === 'open').length
@@ -261,6 +263,11 @@ export function ScanPage() {
                     </div>
                   )}
                 </div>
+              )}
+              {official && (
+                <p className="rounded-field bg-card-muted p-3 text-sm text-body" data-testid="official-copy">
+                  {t('official.copyNote')}
+                </p>
               )}
               {e?.status === 'succeeded' && (
                 <p className="flex items-center gap-2 text-sm text-muted">

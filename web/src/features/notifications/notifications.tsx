@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { AlarmClock, Bell, BellOff, CalendarClock, CircleAlert, FileQuestion, Repeat } from 'lucide-react'
+import { AlarmClock, Bell, BellOff, CalendarClock, CircleAlert, FileQuestion, Landmark, Repeat } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Schemas } from '@/api/client'
 import { useMarkNotificationsRead, useNotifications } from '@/api/hooks'
@@ -20,6 +20,7 @@ const ICONS = {
   overdue: CircleAlert,
   missing_bill: FileQuestion,
   bill_created: Repeat,
+  bill_retrieved: Landmark,
 } as const
 
 /** Bell with the unread count; opens the notifications page. */
@@ -107,6 +108,8 @@ export function notificationText(n: Notification): { title: string; line: string
       return { title, line: t('notifications.overdue', { date: formatDayMonth(due), amount }) }
     case 'missing_bill':
       return { title, line: t('notifications.missing', { month: n.periodKey ? formatMonth(n.periodKey) : '' }) }
+    case 'bill_retrieved':
+      return { title, line: t('notifications.retrieved', { amount }) }
     case 'bill_created':
       return { title, line: due ? t('notifications.createdDue', { amount, date: formatDayMonth(due) }) : t('notifications.created', { amount }) }
   }

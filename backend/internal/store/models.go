@@ -506,11 +506,12 @@ func AllMemberRoleValues() []MemberRole {
 type NotificationKind string
 
 const (
-	NotificationKindDueSoon     NotificationKind = "due_soon"
-	NotificationKindDueToday    NotificationKind = "due_today"
-	NotificationKindOverdue     NotificationKind = "overdue"
-	NotificationKindMissingBill NotificationKind = "missing_bill"
-	NotificationKindBillCreated NotificationKind = "bill_created"
+	NotificationKindDueSoon       NotificationKind = "due_soon"
+	NotificationKindDueToday      NotificationKind = "due_today"
+	NotificationKindOverdue       NotificationKind = "overdue"
+	NotificationKindMissingBill   NotificationKind = "missing_bill"
+	NotificationKindBillCreated   NotificationKind = "bill_created"
+	NotificationKindBillRetrieved NotificationKind = "bill_retrieved"
 )
 
 func (e *NotificationKind) Scan(src interface{}) error {
@@ -554,7 +555,8 @@ func (e NotificationKind) Valid() bool {
 		NotificationKindDueToday,
 		NotificationKindOverdue,
 		NotificationKindMissingBill,
-		NotificationKindBillCreated:
+		NotificationKindBillCreated,
+		NotificationKindBillRetrieved:
 		return true
 	}
 	return false
@@ -567,6 +569,7 @@ func AllNotificationKindValues() []NotificationKind {
 		NotificationKindOverdue,
 		NotificationKindMissingBill,
 		NotificationKindBillCreated,
+		NotificationKindBillRetrieved,
 	}
 }
 
@@ -836,32 +839,35 @@ type BillConflict struct {
 }
 
 type BillProfile struct {
-	ID                  uuid.UUID
-	HouseholdID         uuid.UUID
-	PropertyID          uuid.UUID
-	CategoryID          uuid.UUID
-	Kind                ProfileKind
-	Name                string
-	Icon                string
-	Color               int16
-	ProviderID          *uuid.UUID
-	MeterNumber         *string
-	MultiplyingFactor   *float64
-	ConsumptionUnit     *string
-	BillingCycle        *BillingCycle
-	TypicalIssueDay     *int16
-	TypicalDueDay       *int16
-	ExpectedAmountMinor *int64
-	AutoCreateBill      bool
-	IsDefault           bool
-	Pinned              bool
-	SortOrder           int32
-	RetrievalEnabled    bool
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	ArchivedAt          *time.Time
-	ReferenceHash       []byte
-	ReferenceEnc        []byte
+	ID                   uuid.UUID
+	HouseholdID          uuid.UUID
+	PropertyID           uuid.UUID
+	CategoryID           uuid.UUID
+	Kind                 ProfileKind
+	Name                 string
+	Icon                 string
+	Color                int16
+	ProviderID           *uuid.UUID
+	MeterNumber          *string
+	MultiplyingFactor    *float64
+	ConsumptionUnit      *string
+	BillingCycle         *BillingCycle
+	TypicalIssueDay      *int16
+	TypicalDueDay        *int16
+	ExpectedAmountMinor  *int64
+	AutoCreateBill       bool
+	IsDefault            bool
+	Pinned               bool
+	SortOrder            int32
+	RetrievalEnabled     bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ArchivedAt           *time.Time
+	ReferenceHash        []byte
+	ReferenceEnc         []byte
+	LastRetrievalAt      *time.Time
+	LastRetrievalOutcome *string
+	LastRetrievalMessage *string
 }
 
 type BillSource struct {
@@ -1046,6 +1052,7 @@ type Provider struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ArchivedAt       *time.Time
+	LookupUrl        *string
 }
 
 type PushSubscription struct {
@@ -1059,6 +1066,29 @@ type PushSubscription struct {
 	CreatedAt   time.Time
 	LastUsedAt  *time.Time
 	Failures    int32
+}
+
+type RetrievalConnector struct {
+	ID                  string
+	ConsecutiveFailures int32
+	LastSuccessAt       *time.Time
+	LastFailureAt       *time.Time
+	LastError           *string
+	DisabledUntil       *time.Time
+	UpdatedAt           time.Time
+}
+
+type RetrievalRun struct {
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+	ProfileID   uuid.UUID
+	Connector   string
+	Trigger     string
+	Outcome     string
+	BillID      *uuid.UUID
+	Message     *string
+	StartedAt   time.Time
+	FinishedAt  time.Time
 }
 
 type Session struct {

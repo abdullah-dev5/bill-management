@@ -198,6 +198,10 @@ func (s *Server) RunTick(ctx context.Context) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	retrieved, err := s.runRetrievals(ctx)
+	if err != nil {
+		return nil, err
+	}
 	pushed, err := s.sendPushes(ctx)
 	if err != nil {
 		return nil, err
@@ -206,7 +210,7 @@ func (s *Server) RunTick(ctx context.Context) (map[string]any, error) {
 	return map[string]any{
 		"sessionsDeleted": sessions, "resetTokensDeleted": tokens, "accountsPurged": len(due),
 		"staleUploadsDeleted": stale, "filesDeleted": filesDeleted,
-		"billsCreated": reminders.BillsCreated, "notifications": reminders.Notifications, "pushed": pushed,
+		"billsCreated": reminders.BillsCreated, "notifications": reminders.Notifications, "pushed": pushed, "retrievals": retrieved,
 	}, nil
 }
 

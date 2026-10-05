@@ -405,6 +405,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profiles/{id}/retrieve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Fetch now (FR-RETR-06), for profiles with an automatic connector; throttled. */
+        post: operations["retrieveProfileBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{id}/retrieval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Turn automatic checks of the official site on or off (FR-RETR-01). */
+        put: operations["setProfileRetrieval"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/retrieval/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Automatic connectors and their health (FR-RETR-05). */
+        get: operations["listConnectors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/types": {
         parameters: {
             query?: never;
@@ -1026,6 +1081,7 @@ export interface components {
             sortOrder: number;
             archived: boolean;
             summary: components["schemas"]["ProfileSummary"];
+            retrieval?: components["schemas"]["ProfileRetrieval"];
         };
         ProfileSummary: {
             billCount: number;
@@ -1064,6 +1120,8 @@ export interface components {
             expectedAmountMinor?: number | null;
             autoCreateBill?: boolean;
             pinned?: boolean;
+            /** @description Check the official site automatically (only where a connector exists) */
+            retrievalEnabled?: boolean;
         };
         ProfileOrder: {
             ids: string[];
@@ -1138,7 +1196,7 @@ export interface components {
             detail?: string | null;
         };
         /** @enum {string} */
-        NotificationKind: "due_soon" | "due_today" | "overdue" | "missing_bill" | "bill_created";
+        NotificationKind: "due_soon" | "due_today" | "overdue" | "missing_bill" | "bill_created" | "bill_retrieved";
         Notification: {
             /** Format: uuid */
             id: string;
@@ -1200,6 +1258,45 @@ export interface components {
         PushTestResult: {
             devices: number;
             delivered: number;
+        };
+        /** @description How this profile's bill can come from the official source (M6) */
+        ProfileRetrieval: {
+            /**
+             * @description automatic = a connector fetches it; assisted = open the official lookup page yourself and upload the bill; none = no official source known
+             * @enum {string}
+             */
+            mode: "automatic" | "assisted" | "none";
+            /** @description The provider's official bill lookup page */
+            lookupUrl?: string | null;
+            /** @description Automatic checks are on */
+            enabled: boolean;
+            /** @description The connector is switched off after repeated failures */
+            connectorPaused?: boolean;
+            /** Format: date-time */
+            lastAt?: string | null;
+            /** @enum {string|null} */
+            lastOutcome?: "created" | "merged" | "unchanged" | "not_found" | "failed" | "skipped" | null;
+            lastMessage?: string | null;
+        };
+        RetrievalResult: {
+            /** @enum {string} */
+            outcome: "created" | "merged" | "unchanged" | "not_found" | "failed" | "skipped";
+            message: string;
+            /** Format: uuid */
+            billId?: string | null;
+        };
+        ConnectorStatus: {
+            id: string;
+            name: string;
+            providers: string[];
+            healthy: boolean;
+            /** Format: date-time */
+            disabledUntil?: string | null;
+            consecutiveFailures?: number;
+            /** Format: date-time */
+            lastSuccessAt?: string | null;
+            /** Format: date-time */
+            lastFailureAt?: string | null;
         };
         Bill: {
             /** Format: uuid */
@@ -1345,6 +1442,8 @@ export interface components {
              * @enum {string}
              */
             duplicate?: "attach" | "keep_separate";
+            /** @description The person saved this from the provider's official site (assisted retrieval); recorded as an official copy */
+            officialCopy?: boolean;
         };
         HistoryEntry: {
             month: string;
@@ -2430,6 +2529,81 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    retrieveProfileBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What happened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetrievalResult"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    setProfileRetrieval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listConnectors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connectors */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorStatus"][];
+                };
+            };
         };
     };
     listTypes: {

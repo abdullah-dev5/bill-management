@@ -66,6 +66,9 @@ func (s *Server) SaveScannedBill(w http.ResponseWriter, r *http.Request, id apig
 		if doc.Source == store.DocumentSourceCamera {
 			src.Kind = store.BillSourceKindScan
 		}
+		if in.OfficialCopy != nil && *in.OfficialCopy {
+			src.Kind = store.BillSourceKindOfficial // saved from the provider's site (assisted retrieval)
+		}
 		switch {
 		case existing != uuid.Nil && (choice == "attach"):
 			billID, status = existing, http.StatusOK

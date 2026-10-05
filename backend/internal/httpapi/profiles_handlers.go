@@ -28,9 +28,17 @@ func (s *Server) ListProfiles(w http.ResponseWriter, r *http.Request, params api
 		s.fail(w, r, err)
 		return
 	}
+	info, err := s.retrievalInfo(ctx, a.HouseholdID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	out := make([]apigen.Profile, 0, len(rows))
 	for _, p := range rows {
-		out = append(out, toProfile(p, s.refDisplay(ctx, p), summaries.get(p.ID)))
+		prof := toProfile(p, s.refDisplay(ctx, p), summaries.get(p.ID))
+		ri := info(p)
+		prof.Retrieval = &ri
+		out = append(out, prof)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -85,6 +93,12 @@ func (s *Server) CreateProfile(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return profileConflict(err)
+		}
+		if in.RetrievalEnabled != nil {
+			if err := q.SetProfileRetrievalEnabled(ctx, store.SetProfileRetrievalEnabledParams{ID: out.ID, HouseholdID: a.HouseholdID, RetrievalEnabled: *in.RetrievalEnabled}); err != nil {
+				return err
+			}
+			out.RetrievalEnabled = *in.RetrievalEnabled
 		}
 		return audit(ctx, q, a, "profile", out.ID, "create", maskReference(diff(snapshot{}, profileSnapshot(out, f.ReferenceDisplay))))
 	})
@@ -141,6 +155,12 @@ func (s *Server) UpdateProfile(w http.ResponseWriter, r *http.Request, id apigen
 		})
 		if err != nil {
 			return profileConflict(err)
+		}
+		if in.RetrievalEnabled != nil {
+			if err := q.SetProfileRetrievalEnabled(ctx, store.SetProfileRetrievalEnabledParams{ID: id, HouseholdID: a.HouseholdID, RetrievalEnabled: *in.RetrievalEnabled}); err != nil {
+				return err
+			}
+			out.RetrievalEnabled = *in.RetrievalEnabled
 		}
 		return audit(ctx, q, a, "profile", id, "update",
 			maskReference(diff(profileSnapshot(existing, s.refDisplay(ctx, existing)), profileSnapshot(out, f.ReferenceDisplay))))
@@ -414,7 +434,15 @@ func (s *Server) writeProfile(w http.ResponseWriter, r *http.Request, status int
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, status, toProfile(p, s.refDisplay(r.Context(), p), summaries.get(p.ID)))
+	info, err := s.retrievalInfo(r.Context(), a.HouseholdID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	prof := toProfile(p, s.refDisplay(r.Context(), p), summaries.get(p.ID))
+	ri := info(p)
+	prof.Retrieval = &ri
+	writeJSON(w, status, prof)
 }
 
 // refDisplay decrypts a profile's reference number for display.
