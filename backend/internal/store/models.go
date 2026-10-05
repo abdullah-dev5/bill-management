@@ -892,6 +892,19 @@ type Provider struct {
 	ArchivedAt       *time.Time
 }
 
+type PushSubscription struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	HouseholdID uuid.UUID
+	Endpoint    string
+	P256dh      string
+	Auth        string
+	UserAgent   *string
+	CreatedAt   time.Time
+	LastUsedAt  *time.Time
+	Failures    int32
+}
+
 type Session struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID

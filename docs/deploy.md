@@ -60,6 +60,10 @@ travel through the API instead. Nothing else changes.
    - Header: `Authorization: Bearer <TICK_TOKEN>`
    - Schedule: every 10 minutes; enable failure notifications.
 2. Besides running housekeeping, the tick keeps the Render instance awake and stops Supabase pausing the project for inactivity.
+3. The tick also sends reminders, creates recurring bills and delivers push notifications (M5). Without it nobody is
+   reminded, so keep failure notifications on. Push needs no extra setup: its VAPID keys are derived from
+   `DATA_ENCRYPTION_KEY` (changing that key means everyone re-enables push on their devices). Push works on HTTPS only;
+   Cloudflare Pages provides it.
 
 ## 5. GitHub (CI and backups)
 - CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on every pull request.

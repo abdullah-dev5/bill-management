@@ -299,6 +299,57 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/NotificationSettings' }
 
+  /push/key:
+    get:
+      tags: [notifications]
+      operationId: getPushKey
+      description: The VAPID public key browsers subscribe with (FR-REM-03).
+      responses:
+        '200':
+          description: Public key
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushKey' }
+
+  /push/subscriptions:
+    post:
+      tags: [notifications]
+      operationId: subscribePush
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushSubscriptionInput' }
+      responses:
+        '204': { description: This device will receive push notifications }
+
+  /push/unsubscribe:
+    post:
+      tags: [notifications]
+      operationId: unsubscribePush
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, maxLength: 2000 }
+      responses:
+        '204': { description: Removed }
+
+  /push/test:
+    post:
+      tags: [notifications]
+      operationId: testPush
+      responses:
+        '200':
+          description: How many of your devices got the test notification
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PushTestResult' }
+
   /types:
     get:
       tags: [types]
@@ -1296,6 +1347,31 @@ components:
         icon: { type: string }
         color: { type: integer }
         periodKey: { type: string }
+
+    PushKey:
+      type: object
+      required: [publicKey]
+      properties:
+        publicKey: { type: string }
+
+    PushSubscriptionInput:
+      type: object
+      required: [endpoint, keys]
+      properties:
+        endpoint: { type: string, maxLength: 2000 }
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh: { type: string, maxLength: 200 }
+            auth: { type: string, maxLength: 100 }
+
+    PushTestResult:
+      type: object
+      required: [devices, delivered]
+      properties:
+        devices: { type: integer }
+        delivered: { type: integer }
 
     Bill:
       type: object

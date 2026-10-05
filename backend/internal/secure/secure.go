@@ -5,6 +5,7 @@ package secure
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdh"
 	"crypto/hkdf"
 	"crypto/hmac"
 	"crypto/rand"
@@ -22,9 +23,10 @@ const version byte = 1
 
 // Keys holds the per-purpose keys derived from the deployment secret.
 type Keys struct {
-	aead    cipher.AEAD
-	hashKey []byte
-	signKey []byte
+	aead      cipher.AEAD
+	hashKey   []byte
+	signKey   []byte
+	vapidSeed []byte
 }
 
 // New derives independent keys for encryption, hashing and signing from secret.
@@ -48,9 +50,10 @@ func New(secret string) (*Keys, error) {
 		return nil, err
 	}
 	return &Keys{
-		aead:    aead,
-		hashKey: derive("bill-management/lookup-hash/v1"),
-		signKey: derive("bill-management/signed-tokens/v1"),
+		aead:      aead,
+		hashKey:   derive("bill-management/lookup-hash/v1"),
+		signKey:   derive("bill-management/signed-tokens/v1"),
+		vapidSeed: derive("bill-management/web-push-vapid/v1"),
 	}, nil
 }
 
@@ -120,4 +123,21 @@ func Mask(s string) string {
 		return "••••"
 	}
 	return "•••• " + string(r[len(r)-4:])
+}
+
+// VAPID returns the Web Push key pair (FR-REM-03) as base64url strings: the public key is the
+// uncompressed P-256 point browsers subscribe with, the private key the raw scalar. It is derived
+// from the deployment secret, so subscriptions survive restarts with no extra configuration.
+func (k *Keys) VAPID() (publicKey, privateKey string) {
+	seed := k.vapidSeed
+	for i := 0; ; i++ {
+		priv, err := ecdh.P256().NewPrivateKey(seed)
+		if err == nil {
+			enc := base64.RawURLEncoding
+			return enc.EncodeToString(priv.PublicKey().Bytes()), enc.EncodeToString(seed)
+		}
+		// Out of range for P-256 (astronomically unlikely): step to the next candidate.
+		next := sha256.Sum256(append(append([]byte{}, seed...), byte(i)))
+		seed = next[:]
+	}
 }

@@ -191,11 +191,15 @@ func (s *Server) RunTick(ctx context.Context) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	pushed, err := s.sendPushes(ctx)
+	if err != nil {
+		return nil, err
+	}
 	s.lastTick.Store(s.now().Unix())
 	return map[string]any{
 		"sessionsDeleted": sessions, "resetTokensDeleted": tokens, "accountsPurged": len(due),
 		"staleUploadsDeleted": stale, "filesDeleted": filesDeleted,
-		"billsCreated": reminders.BillsCreated, "notifications": reminders.Notifications,
+		"billsCreated": reminders.BillsCreated, "notifications": reminders.Notifications, "pushed": pushed,
 	}, nil
 }
 

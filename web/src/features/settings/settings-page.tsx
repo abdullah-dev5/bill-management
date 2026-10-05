@@ -17,6 +17,8 @@ import { formatBytes } from '@/lib/image'
 import { ICON_NAMES, NamedIcon } from '@/lib/icons'
 import { applyTheme, getTheme, type ThemeChoice } from '@/lib/theme'
 import { cn } from '@/lib/cn'
+import { clearQueue } from '@/lib/offline-queue'
+import { clearOfflineData } from '@/lib/pwa'
 import { DataSection } from './data-section'
 import { RemindersSection } from './reminders-section'
 
@@ -366,6 +368,8 @@ function AccountSection() {
     try {
       await call()
       qc.clear()
+      clearOfflineData()
+      await clearQueue()
       await navigate({ to: '/sign-in' })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('common.errorTitle'))

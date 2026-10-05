@@ -7,6 +7,7 @@ import { IconTile } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { CaptureSheet } from '@/features/documents/capture-sheet'
 import { NotificationBell } from '@/features/notifications/notifications'
+import { ConnectionBanner } from '@/features/documents/upload-queue'
 import { cn } from '@/lib/cn'
 
 const NAV = [
@@ -22,7 +23,8 @@ const BOTTOM_NAV = NAV.filter((n) => n.key !== 'bills')
 
 export function AppShell() {
   const { t } = useTranslation()
-  const [addOpen, setAddOpen] = useState(false)
+  // The installed app's "Scan a bill" shortcut opens /?add=scan.
+  const [addOpen, setAddOpen] = useState(() => new URLSearchParams(window.location.search).get('add') === 'scan')
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isActive = (to: string, exact?: boolean) => (exact ? pathname === to : pathname === to || pathname.startsWith(to + '/'))
   const navigate = useNavigate()
@@ -48,6 +50,7 @@ export function AppShell() {
       <Sidebar isActive={isActive} onAdd={() => setAddOpen(true)} />
 
       <main id="main" className="mx-auto w-full max-w-[1200px] px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-28 sm:px-6 lg:px-10 lg:pt-10 lg:pb-12">
+        <ConnectionBanner />
         <Outlet />
       </main>
 

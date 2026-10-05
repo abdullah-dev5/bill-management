@@ -23,10 +23,18 @@ async function api<T>(page: Page, method: string, path: string, body?: unknown):
   )
 }
 
-// The dev API's tick token, from backend/.env (cron-job.org calls the same endpoint in production).
-function tickToken(): string {
-  const env = readFileSync(new URL('../../backend/.env', import.meta.url), 'utf8')
-  return env.match(/^TICK_TOKEN=(.+)$/m)?.[1]?.trim() ?? ''
+// Tick tokens to try: backend/.env's (a reused local API) and the one playwright.config.ts gives an
+// API it starts itself. cron-job.org calls the same endpoint in production.
+function tickTokens(): string[] {
+  const tokens = ['e2e-tick-token-0123456789abcdef0123']
+  try {
+    const env = readFileSync(new URL('../../backend/.env', import.meta.url), 'utf8')
+    const fromEnv = env.match(/^TICK_TOKEN=(.+)$/m)?.[1]?.trim()
+    if (fromEnv) tokens.unshift(fromEnv)
+  } catch {
+    // no .env (CI)
+  }
+  return tokens
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -52,8 +60,15 @@ test('reminders: due soon, recurring bills and settings', async ({ page, request
     autoCreateBill: true, typicalIssueDay: 1, typicalDueDay: 28,
   })
 
-  const res = await request.post('http://localhost:8080/internal/tick', { headers: { Authorization: `Bearer ${tickToken()}` } })
-  expect(res.ok()).toBeTruthy()
+  let ticked = false
+  for (const token of tickTokens()) {
+    const res = await request.post('http://localhost:8080/internal/tick', { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok()) {
+      ticked = true
+      break
+    }
+  }
+  expect(ticked).toBeTruthy()
 
   // The bell shows the count; the page lists both reminders.
   await page.goto('/')

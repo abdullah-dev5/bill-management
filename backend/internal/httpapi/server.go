@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -44,6 +45,7 @@ type Server struct {
 	resetByKey   *ratelimit.Limiter
 	uploadsByHH  *ratelimit.Limiter
 	backupsByHH  *ratelimit.Limiter
+	push         pushSender
 
 	lastTick atomic.Int64 // unix seconds of the last successful tick
 }
@@ -51,6 +53,7 @@ type Server struct {
 var _ apigen.ServerInterface = (*Server)(nil)
 
 func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, keys *secure.Keys, files storage.Store) *Server {
+	vapidPub, vapidPriv := keys.VAPID()
 	return &Server{
 		db:           db,
 		cfg:          cfg,
@@ -67,7 +70,16 @@ func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, 
 		resetByKey:   ratelimit.New(3, time.Hour),
 		uploadsByHH:  ratelimit.New(100, time.Hour),
 		backupsByHH:  ratelimit.New(10, time.Hour), // a backup reads every document
+		push:         webPushSender{publicKey: vapidPub, privateKey: vapidPriv, subject: pushSubject(cfg)},
 	}
+}
+
+// pushSubject identifies the sender to push services (an https URL or mailto:).
+func pushSubject(cfg config.Config) string {
+	if strings.HasPrefix(cfg.AppBaseURL, "https://") {
+		return cfg.AppBaseURL
+	}
+	return "mailto:admin@example.com"
 }
 
 // Handler builds the full HTTP handler: health, internal tick and the versioned API.
