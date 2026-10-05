@@ -398,6 +398,18 @@ const en = {
     },
     someone: 'Someone',
   },
+  data: {
+    title: 'Your data',
+    csvHint: 'Download your bills or payments as a spreadsheet (CSV), for any period. Amounts are in rupees.',
+    period: 'Period',
+    periods: { thisYear: 'This year', lastYear: 'Last year', '12m': 'Last 12 months', all: 'Everything', custom: 'Custom' },
+    bills: 'Bills (CSV)',
+    payments: 'Payments (CSV)',
+    backup: 'Full backup',
+    backupHint: 'One ZIP file with all your data and every photo and PDF. It includes reference numbers, so keep it somewhere safe.',
+    backupOwnerOnly: 'Only the household owner can download a full backup.',
+    downloadBackup: 'Download backup (ZIP)',
+  },
   settings: {
     title: 'Settings',
     household: 'Household',

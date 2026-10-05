@@ -200,6 +200,48 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/ActivityItem' }
 
+  /export/bills.csv:
+    get:
+      tags: [export]
+      operationId: exportBillsCsv
+      description: Bills as CSV (FR-EXP-01), by bill date; amounts in rupees.
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string }
+
+  /export/payments.csv:
+    get:
+      tags: [export]
+      operationId: exportPaymentsCsv
+      description: Payments as CSV (FR-EXP-01), by payment date.
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string }
+
+  /export/backup.zip:
+    get:
+      tags: [export]
+      operationId: exportBackup
+      description: Full backup (FR-EXP-02) — JSON data and every document. Owner only; includes reference numbers.
+      responses:
+        '200':
+          description: ZIP file
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+
   /types:
     get:
       tags: [types]

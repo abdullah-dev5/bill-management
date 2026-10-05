@@ -237,7 +237,7 @@ function AnalyticsBody({
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card>
+        <Card data-testid="by-type">
           <SectionTitle>{t('analytics.byType')}</SectionTitle>
           <RankedBars
             rows={data.types.filter((s) => s.totalMinor > 0).map((s) => ({ key: s.key, label: s.name, value: s.totalMinor, sub: typeSub(s) }))}

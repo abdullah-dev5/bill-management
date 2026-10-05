@@ -1,5 +1,7 @@
 # M4 — Dashboard, analytics & export: progress notes
 
+**Status: complete.** Both exit criteria are met (see Phase 3).
+
 Branch `m4-dashboard-analytics` (from `main`). Exit criteria from [09-roadmap](../09-roadmap.md) M4: answer every
 question in [01](../01-product-vision.md) §3 from the UI; dashboard < 1 s.
 
@@ -8,7 +10,7 @@ question in [01](../01-product-vision.md) §3 from the UI; dashboard < 1 s.
 | 1 — Analytics | Ranges, spend rule, breakdowns, comparisons, profile stats, consumption, data tables | **Done** |
 | 1b — Gas bills & UI consistency | Layout reader for any provider (tested on SSGC), themed date/month pickers, clearer dropdowns | **Done** |
 | 2 — Search & filters | Global search, natural phrases, more bill filters, recent activity | **Done** |
-| 3 — Export & exit | CSV export, backup ZIP, dashboard speed, end-to-end test of the six questions | Next |
+| 3 — Export & exit | CSV export, backup ZIP, dashboard speed, end-to-end test of the six questions | **Done** |
 
 ## Phase 1 — Analytics (delivered)
 | Area | What's in | Requirements |
@@ -36,6 +38,16 @@ the light card).
   and printed history, range validation, household isolation.
 - Web: unit tests for axis scaling, presets and change maths; end-to-end on phone and desktop.
 - Fixed: two more tests compared the database clock with the app clock or passed before a payment had saved.
+
+## Phase 3 — Export & exit (delivered)
+| Area | What's in | Requirements |
+|---|---|---|
+| CSV export | Settings → Your data: bills (by bill date) and payments (by payment date) as spreadsheets for this year, last year, the last 12 months, everything, or custom dates. Amounts in rupees, UTF-8 with a BOM so Excel opens it correctly, and cells that a spreadsheet would run as a formula are neutralised. Every member can export. | FR-EXP-01 |
+| Full backup | One ZIP: household, profiles (with reference numbers), bills, payments, document list, custom types and providers, printed history as JSON, plus every photo and PDF, and a README. Owner only, at most 10 an hour; a missing file is listed rather than failing the backup. Versioned (`format: 1`) for a future import (FR-EXP-03). | FR-EXP-02 |
+| Dashboard speed | A Go test seeds a household with 5 years of bills (360 bills and their payments) and times the home screen, bill lists, analytics (12 and 36 months), search, activity and profiles. Slowest p95 was 86 ms, against the 300 ms server budget; the 1 s render target is met with room to spare. | NFR-01, M4 exit |
+| Exit test | An end-to-end test on phone and desktop answers all six questions from the UI: electricity cost this year and maintenance spend (Analytics → By bill type, electrician rolls up to Maintenance), gas used last winter (search understands the season; Analytics totals 160 units), did internet go up (+20% vs the previous 3 months), what is unpaid now (Bills → Unpaid), and where is September's electricity bill (search → opens it). | M4 exit |
+
+Also fixed: Settings → Household showed "Choose…" for currency and timezone, because the form received its values after the new dropdowns had mounted. The form now waits for the household to load; the export test checks it.
 
 ## Phase 2 — Search & filters (delivered)
 | Area | What's in | Requirements |

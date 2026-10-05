@@ -43,6 +43,7 @@ type Server struct {
 	signupByIP   *ratelimit.Limiter
 	resetByKey   *ratelimit.Limiter
 	uploadsByHH  *ratelimit.Limiter
+	backupsByHH  *ratelimit.Limiter
 
 	lastTick atomic.Int64 // unix seconds of the last successful tick
 }
@@ -65,6 +66,7 @@ func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, 
 		signupByIP:   ratelimit.New(signupLimit(cfg), time.Hour),
 		resetByKey:   ratelimit.New(3, time.Hour),
 		uploadsByHH:  ratelimit.New(100, time.Hour),
+		backupsByHH:  ratelimit.New(10, time.Hour), // a backup reads every document
 	}
 }
 

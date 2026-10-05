@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api, unwrap, type BillType, type ProfileKind } from '@/api/client'
+import { api, unwrap, type BillType, type Household, type ProfileKind } from '@/api/client'
 import { useArchiveType, useHousehold, useMe, useSaveType, useTypes, useUpdateHousehold } from '@/api/hooks'
 import { PageHeader } from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import { formatBytes } from '@/lib/image'
 import { ICON_NAMES, NamedIcon } from '@/lib/icons'
 import { applyTheme, getTheme, type ThemeChoice } from '@/lib/theme'
 import { cn } from '@/lib/cn'
+import { DataSection } from './data-section'
 
 const TIMEZONES = ['Asia/Karachi', 'Asia/Dubai', 'Asia/Riyadh', 'Europe/London', 'America/New_York', 'UTC']
 
@@ -28,6 +29,7 @@ export function SettingsPage() {
       <HouseholdSection />
       <PrivacySection />
       <StorageSection />
+      <DataSection />
       <AppearanceSection />
       <TypesSection />
       <AccountSection />
@@ -36,14 +38,18 @@ export function SettingsPage() {
 }
 
 function HouseholdSection() {
-  const { t } = useTranslation()
   const { data: me } = useMe()
   const { data: hh } = useHousehold()
-  const save = useUpdateHousehold()
   const isOwner = me?.role === 'owner'
-  const form = useForm({ values: hh ? { name: hh.name, currency: hh.currency, timezone: hh.timezone } : undefined })
-
   if (!hh) return <Skeleton className="h-56 rounded-card" />
+  return <HouseholdForm hh={hh} isOwner={isOwner} />
+}
+
+// Mounted once the household has loaded, so every field (including the dropdowns) starts with its value.
+function HouseholdForm({ hh, isOwner }: { hh: Household; isOwner: boolean }) {
+  const { t } = useTranslation()
+  const save = useUpdateHousehold()
+  const form = useForm({ defaultValues: { name: hh.name, currency: hh.currency, timezone: hh.timezone } })
   const timezones = TIMEZONES.includes(hh.timezone) ? TIMEZONES : [hh.timezone, ...TIMEZONES]
 
   return (
