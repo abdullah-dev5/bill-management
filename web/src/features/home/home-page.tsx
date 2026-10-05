@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useHome, useMe, useProfiles } from '@/api/hooks'
@@ -79,6 +79,22 @@ export function HomePage() {
                 }
               />
             </Card>
+          )}
+
+          {home.data.reviewCount > 0 && (
+            <Link
+              to="/bills"
+              search={{ review: true }}
+              data-testid="review-tile"
+              className="flex items-center gap-3 rounded-card bg-[var(--st-soon-bg)] p-4 text-[var(--st-soon-fg)] transition hover:brightness-95"
+            >
+              <AlertTriangle className="size-5 shrink-0" aria-hidden />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="font-semibold">{t('reconcile.review', { count: home.data.reviewCount })}</span>
+                <span className="text-sm">{t('reconcile.reviewHint')}</span>
+              </span>
+              <ChevronRight className="size-5 shrink-0" aria-hidden />
+            </Link>
           )}
 
           {home.data.expectedMissing.length > 0 && (

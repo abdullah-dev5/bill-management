@@ -34,6 +34,13 @@ func (s *Server) GetHome(w http.ResponseWriter, r *http.Request, params apigen.G
 	out := apigen.HomeSummary{Month: month, DueSoon: []apigen.Bill{}, Overdue: []apigen.Bill{}, Pinned: []apigen.Profile{}, Recent: []apigen.Bill{},
 		ExpectedMissing: []apigen.ExpectedBill{}}
 
+	review, err := s.db.CountOpenConflicts(ctx, a.HouseholdID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out.ReviewCount = int(review)
+
 	// FR-DASH-04: computed live, so Home is right even between ticks.
 	cycleProfiles, err := s.db.ListCycleProfiles(ctx, a.HouseholdID)
 	if err != nil {

@@ -86,7 +86,7 @@ export function HistoryCard({ profileId, unit }: { profileId: string; unit?: str
           <span className="size-2.5 rounded-sm bg-featured/35" aria-hidden /> {t('profiles.historyPrinted')}
         </span>
       </p>
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-4 relative overflow-x-auto">
         <table className="tabular w-full text-sm">
           <thead className="text-left text-muted">
             <tr>

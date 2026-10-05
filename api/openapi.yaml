@@ -350,6 +350,58 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PushTestResult' }
 
+  /bills/{id}/conflicts/{conflictId}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: conflictId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [bills]
+      operationId: resolveConflict
+      description: Settles a field conflict (FR-RECO-05). Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConflictResolution' }
+      responses:
+        '200':
+          description: The bill after resolving
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /bills/{id}/sources/{sourceId}/separate:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [bills]
+      operationId: separateSource
+      description: |
+        Undoes a merge within 30 days (FR-RECO-07): fields the source filled are emptied again,
+        its conflicts removed, and its document detached so it can be saved as its own bill.
+      responses:
+        '200':
+          description: Separated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bill]
+                properties:
+                  bill: { $ref: '#/components/schemas/BillDetail' }
+                  documentId: { type: string, format: uuid, nullable: true, description: The detached document, to save as a separate bill }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /types:
     get:
       tags: [types]
@@ -592,6 +644,11 @@ paths:
           required: false
           description: Maximum payable amount, minor units
           schema: { type: integer, format: int64, minimum: 0 }
+        - name: needsReview
+          in: query
+          required: false
+          description: Only bills with open conflicts
+          schema: { type: boolean }
         - name: source
           in: query
           required: false
@@ -1570,7 +1627,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/Bill'
         - type: object
-          required: [payments, history, documents]
+          required: [payments, history, documents, sources, conflicts]
           properties:
             payments:
               type: array
@@ -1581,6 +1638,64 @@ components:
             documents:
               type: array
               items: { $ref: '#/components/schemas/Document' }
+            sources:
+              type: array
+              description: Every channel that produced or confirmed this bill, with its values (FR-RECO-06)
+              items: { $ref: '#/components/schemas/BillOrigin' }
+            conflicts:
+              type: array
+              description: Fields where sources disagree, open first (FR-RECO-04)
+              items: { $ref: '#/components/schemas/BillConflict' }
+
+    BillOriginKind:
+      type: string
+      enum: [manual, scan, upload, official, auto]
+
+    BillOrigin:
+      type: object
+      required: [id, kind, values, filledFields, merged, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/BillOriginKind' }
+        documentId: { type: string, format: uuid, nullable: true }
+        documentName: { type: string, nullable: true }
+        connector: { type: string, nullable: true }
+        values:
+          type: object
+          additionalProperties: { type: string }
+          description: Field → value as this source gave it (money in minor units, dates YYYY-MM-DD)
+        filledFields: { type: array, items: { type: string }, description: Empty bill fields this source filled }
+        merged: { type: boolean, description: Attached to an existing bill (can be separated within 30 days) }
+        canSeparate: { type: boolean }
+        createdByName: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    BillConflict:
+      type: object
+      required: [id, field, billValue, sourceValue, sourceId, sourceKind, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        field: { type: string }
+        billValue: { type: string, description: The bill's value when the conflict arose }
+        sourceValue: { type: string }
+        sourceId: { type: string, format: uuid }
+        sourceKind: { $ref: '#/components/schemas/BillOriginKind' }
+        status: { type: string, enum: [open, resolved] }
+        resolution: { type: string, nullable: true, enum: [keep, source, manual, revised, confirmed] }
+        resolvedValue: { type: string, nullable: true }
+        resolvedByName: { type: string, nullable: true }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    ConflictResolution:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [keep, source, manual, revised]
+          description: keep the bill's value, use the source's, enter one, or the provider revised the bill (use the source's, noted as a revision)
+        value: { type: string, maxLength: 60, description: For action manual }
 
     PaymentMethod:
       type: string
@@ -1855,7 +1970,7 @@ components:
 
     HomeSummary:
       type: object
-      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent, monthTotal, expectedMissing]
+      required: [month, billedMinor, paidMinor, outstandingMinor, dueSoon, overdue, pinned, recent, monthTotal, expectedMissing, reviewCount]
       properties:
         monthTotal: { $ref: '#/components/schemas/MonthTotal' }
         month: { type: string, example: '2026-10' }
@@ -1878,3 +1993,4 @@ components:
           type: array
           description: Bills expected by now but not added yet (FR-DASH-04, FR-REM-04)
           items: { $ref: '#/components/schemas/ExpectedBill' }
+        reviewCount: { type: integer, description: Bills whose sources disagree and need a decision (docs/06 §4) }

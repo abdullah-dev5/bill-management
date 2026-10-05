@@ -171,7 +171,9 @@ export function ScanPage() {
         duplicate: duplicateChoice,
       })
       setDuplicate(undefined)
-      toast.success(duplicateChoice === 'attach' ? t('scan.attached') : t('scan.saved'))
+      const differs = saved.conflicts.filter((c) => c.status === 'open').length
+      if (duplicateChoice === 'attach' && differs > 0) toast.warning(t('scan.attachedDiffers', { count: differs }))
+      else toast.success(duplicateChoice === 'attach' ? t('scan.attached') : t('scan.saved'))
       await navigate({ to: '/bills/$billId', params: { billId: saved.id } })
     } catch (err) {
       if (err instanceof ApiError && (err.code === 'duplicate_bill' || err.code === 'probable_duplicate') && err.existingBillId) {

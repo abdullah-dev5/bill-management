@@ -49,7 +49,9 @@ export function AppShell() {
       </a>
       <Sidebar isActive={isActive} onAdd={() => setAddOpen(true)} />
 
-      <main id="main" className="mx-auto w-full max-w-[1200px] px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-28 sm:px-6 lg:px-10 lg:pt-10 lg:pb-12">
+      {/* overflow-x-clip: content can't widen the page (phones would zoom out and misplace taps).
+          Wide tables also scroll in a `relative` box, so hidden screen-reader text can't escape it. */}
+      <main id="main" className="mx-auto w-full max-w-[1200px] overflow-x-clip px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-28 sm:px-6 lg:px-10 lg:pt-10 lg:pb-12">
         <ConnectionBanner />
         <Outlet />
       </main>

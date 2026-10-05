@@ -77,6 +77,12 @@ stateDiagram-v2
 ## 5. Undo merge
 Each ATTACH writes an `AuditEvent(action=merge)` with the full field snapshot. "Separate" restores B's previous values and re-creates C as its own bill (within 30 days; FR-RECO-07).
 
+**As built (M6 phase 1):** tables `bill_sources` (kind, document, extraction, connector, the values given, fields it
+filled, merged or original) and `bill_conflicts` (field, bill value, source value, open/resolved, resolution). Resolutions:
+keep, source, manual, revised, and confirmed (automatic, when a later copy agrees with the bill). Undo = `POST
+/bills/{id}/sources/{sourceId}/separate`; the detached document is re-saved from the scan screen rather than auto-creating a
+bill, because a same-month bill can't exist twice in one profile. The auto-accept exception in §3 is not implemented.
+
 ## 6. Edge cases
 
 | Case | Handling |

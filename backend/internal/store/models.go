@@ -12,6 +12,73 @@ import (
 	"github.com/google/uuid"
 )
 
+type BillSourceKind string
+
+const (
+	BillSourceKindManual   BillSourceKind = "manual"
+	BillSourceKindScan     BillSourceKind = "scan"
+	BillSourceKindUpload   BillSourceKind = "upload"
+	BillSourceKindOfficial BillSourceKind = "official"
+	BillSourceKindAuto     BillSourceKind = "auto"
+)
+
+func (e *BillSourceKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = BillSourceKind(s)
+	case string:
+		*e = BillSourceKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for BillSourceKind: %T", src)
+	}
+	return nil
+}
+
+type NullBillSourceKind struct {
+	BillSourceKind BillSourceKind
+	Valid          bool // Valid is true if BillSourceKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullBillSourceKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.BillSourceKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.BillSourceKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullBillSourceKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.BillSourceKind), nil
+}
+
+func (e BillSourceKind) Valid() bool {
+	switch e {
+	case BillSourceKindManual,
+		BillSourceKindScan,
+		BillSourceKindUpload,
+		BillSourceKindOfficial,
+		BillSourceKindAuto:
+		return true
+	}
+	return false
+}
+
+func AllBillSourceKindValues() []BillSourceKind {
+	return []BillSourceKind{
+		BillSourceKindManual,
+		BillSourceKindScan,
+		BillSourceKindUpload,
+		BillSourceKindOfficial,
+		BillSourceKindAuto,
+	}
+}
+
 type BillingCycle string
 
 const (
@@ -73,6 +140,64 @@ func AllBillingCycleValues() []BillingCycle {
 		BillingCycleBimonthly,
 		BillingCycleQuarterly,
 		BillingCycleYearly,
+	}
+}
+
+type ConflictStatus string
+
+const (
+	ConflictStatusOpen     ConflictStatus = "open"
+	ConflictStatusResolved ConflictStatus = "resolved"
+)
+
+func (e *ConflictStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConflictStatus(s)
+	case string:
+		*e = ConflictStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConflictStatus: %T", src)
+	}
+	return nil
+}
+
+type NullConflictStatus struct {
+	ConflictStatus ConflictStatus
+	Valid          bool // Valid is true if ConflictStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConflictStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConflictStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConflictStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConflictStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConflictStatus), nil
+}
+
+func (e ConflictStatus) Valid() bool {
+	switch e {
+	case ConflictStatusOpen,
+		ConflictStatusResolved:
+		return true
+	}
+	return false
+}
+
+func AllConflictStatusValues() []ConflictStatus {
+	return []ConflictStatus{
+		ConflictStatusOpen,
+		ConflictStatusResolved,
 	}
 }
 
@@ -694,6 +819,22 @@ type Bill struct {
 	MeterReplaced        bool
 }
 
+type BillConflict struct {
+	ID            uuid.UUID
+	HouseholdID   uuid.UUID
+	BillID        uuid.UUID
+	SourceID      uuid.UUID
+	Field         string
+	BillValue     string
+	SourceValue   string
+	Status        ConflictStatus
+	Resolution    *string
+	ResolvedValue *string
+	ResolvedBy    *uuid.UUID
+	ResolvedAt    *time.Time
+	CreatedAt     time.Time
+}
+
 type BillProfile struct {
 	ID                  uuid.UUID
 	HouseholdID         uuid.UUID
@@ -721,6 +862,21 @@ type BillProfile struct {
 	ArchivedAt          *time.Time
 	ReferenceHash       []byte
 	ReferenceEnc        []byte
+}
+
+type BillSource struct {
+	ID           uuid.UUID
+	HouseholdID  uuid.UUID
+	BillID       uuid.UUID
+	Kind         BillSourceKind
+	DocumentID   *uuid.UUID
+	ExtractionID *uuid.UUID
+	Connector    *string
+	FieldValues  []byte
+	FilledFields []string
+	Merged       bool
+	CreatedBy    *uuid.UUID
+	CreatedAt    time.Time
 }
 
 type Category struct {

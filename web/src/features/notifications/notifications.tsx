@@ -9,6 +9,7 @@ import { Card, EmptyState, ErrorNotice, Skeleton } from '@/components/ui/misc'
 import { cn } from '@/lib/cn'
 import { daysUntil, formatDayMonth, formatMonth } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
+import { tr } from '@/lib/tr'
 import { relativeTime } from '../home/activity'
 
 type Notification = Schemas['Notification']
@@ -89,7 +90,8 @@ export function NotificationsPage() {
 }
 
 /** What the reminder says, e.g. "Due in 2 days · Rs 3,266". */
-export function notificationText(n: Notification, t: ReturnType<typeof useTranslation>['t']): { title: string; line: string } {
+export function notificationText(n: Notification): { title: string; line: string } {
+  const t = tr
   const what = n.periodKey ? formatMonth(n.periodKey) : (n.description ?? '')
   const title = [n.profileName, what].filter(Boolean).join(' · ')
   const amount = n.amountMinor != null ? formatMoney(n.amountMinor) : ''
@@ -113,7 +115,7 @@ export function notificationText(n: Notification, t: ReturnType<typeof useTransl
 function NotificationRow({ n, onOpen }: { n: Notification; onOpen: () => void }) {
   const { t } = useTranslation()
   const Icon = ICONS[n.kind]
-  const { title, line } = notificationText(n, t)
+  const { title, line } = notificationText(n)
   const body = (
     <>
       <span
@@ -127,7 +129,7 @@ function NotificationRow({ n, onOpen }: { n: Notification; onOpen: () => void })
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={cn('truncate text-sm text-ink', !n.read && 'font-semibold')}>{title}</span>
         <span className="text-sm text-body">{line}</span>
-        <span className="text-xs text-muted">{relativeTime(n.createdAt, t)}</span>
+        <span className="text-xs text-muted">{relativeTime(n.createdAt)}</span>
       </span>
       {!n.read && <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-[var(--danger)]" aria-label={t('notifications.unread')} />}
     </>

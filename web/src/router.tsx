@@ -133,6 +133,7 @@ export interface BillsSearch {
   source?: string
   from?: string
   to?: string
+  review?: true
 }
 const num = (v: unknown) => {
   const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN
@@ -155,6 +156,7 @@ const billsRoute = createRoute({
     source: str(s.source),
     from: dateStr(s.from),
     to: dateStr(s.to),
+    review: s.review === true || s.review === 'true' ? true : undefined,
   }),
 })
 const newBillRoute = createRoute({

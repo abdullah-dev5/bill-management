@@ -205,7 +205,7 @@ function AnalyticsBody({
         </SectionTitle>
         <StackedColumns labels={labels} series={groupSeries} format={money} axisFormat={compact} ariaLabel={t('analytics.byMonthChart')} />
         {showData && (
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 relative overflow-x-auto">
             <table className="tabular w-full text-sm">
               <thead className="text-left text-muted">
                 <tr>
@@ -257,7 +257,7 @@ function AnalyticsBody({
 
       <Card>
         <SectionTitle>{t('analytics.byProfile')}</SectionTitle>
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="tabular w-full min-w-[560px] text-sm">
             <thead className="text-left text-muted">
               <tr>

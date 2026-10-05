@@ -49,6 +49,7 @@ func (s *Server) ListBills(w http.ResponseWriter, r *http.Request, params apigen
 		}
 	}
 	q.ProviderID, q.MinAmount, q.MaxAmount = params.ProviderId, params.MinAmount, params.MaxAmount
+	q.NeedsReview = deref(params.NeedsReview)
 	if q.MinAmount != nil && q.MaxAmount != nil && *q.MinAmount > *q.MaxAmount {
 		s.fail(w, r, errField("maxAmount", "The highest amount is below the lowest."))
 		return
@@ -149,6 +150,9 @@ func (s *Server) CreateBill(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if err := audit(ctx, q, a, "bill", id, "create", diff(snapshot{}, billSnapshot(created.Bill))); err != nil {
+			return err
+		}
+		if err := recordCreatedSource(ctx, q, s.now(), a.HouseholdID, &a.UserID, created.Bill, sourceInput{Kind: store.BillSourceKindManual}); err != nil {
 			return err
 		}
 		if in.PaidNow != nil && !f.Cancelled {
@@ -691,41 +695,47 @@ func (s *Server) ensureBillExists(ctx context.Context, q *store.Queries, a authI
 }
 
 func (s *Server) writeBillDetail(w http.ResponseWriter, r *http.Request, status int, a authInfo, id uuid.UUID) {
-	ctx := r.Context()
-	hh, err := s.db.GetHousehold(ctx, a.HouseholdID)
+	d, err := s.billDetail(r.Context(), a, id)
 	if err != nil {
 		s.fail(w, r, err)
 		return
+	}
+	writeJSON(w, status, d)
+}
+
+// billDetail is a bill with its payments, history, documents, sources and conflicts.
+func (s *Server) billDetail(ctx context.Context, a authInfo, id uuid.UUID) (apigen.BillDetail, error) {
+	hh, err := s.db.GetHousehold(ctx, a.HouseholdID)
+	if err != nil {
+		return apigen.BillDetail{}, err
 	}
 	row, err := s.db.GetBill(ctx, store.GetBillParams{ID: id, HouseholdID: a.HouseholdID, Today: s.today(hh.Timezone)})
 	if store.IsNotFound(err) {
-		s.fail(w, r, errNotFound("bill"))
-		return
+		return apigen.BillDetail{}, errNotFound("bill")
 	} else if err != nil {
-		s.fail(w, r, err)
-		return
+		return apigen.BillDetail{}, err
 	}
 	payments, err := s.db.ListPaymentsForBill(ctx, id)
 	if err != nil {
-		s.fail(w, r, err)
-		return
+		return apigen.BillDetail{}, err
 	}
 	history, err := s.db.ListAuditEvents(ctx, store.ListAuditEventsParams{HouseholdID: a.HouseholdID, EntityType: "bill", EntityID: id})
 	if err != nil {
-		s.fail(w, r, err)
-		return
+		return apigen.BillDetail{}, err
 	}
 	docs, err := s.db.ListBillDocuments(ctx, store.ListBillDocumentsParams{HouseholdID: a.HouseholdID, BillID: &id})
 	if err != nil {
-		s.fail(w, r, err)
-		return
+		return apigen.BillDetail{}, err
 	}
 	documents, err := s.toDocuments(ctx, docs)
 	if err != nil {
-		s.fail(w, r, err)
-		return
+		return apigen.BillDetail{}, err
 	}
-	writeJSON(w, status, toBillDetail(billView(row), payments, history, documents))
+	d := toBillDetail(billView(row), payments, history, documents)
+	if d.Sources, d.Conflicts, err = s.sourcesAndConflicts(ctx, a, id); err != nil {
+		return apigen.BillDetail{}, err
+	}
+	return d, nil
 }
 
 func encodeCursor(d time.Time, id uuid.UUID) string {
