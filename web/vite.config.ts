@@ -16,7 +16,8 @@ export default defineConfig({
       filename: 'sw.ts',
       registerType: 'autoUpdate',
       injectRegister: false,
-      injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,woff2}'] },
+      // The on-device OCR engine (~14 MB) is cached on first use, not precached on install.
+      injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,woff2}'], globIgnores: ['tesseract/**'] },
       manifest: {
         name: 'Bill Manager',
         short_name: 'Bills',

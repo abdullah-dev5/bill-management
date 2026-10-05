@@ -298,3 +298,86 @@ func matchProvider(hints []store.ListProviderHintsRow, name string) (store.ListP
 	}
 	return store.ListProviderHintsRow{}, false
 }
+
+// ExtractFromDeviceText stores an extraction from text the phone recognised itself (tier 3,
+// docs/05): same parsers and checks as OCR text, and no outside service sees the document.
+func (s *Server) ExtractFromDeviceText(w http.ResponseWriter, r *http.Request, id apigen.Id) {
+	a := mustAuth(r)
+	ctx := r.Context()
+	var in apigen.ExtractFromDeviceTextJSONRequestBody
+	if err := decodeJSON(r, &in); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if strings.TrimSpace(in.Text) == "" || len(in.Text) > 50000 {
+		s.fail(w, r, errField("text", "Send the text read from the document (up to 50,000 characters)."))
+		return
+	}
+	doc, err := s.db.GetDocument(ctx, store.GetDocumentParams{ID: id, HouseholdID: a.HouseholdID})
+	if store.IsNotFound(err) {
+		s.fail(w, r, errNotFound("document"))
+		return
+	} else if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if doc.Status != store.DocumentStatusReady {
+		s.fail(w, r, errConflict("document_not_ready", "The document hasn't finished uploading."))
+		return
+	}
+	hints, err := s.db.ListProviderHints(ctx, &a.HouseholdID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	providers := make([]extract.Provider, 0, len(hints))
+	for _, h := range hints {
+		providers = append(providers, extract.Provider{ShortName: h.ShortName, Name: h.Name, RefPattern: deref(h.RefNumberPattern)})
+	}
+	confidence := 0.0
+	if in.Confidence != nil {
+		confidence = *in.Confidence
+	}
+	start := s.now()
+	res, runErr := extract.FromDeviceText(in.Text, providers, confidence)
+
+	params := store.CreateFinishedExtractionParams{
+		ID: uuid.Must(uuid.NewV7()), HouseholdID: a.HouseholdID, DocumentID: id, CreatedBy: &a.UserID, StartedAt: &start,
+	}
+	trace := []extract.TierRun{{Tier: "device", Outcome: "used"}}
+	if runErr != nil {
+		trace[0].Outcome, trace[0].Message = "failed", "No bill details were found in the text read on this device."
+		params.Status = store.ExtractionStatusFailed
+		params.Error = ptr("We couldn't find bill details in what this phone read. Try a sharper, well-lit photo, or enter the details yourself.")
+	} else {
+		name := res.Text(extract.FCustomerName)
+		delete(res.Fields, extract.FCustomerName)
+		if err := s.db.SetDocumentText(ctx, store.SetDocumentTextParams{ID: doc.ID, OcrText: ptr(extract.Redact(in.Text, name))}); err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		out := storedResult{Result: res}
+		if pname := res.Text(extract.FProvider); pname != "" {
+			if h, ok := matchProvider(hints, pname); ok {
+				pid := h.ID
+				out.ProviderID = &pid
+				if f, ok := out.Fields[extract.FProvider]; ok {
+					f.Value = h.ShortName
+					out.Fields[extract.FProvider] = f
+				}
+			}
+		}
+		params.Status = store.ExtractionStatusSucceeded
+		if params.Result, err = json.Marshal(out); err != nil {
+			s.fail(w, r, err)
+			return
+		}
+	}
+	params.Trace, _ = json.Marshal(trace)
+	e, err := s.db.CreateFinishedExtraction(ctx, params)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toExtractionView(e))
+}

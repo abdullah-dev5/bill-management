@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -282,4 +283,25 @@ func httpClient(c *http.Client) *http.Client {
 		return c
 	}
 	return http.DefaultClient
+}
+
+// FromDeviceText is tier 3 (docs/05): text recognised on the user's phone (Tesseract.js),
+// parsed and validated exactly like OCR text. Low recognition confidence lowers every field.
+func FromDeviceText(text string, providers []Provider, ocrConfidence float64) (Result, error) {
+	if strings.TrimSpace(text) == "" {
+		return NewResult(), ErrNothingExtracted
+	}
+	r := ParseText(text, providers, "device")
+	if len(r.Fields) == 0 {
+		return r, ErrNothingExtracted
+	}
+	if ocrConfidence > 0 && ocrConfidence < 70 {
+		factor := 0.6 + 0.4*ocrConfidence/70
+		for name, f := range r.Fields {
+			f.Confidence = math.Round(f.Confidence*factor*100) / 100
+			r.Fields[name] = f
+		}
+	}
+	Validate(&r, Context{ReferencePattern: referencePattern(r.Text(FProvider), providers)})
+	return r, nil
 }

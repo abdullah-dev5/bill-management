@@ -709,6 +709,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{id}/extraction/device": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Tier 3 (docs/05): text the phone read itself (Tesseract.js) goes through the same
+         *     parsers and validation as OCR text. No outside reading service sees the document.
+         */
+        post: operations["extractFromDeviceText"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{id}/bill": {
         parameters: {
             query?: never;
@@ -2984,6 +3006,42 @@ export interface operations {
         responses: {
             /** @description Queued */
             202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Extraction"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    extractFromDeviceText: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    text: string;
+                    /**
+                     * Format: double
+                     * @description The on-device OCR's mean confidence
+                     */
+                    confidence?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The finished extraction */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

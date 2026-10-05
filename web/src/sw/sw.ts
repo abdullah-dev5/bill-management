@@ -4,7 +4,7 @@ import { clientsClaim } from 'workbox-core'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
-import { NetworkFirst } from 'workbox-strategies'
+import { CacheFirst, NetworkFirst } from 'workbox-strategies'
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: (string | { url: string; revision: string | null })[] }
 
@@ -30,6 +30,12 @@ registerRoute(
     networkTimeoutSeconds: 4,
     plugins: [new ExpirationPlugin({ maxEntries: 150, maxAgeSeconds: 7 * 24 * 3600 })],
   }),
+)
+
+// The on-device OCR engine and model: downloaded once, then read from the cache (works offline).
+registerRoute(
+  ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/tesseract/'),
+  new CacheFirst({ cacheName: 'ocr-engine-v1', plugins: [new ExpirationPlugin({ maxEntries: 10 })] }),
 )
 
 // Signing out (or in as someone else) clears the cached data.

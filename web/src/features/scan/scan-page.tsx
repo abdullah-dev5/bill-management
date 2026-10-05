@@ -22,6 +22,7 @@ import { Card, ErrorNotice, Skeleton } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { BackLink } from '@/features/bills/bill-pages'
 import { BillForm, type BillFormValues, type BillReview } from '@/features/bills/bill-form'
+import { DeviceReadButton } from '@/features/documents/device-read'
 import { formatMonthShort } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
 
@@ -249,9 +250,15 @@ export function ScanPage() {
           ) : (
             <>
               {e?.status === 'failed' && (
-                <p role="alert" className="rounded-card bg-[var(--st-overdue-bg)] p-4 text-sm text-[var(--st-overdue-fg)]">
-                  {e.error}
-                </p>
+                <div role="alert" className="flex flex-col items-start gap-3 rounded-card bg-[var(--st-overdue-bg)] p-4 text-sm text-[var(--st-overdue-fg)]">
+                  <p>{e.error}</p>
+                  {doc.data && doc.data.contentType.startsWith('image/') && (
+                    <div className="flex flex-col items-start gap-1">
+                      <DeviceReadButton doc={doc.data} variant="primary" className="h-10" />
+                      <p className="text-xs text-body">{t('deviceRead.hint')}</p>
+                    </div>
+                  )}
+                </div>
               )}
               {e?.status === 'succeeded' && (
                 <p className="flex items-center gap-2 text-sm text-muted">

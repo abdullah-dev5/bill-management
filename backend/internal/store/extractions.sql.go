@@ -108,6 +108,56 @@ func (q *Queries) CreateExtraction(ctx context.Context, arg CreateExtractionPara
 	return i, err
 }
 
+const createFinishedExtraction = `-- name: CreateFinishedExtraction :one
+INSERT INTO extractions (id, household_id, document_id, created_by, status, attempts, result, trace, error, started_at, finished_at)
+VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8, $9, $9)
+RETURNING id, household_id, document_id, status, attempts, locked_until, result, trace, error, created_by, created_at, started_at, finished_at
+`
+
+type CreateFinishedExtractionParams struct {
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+	DocumentID  uuid.UUID
+	CreatedBy   *uuid.UUID
+	Status      ExtractionStatus
+	Result      []byte
+	Trace       []byte
+	Error       *string
+	StartedAt   *time.Time
+}
+
+// An extraction done outside the queue (text read on the device).
+func (q *Queries) CreateFinishedExtraction(ctx context.Context, arg CreateFinishedExtractionParams) (Extraction, error) {
+	row := q.db.QueryRow(ctx, createFinishedExtraction,
+		arg.ID,
+		arg.HouseholdID,
+		arg.DocumentID,
+		arg.CreatedBy,
+		arg.Status,
+		arg.Result,
+		arg.Trace,
+		arg.Error,
+		arg.StartedAt,
+	)
+	var i Extraction
+	err := row.Scan(
+		&i.ID,
+		&i.HouseholdID,
+		&i.DocumentID,
+		&i.Status,
+		&i.Attempts,
+		&i.LockedUntil,
+		&i.Result,
+		&i.Trace,
+		&i.Error,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const failAbandonedExtractions = `-- name: FailAbandonedExtractions :execrows
 UPDATE extractions SET
     status = 'failed', error = 'Reading this document kept failing. Please enter the details yourself.',

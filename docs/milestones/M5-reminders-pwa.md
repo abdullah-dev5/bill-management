@@ -1,5 +1,8 @@
 # M5 — Reminders, expected bills & PWA: progress notes
 
+**Status: built.** All three phases are done; the exit criterion is a real billing cycle, run with the
+[release checklist](../release-checklist.md).
+
 Branch `m5-reminders-pwa` (PR #7 → `main`).
 Exit criteria from [09-roadmap](../09-roadmap.md) M5: used for real for one full billing cycle with no missed due
 dates. **MVP release.**
@@ -8,7 +11,18 @@ dates. **MVP release.**
 |---|---|---|
 | 1 — Reminders & expected bills | Tick reminders, notification inbox, settings, expected-but-missing bills, recurring bills that add themselves | **Done** |
 | 2 — Installable & offline | Web app manifest, service worker, offline shell, offline capture queue, Web Push | **Done** |
-| 3 — On-device reading & release | Tesseract.js tier, deploy checklist, exit run | Next |
+| 3 — On-device reading & release | Tesseract.js tier, release checklist, exit run | **Done** (exit run is yours: one real billing cycle) |
+
+## Phase 3 — On-device reading & release (delivered)
+| Area | What's in | Requirements |
+|---|---|---|
+| Read on this phone | Tier 3 of the reading chain: on a photo whose reading failed (scan screen) or hasn't been read (document viewer), **Read on this phone** runs Tesseract.js on the device with a progress percentage. The text goes through the same parsers and checks as OCR text (`POST /documents/{id}/extraction/device`); low recognition confidence lowers every field. No outside reading service sees the photo, and it works with AI off and no OCR key. | docs/05 tier 3, NFR-06, NFR-09 |
+| Self-hosted engine | The worker, WebAssembly core (LSTM builds) and the compact English model (~3 MB) are copied from `node_modules` into `public/tesseract` on `pnpm install` and served by the app; the service worker caches them on first use (not on install), so later reads work offline. The security policy allows WebAssembly (`'wasm-unsafe-eval'`) and same-origin workers only. | docs/08 |
+| Release | [release-checklist.md](../release-checklist.md): configuration, the tick, backups, a phone smoke test (scan, install, push, airplane mode, exports), the exit run and rollback. | M5 exit |
+
+Quality: Go tests for device-read text (fields, provider, no stored name, confidence lowered by poor recognition, the latest
+extraction, nothing found, empty text, other households); an end-to-end test that reads a rendered bill photo with the real
+engine on phone and desktop.
 
 ## Phase 2 — Installable & offline (delivered)
 | Area | What's in | Requirements |

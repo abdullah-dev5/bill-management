@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { ExtractedField, Extraction } from '@/api/client'
 import { useExtraction, useStartExtraction } from '@/api/hooks'
+import type { Doc } from '@/api/client'
+import { DeviceReadButton } from './device-read'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/cn'
 import { formatDate, formatMonth, formatMonthShort } from '@/lib/dates'
@@ -32,7 +34,7 @@ export function orderedFields(fields: Record<string, ExtractedField>): [string, 
 }
 
 /** "Read bill" action and the extracted result for one document (docs/05). */
-export function ExtractionPanel({ documentId }: { documentId: string }) {
+export function ExtractionPanel({ documentId, doc }: { documentId: string; doc?: Doc }) {
   const { t } = useTranslation()
   const extraction = useExtraction(documentId)
   const start = useStartExtraction()
@@ -64,6 +66,12 @@ export function ExtractionPanel({ documentId }: { documentId: string }) {
         <p role="alert" className="flex items-start gap-2 text-sm text-[var(--danger)]">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden /> {e.error}
         </p>
+      )}
+      {doc && !busy && e?.status !== 'succeeded' && (
+        <div className="flex flex-col items-start gap-1">
+          <DeviceReadButton doc={doc} className="h-10" />
+          <p className="text-xs text-muted">{t('deviceRead.hint')}</p>
+        </div>
       )}
       {e?.status === 'succeeded' && <ExtractionResult extraction={e} />}
     </section>

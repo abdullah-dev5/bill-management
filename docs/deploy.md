@@ -1,5 +1,7 @@
 # Deployment runbook (free tiers, no payment card)
 
+Going live for real use? Follow [release-checklist.md](release-checklist.md) after these steps.
+
 The architecture is in [07-architecture](07-architecture.md); the hosting decision is in [ADR-005](adr/005-hosting.md).
 
 ```

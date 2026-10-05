@@ -862,6 +862,34 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+  /documents/{id}/extraction/device:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [documents]
+      operationId: extractFromDeviceText
+      description: |
+        Tier 3 (docs/05): text the phone read itself (Tesseract.js) goes through the same
+        parsers and validation as OCR text. No outside reading service sees the document.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 50000 }
+                confidence: { type: number, format: double, minimum: 0, maximum: 100, description: The on-device OCR's mean confidence }
+      responses:
+        '200':
+          description: The finished extraction
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Extraction' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /documents/{id}/bill:
     parameters:
       - $ref: '#/components/parameters/Id'
