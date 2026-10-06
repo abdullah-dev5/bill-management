@@ -228,6 +228,13 @@ func (s *Server) householdReminders(ctx context.Context, hhID uuid.UUID, members
 			}); err != nil {
 				return err
 			}
+			created, err := q.GetBill(ctx, store.GetBillParams{ID: billID, HouseholdID: hhID, Today: today})
+			if err != nil {
+				return err
+			}
+			if err := recordCreatedSource(ctx, q, now, hhID, nil, created.Bill, sourceInput{Kind: store.BillSourceKindAuto}); err != nil {
+				return err
+			}
 			changes, _ := json.Marshal(map[string]any{"periodKey": []any{nil, period}, "payableMinor": []any{nil, amount}, "auto": true})
 			if err := q.CreateSystemAuditEvent(ctx, store.CreateSystemAuditEventParams{
 				ID: uuid.Must(uuid.NewV7()), HouseholdID: hhID, EntityType: "bill", EntityID: billID, Action: "create", Changes: changes,

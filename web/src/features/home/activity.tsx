@@ -6,6 +6,7 @@ import { useActivity } from '@/api/hooks'
 import { Card, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { formatDate, formatMonth, toISODate } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
+import { tr } from '@/lib/tr'
 
 type Item = Schemas['ActivityItem']
 
@@ -58,7 +59,7 @@ function ActivityRow({ item, showActor }: { item: Item; showActor: boolean }) {
     item.action === 'document_added' ? item.detail : undefined,
     (item.action === 'payment_added' || item.action === 'payment_removed') && item.detail ? t(`method.${item.detail as 'cash'}`) : undefined,
   ].filter(Boolean)
-  const meta = [relativeTime(item.at, t), showActor && item.actorName ? t('activity.by', { name: item.actorName.split(' ')[0] ?? item.actorName }) : undefined]
+  const meta = [relativeTime(item.at), showActor && item.actorName ? t('activity.by', { name: item.actorName.split(' ')[0] ?? item.actorName }) : undefined]
     .filter(Boolean)
     .join(' · ')
 
@@ -90,7 +91,8 @@ function ActivityRow({ item, showActor }: { item: Item; showActor: boolean }) {
 }
 
 /** "just now", "5 min ago", "3 hours ago", "yesterday", else the date. */
-export function relativeTime(at: string, t: ReturnType<typeof useTranslation>['t'], now = new Date()): string {
+export function relativeTime(at: string, now = new Date()): string {
+  const t = tr
   const then = new Date(at)
   const minutes = Math.round((now.getTime() - then.getTime()) / 60_000)
   if (minutes < 1) return t('activity.justNow')

@@ -558,14 +558,16 @@ WHERE bills.household_id = $2
        OR bills.profile_id IN (SELECT bp.id FROM bill_profiles bp WHERE bp.provider_id = $9::uuid))
   AND ($10::bigint IS NULL OR bills.payable_minor >= $10::bigint)
   AND ($11::bigint IS NULL OR bills.payable_minor <= $11::bigint)
+  AND (NOT $12::boolean
+       OR EXISTS (SELECT 1 FROM bill_conflicts c WHERE c.bill_id = bills.id AND c.status = 'open'))
   -- Source: how the bill arrived; the first bill document's source, or manual entry.
-  AND (coalesce(cardinality($12::text[]), 0) = 0 OR coalesce(
+  AND (coalesce(cardinality($13::text[]), 0) = 0 OR coalesce(
         (SELECT d.source::text FROM documents d WHERE d.bill_id = bills.id AND d.kind = 'bill' ORDER BY d.created_at LIMIT 1),
-        'manual') = ANY ($12::text[]))
-  AND ($13::date IS NULL
-       OR (bills.expense_date, bills.id) < ($13::date, $14::uuid))
+        'manual') = ANY ($13::text[]))
+  AND ($14::date IS NULL
+       OR (bills.expense_date, bills.id) < ($14::date, $15::uuid))
 ORDER BY bills.expense_date DESC, bills.id DESC
-LIMIT $15
+LIMIT $16
 `
 
 type ListBillsParams struct {
@@ -580,6 +582,7 @@ type ListBillsParams struct {
 	ProviderID  *uuid.UUID
 	MinAmount   *int64
 	MaxAmount   *int64
+	NeedsReview bool
 	Sources     []string
 	CursorDate  *time.Time
 	CursorID    *uuid.UUID
@@ -605,6 +608,7 @@ func (q *Queries) ListBills(ctx context.Context, arg ListBillsParams) ([]ListBil
 		arg.ProviderID,
 		arg.MinAmount,
 		arg.MaxAmount,
+		arg.NeedsReview,
 		arg.Sources,
 		arg.CursorDate,
 		arg.CursorID,

@@ -17,6 +17,7 @@ import { formatMoney } from '@/lib/money'
 import { isOpen } from '@/lib/status'
 import { BillForm } from './bill-form'
 import { apiFilters, BillFilterBar } from './bill-filters'
+import { ConflictsCard, SourcesCard } from './reconcile'
 import { billTitle, BillsList } from './bill-row'
 import { PaymentSheet } from './payment-sheet'
 
@@ -203,6 +204,8 @@ export function BillDetailPage() {
         </Card>
       )}
 
+      <ConflictsCard bill={b} />
+
       <FeaturedCard>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -266,6 +269,8 @@ export function BillDetailPage() {
           {b.notes && <Row label={t('bills.notes')} value={b.notes} />}
         </dl>
       </Card>
+
+      <SourcesCard bill={b} />
 
       <Card>
         <SectionTitle
@@ -461,6 +466,9 @@ export function BillsPage() {
               {f.key === 'all' ? t('bills.allStatuses') : t(`status.${f.key as 'paid'}`)}
             </Chip>
           ))}
+          <Chip selected={Boolean(search.review)} onClick={() => set({ review: search.review ? undefined : true })}>
+            {t('reconcile.reviewFilter')}
+          </Chip>
         </div>
         <div className="flex items-center gap-3">
           <label className="sr-only" htmlFor="bills-profile">
@@ -477,7 +485,7 @@ export function BillsPage() {
       </div>
       <BillFilterBar search={search} onChange={set} />
       <Toggle label={t('bills.archivedView')} checked={Boolean(search.archived)} onChange={(v) => set({ archived: v || undefined })} />
-      <BillsList filters={{ profileId: search.profileId, status: statuses, archived: search.archived, ...apiFilters(search) }} profilesById={byId} />
+      <BillsList filters={{ profileId: search.profileId, status: statuses, archived: search.archived, needsReview: search.review, ...apiFilters(search) }} profilesById={byId} />
     </div>
   )
 }

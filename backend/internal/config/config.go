@@ -16,8 +16,10 @@ type Config struct {
 	AppBaseURL   string // public URL of the web app, used in emailed links
 	CookieSecure bool
 	TickToken    string // bearer token for POST /internal/tick
-	ResendAPIKey string
-	MailFrom     string
+	// RetrievalSample enables the sample retrieval connector (development and tests; never in production).
+	RetrievalSample bool
+	ResendAPIKey    string
+	MailFrom        string
 
 	// DataKey derives the keys for field encryption, lookup hashes and signed file links.
 	DataKey string
@@ -51,14 +53,15 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	c := Config{
-		Env:          getenv("APP_ENV", "development"),
-		DatabaseURL:  os.Getenv("DATABASE_URL"),
-		AppBaseURL:   strings.TrimRight(getenv("APP_BASE_URL", "http://localhost:5173"), "/"),
-		TickToken:    os.Getenv("TICK_TOKEN"),
-		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
-		MailFrom:     getenv("MAIL_FROM", "Bill Manager <no-reply@localhost>"),
-		DataKey:      os.Getenv("DATA_ENCRYPTION_KEY"),
-		StorageDir:   getenv("STORAGE_DIR", "var/storage"),
+		Env:             getenv("APP_ENV", "development"),
+		DatabaseURL:     os.Getenv("DATABASE_URL"),
+		AppBaseURL:      strings.TrimRight(getenv("APP_BASE_URL", "http://localhost:5173"), "/"),
+		TickToken:       os.Getenv("TICK_TOKEN"),
+		RetrievalSample: os.Getenv("RETRIEVAL_SAMPLE") != "0",
+		ResendAPIKey:    os.Getenv("RESEND_API_KEY"),
+		MailFrom:        getenv("MAIL_FROM", "Bill Manager <no-reply@localhost>"),
+		DataKey:         os.Getenv("DATA_ENCRYPTION_KEY"),
+		StorageDir:      getenv("STORAGE_DIR", "var/storage"),
 		S3: S3Config{
 			Endpoint:        os.Getenv("S3_ENDPOINT"),
 			Region:          getenv("S3_REGION", "ap-southeast-1"),

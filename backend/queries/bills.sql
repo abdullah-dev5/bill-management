@@ -79,6 +79,8 @@ WHERE bills.household_id = sqlc.arg(household_id)
        OR bills.profile_id IN (SELECT bp.id FROM bill_profiles bp WHERE bp.provider_id = sqlc.narg(provider_id)::uuid))
   AND (sqlc.narg(min_amount)::bigint IS NULL OR bills.payable_minor >= sqlc.narg(min_amount)::bigint)
   AND (sqlc.narg(max_amount)::bigint IS NULL OR bills.payable_minor <= sqlc.narg(max_amount)::bigint)
+  AND (NOT sqlc.arg(needs_review)::boolean
+       OR EXISTS (SELECT 1 FROM bill_conflicts c WHERE c.bill_id = bills.id AND c.status = 'open'))
   -- Source: how the bill arrived; the first bill document's source, or manual entry.
   AND (coalesce(cardinality(sqlc.arg(sources)::text[]), 0) = 0 OR coalesce(
         (SELECT d.source::text FROM documents d WHERE d.bill_id = bills.id AND d.kind = 'bill' ORDER BY d.created_at LIMIT 1),

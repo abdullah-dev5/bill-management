@@ -11,6 +11,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { Sheet } from '@/components/ui/sheet'
 import { formatDate } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
+import { tr } from '@/lib/tr'
 import type { BillsSearch } from '@/router'
 
 const SOURCES: BillSource[] = ['camera', 'upload', 'manual']
@@ -38,7 +39,7 @@ export function BillFilterBar({ search, onChange }: { search: BillsSearch; onCha
   const [open, setOpen] = useState(false)
   const { data: types } = useTypes()
   const { data: providers } = useProviders()
-  const chips = activeChips(search, types ?? [], providers ?? [], t)
+  const chips = activeChips(search, types ?? [], providers ?? [])
 
   return (
     <div className="flex flex-col gap-3">
@@ -214,7 +215,8 @@ function FilterSheet({
   )
 }
 
-function activeChips(s: BillsSearch, types: BillType[], providers: Provider[], t: ReturnType<typeof useTranslation>['t']) {
+function activeChips(s: BillsSearch, types: BillType[], providers: Provider[]) {
+  const t = tr
   const chips: { key: string; label: string; remove: Extra }[] = []
   const typeIds = split(s.type)
   for (const id of typeIds) {

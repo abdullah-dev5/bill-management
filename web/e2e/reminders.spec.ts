@@ -99,7 +99,9 @@ test('reminders: due soon, recurring bills and settings', async ({ page, request
   await reminders.getByLabel('Remind me before the due date').click()
   await page.getByRole('option', { name: '7 days before' }).click()
   await expect(page.getByText('Reminder settings saved').first()).toBeVisible()
+  const saved = page.waitForResponse((r) => r.url().includes('/notification-settings') && r.request().method() === 'PUT')
   await reminders.getByRole('switch', { name: /Overdue bills/ }).click()
+  await saved
   await page.reload()
   await expect(page.locator('#reminders').getByLabel('Remind me before the due date')).toHaveText('7 days before')
   await expect(page.locator('#reminders').getByRole('switch', { name: /Overdue bills/ })).toHaveAttribute('aria-checked', 'false')

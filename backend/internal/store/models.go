@@ -12,6 +12,73 @@ import (
 	"github.com/google/uuid"
 )
 
+type BillSourceKind string
+
+const (
+	BillSourceKindManual   BillSourceKind = "manual"
+	BillSourceKindScan     BillSourceKind = "scan"
+	BillSourceKindUpload   BillSourceKind = "upload"
+	BillSourceKindOfficial BillSourceKind = "official"
+	BillSourceKindAuto     BillSourceKind = "auto"
+)
+
+func (e *BillSourceKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = BillSourceKind(s)
+	case string:
+		*e = BillSourceKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for BillSourceKind: %T", src)
+	}
+	return nil
+}
+
+type NullBillSourceKind struct {
+	BillSourceKind BillSourceKind
+	Valid          bool // Valid is true if BillSourceKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullBillSourceKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.BillSourceKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.BillSourceKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullBillSourceKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.BillSourceKind), nil
+}
+
+func (e BillSourceKind) Valid() bool {
+	switch e {
+	case BillSourceKindManual,
+		BillSourceKindScan,
+		BillSourceKindUpload,
+		BillSourceKindOfficial,
+		BillSourceKindAuto:
+		return true
+	}
+	return false
+}
+
+func AllBillSourceKindValues() []BillSourceKind {
+	return []BillSourceKind{
+		BillSourceKindManual,
+		BillSourceKindScan,
+		BillSourceKindUpload,
+		BillSourceKindOfficial,
+		BillSourceKindAuto,
+	}
+}
+
 type BillingCycle string
 
 const (
@@ -73,6 +140,64 @@ func AllBillingCycleValues() []BillingCycle {
 		BillingCycleBimonthly,
 		BillingCycleQuarterly,
 		BillingCycleYearly,
+	}
+}
+
+type ConflictStatus string
+
+const (
+	ConflictStatusOpen     ConflictStatus = "open"
+	ConflictStatusResolved ConflictStatus = "resolved"
+)
+
+func (e *ConflictStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConflictStatus(s)
+	case string:
+		*e = ConflictStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConflictStatus: %T", src)
+	}
+	return nil
+}
+
+type NullConflictStatus struct {
+	ConflictStatus ConflictStatus
+	Valid          bool // Valid is true if ConflictStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConflictStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConflictStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConflictStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConflictStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConflictStatus), nil
+}
+
+func (e ConflictStatus) Valid() bool {
+	switch e {
+	case ConflictStatusOpen,
+		ConflictStatusResolved:
+		return true
+	}
+	return false
+}
+
+func AllConflictStatusValues() []ConflictStatus {
+	return []ConflictStatus{
+		ConflictStatusOpen,
+		ConflictStatusResolved,
 	}
 }
 
@@ -381,11 +506,12 @@ func AllMemberRoleValues() []MemberRole {
 type NotificationKind string
 
 const (
-	NotificationKindDueSoon     NotificationKind = "due_soon"
-	NotificationKindDueToday    NotificationKind = "due_today"
-	NotificationKindOverdue     NotificationKind = "overdue"
-	NotificationKindMissingBill NotificationKind = "missing_bill"
-	NotificationKindBillCreated NotificationKind = "bill_created"
+	NotificationKindDueSoon       NotificationKind = "due_soon"
+	NotificationKindDueToday      NotificationKind = "due_today"
+	NotificationKindOverdue       NotificationKind = "overdue"
+	NotificationKindMissingBill   NotificationKind = "missing_bill"
+	NotificationKindBillCreated   NotificationKind = "bill_created"
+	NotificationKindBillRetrieved NotificationKind = "bill_retrieved"
 )
 
 func (e *NotificationKind) Scan(src interface{}) error {
@@ -429,7 +555,8 @@ func (e NotificationKind) Valid() bool {
 		NotificationKindDueToday,
 		NotificationKindOverdue,
 		NotificationKindMissingBill,
-		NotificationKindBillCreated:
+		NotificationKindBillCreated,
+		NotificationKindBillRetrieved:
 		return true
 	}
 	return false
@@ -442,6 +569,7 @@ func AllNotificationKindValues() []NotificationKind {
 		NotificationKindOverdue,
 		NotificationKindMissingBill,
 		NotificationKindBillCreated,
+		NotificationKindBillRetrieved,
 	}
 }
 
@@ -694,33 +822,67 @@ type Bill struct {
 	MeterReplaced        bool
 }
 
+type BillConflict struct {
+	ID            uuid.UUID
+	HouseholdID   uuid.UUID
+	BillID        uuid.UUID
+	SourceID      uuid.UUID
+	Field         string
+	BillValue     string
+	SourceValue   string
+	Status        ConflictStatus
+	Resolution    *string
+	ResolvedValue *string
+	ResolvedBy    *uuid.UUID
+	ResolvedAt    *time.Time
+	CreatedAt     time.Time
+}
+
 type BillProfile struct {
-	ID                  uuid.UUID
-	HouseholdID         uuid.UUID
-	PropertyID          uuid.UUID
-	CategoryID          uuid.UUID
-	Kind                ProfileKind
-	Name                string
-	Icon                string
-	Color               int16
-	ProviderID          *uuid.UUID
-	MeterNumber         *string
-	MultiplyingFactor   *float64
-	ConsumptionUnit     *string
-	BillingCycle        *BillingCycle
-	TypicalIssueDay     *int16
-	TypicalDueDay       *int16
-	ExpectedAmountMinor *int64
-	AutoCreateBill      bool
-	IsDefault           bool
-	Pinned              bool
-	SortOrder           int32
-	RetrievalEnabled    bool
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	ArchivedAt          *time.Time
-	ReferenceHash       []byte
-	ReferenceEnc        []byte
+	ID                   uuid.UUID
+	HouseholdID          uuid.UUID
+	PropertyID           uuid.UUID
+	CategoryID           uuid.UUID
+	Kind                 ProfileKind
+	Name                 string
+	Icon                 string
+	Color                int16
+	ProviderID           *uuid.UUID
+	MeterNumber          *string
+	MultiplyingFactor    *float64
+	ConsumptionUnit      *string
+	BillingCycle         *BillingCycle
+	TypicalIssueDay      *int16
+	TypicalDueDay        *int16
+	ExpectedAmountMinor  *int64
+	AutoCreateBill       bool
+	IsDefault            bool
+	Pinned               bool
+	SortOrder            int32
+	RetrievalEnabled     bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ArchivedAt           *time.Time
+	ReferenceHash        []byte
+	ReferenceEnc         []byte
+	LastRetrievalAt      *time.Time
+	LastRetrievalOutcome *string
+	LastRetrievalMessage *string
+}
+
+type BillSource struct {
+	ID           uuid.UUID
+	HouseholdID  uuid.UUID
+	BillID       uuid.UUID
+	Kind         BillSourceKind
+	DocumentID   *uuid.UUID
+	ExtractionID *uuid.UUID
+	Connector    *string
+	FieldValues  []byte
+	FilledFields []string
+	Merged       bool
+	CreatedBy    *uuid.UUID
+	CreatedAt    time.Time
 }
 
 type Category struct {
@@ -890,6 +1052,7 @@ type Provider struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ArchivedAt       *time.Time
+	LookupUrl        *string
 }
 
 type PushSubscription struct {
@@ -903,6 +1066,29 @@ type PushSubscription struct {
 	CreatedAt   time.Time
 	LastUsedAt  *time.Time
 	Failures    int32
+}
+
+type RetrievalConnector struct {
+	ID                  string
+	ConsecutiveFailures int32
+	LastSuccessAt       *time.Time
+	LastFailureAt       *time.Time
+	LastError           *string
+	DisabledUntil       *time.Time
+	UpdatedAt           time.Time
+}
+
+type RetrievalRun struct {
+	ID          uuid.UUID
+	HouseholdID uuid.UUID
+	ProfileID   uuid.UUID
+	Connector   string
+	Trigger     string
+	Outcome     string
+	BillID      *uuid.UUID
+	Message     *string
+	StartedAt   time.Time
+	FinishedAt  time.Time
 }
 
 type Session struct {

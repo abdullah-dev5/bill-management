@@ -125,7 +125,7 @@ func (q *Queries) ExportBills(ctx context.Context, arg ExportBillsParams) ([]Exp
 }
 
 const exportCustomProviders = `-- name: ExportCustomProviders :many
-SELECT id, household_id, name, short_name, category_id, region, ref_number_label, ref_number_pattern, consumption_unit, created_at, updated_at, archived_at FROM providers WHERE household_id = $1 ORDER BY created_at
+SELECT id, household_id, name, short_name, category_id, region, ref_number_label, ref_number_pattern, consumption_unit, created_at, updated_at, archived_at, lookup_url FROM providers WHERE household_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ExportCustomProviders(ctx context.Context, householdID *uuid.UUID) ([]Provider, error) {
@@ -150,6 +150,7 @@ func (q *Queries) ExportCustomProviders(ctx context.Context, householdID *uuid.U
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ArchivedAt,
+			&i.LookupUrl,
 		); err != nil {
 			return nil, err
 		}

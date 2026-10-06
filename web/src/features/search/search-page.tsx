@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/layout/app-shell'
 import { Card, Chip, EmptyState, ErrorNotice, IconTile, SectionTitle, Skeleton } from '@/components/ui/misc'
 import { cn } from '@/lib/cn'
 import { formatDate, formatMonth } from '@/lib/dates'
+import { tr } from '@/lib/tr'
 import { BillRow } from '../bills/bill-row'
 
 type Interpretation = Schemas['SearchInterpretation']
@@ -167,7 +168,7 @@ function Understood({ interpretation: it }: { interpretation: Interpretation }) 
     ...it.typeNames,
     ...it.providerNames,
     ...(it.from && it.to ? [it.from === it.to ? formatMonth(it.from) : `${formatMonth(it.from)} – ${formatMonth(it.to)}`] : []),
-    ...(it.statuses.length ? [statusLabel(it.statuses, t)] : []),
+    ...(it.statuses.length ? [statusLabel(it.statuses)] : []),
   ]
   if (chips.length === 0 && it.terms.length === 0 && !it.referenceMatch) return null
   return (
@@ -188,7 +189,8 @@ function Understood({ interpretation: it }: { interpretation: Interpretation }) 
   )
 }
 
-function statusLabel(statuses: string[], t: ReturnType<typeof useTranslation>['t']): string {
+function statusLabel(statuses: string[]): string {
+  const t = tr
   if (statuses.includes('unpaid') && statuses.includes('overdue')) return t('search.notPaid')
   return statuses.map((s) => t(`status.${s as 'paid'}`)).join(', ')
 }

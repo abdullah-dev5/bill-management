@@ -62,9 +62,24 @@ func (s *Server) SaveScannedBill(w http.ResponseWriter, r *http.Request, id apig
 		if in.Duplicate != nil {
 			choice = string(*in.Duplicate)
 		}
+		src := sourceInput{Kind: store.BillSourceKindUpload, DocumentID: &doc.ID, ExtractionID: in.ExtractionId}
+		if doc.Source == store.DocumentSourceCamera {
+			src.Kind = store.BillSourceKindScan
+		}
+		if in.OfficialCopy != nil && *in.OfficialCopy {
+			src.Kind = store.BillSourceKindOfficial // saved from the provider's site (assisted retrieval)
+		}
 		switch {
 		case existing != uuid.Nil && (choice == "attach"):
 			billID, status = existing, http.StatusOK
+			// The scan's values are compared with the bill: blanks filled, disagreements become conflicts.
+			target, err := q.GetBill(ctx, store.GetBillParams{ID: existing, HouseholdID: a.HouseholdID, Today: today})
+			if err != nil {
+				return err
+			}
+			if _, err := mergeCandidate(ctx, q, s.now(), a, target.Bill, candidateValues(f), src); err != nil {
+				return err
+			}
 		case existing != uuid.Nil && kind == "duplicate_bill":
 			e := &apiError{status: http.StatusConflict, code: "duplicate_bill",
 				message: "This profile already has this bill. Attach the document to it instead?", existingBillID: &existing}
@@ -103,6 +118,9 @@ func (s *Server) SaveScannedBill(w http.ResponseWriter, r *http.Request, id apig
 			changes := diff(snapshot{}, billSnapshot(created.Bill))
 			changes["source"] = []any{nil, string(doc.Source)}
 			if err := audit(ctx, q, a, "bill", billID, "create", changes); err != nil {
+				return err
+			}
+			if err := recordCreatedSource(ctx, q, s.now(), a.HouseholdID, &a.UserID, created.Bill, src); err != nil {
 				return err
 			}
 		}

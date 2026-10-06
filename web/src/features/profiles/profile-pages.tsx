@@ -11,6 +11,7 @@ import { Toggle } from '@/components/ui/field'
 import { Card, Chip, EmptyState, ErrorNotice, FeaturedCard, IconTile, SectionTitle, Skeleton, Stat, StatusBadge } from '@/components/ui/misc'
 import { Sheet } from '@/components/ui/sheet'
 import { cn } from '@/lib/cn'
+import { OfficialBillCard } from './official-bill'
 import { formatDate, formatDayMonth } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
 import { isOpen } from '@/lib/status'
@@ -232,6 +233,7 @@ export function ProfilePage() {
 
       {p.archived && <Card className="bg-card-muted text-sm font-medium">{t('profiles.archivedBanner')}</Card>}
 
+      {tab === 'overview' && <OfficialBillCard profile={p} />}
       {tab === 'overview' && <ProfileOverview profile={p} onSeeAll={() => setTab('bills')} />}
       {tab === 'bills' && <ProfileBills profile={p} status={status} onStatus={setStatus} empty={<ProfileEmpty profile={p} />} />}
       {tab === 'payments' && <ProfilePayments profile={p} />}

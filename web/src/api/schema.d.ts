@@ -362,6 +362,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bills/{id}/conflicts/{conflictId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                conflictId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Settles a field conflict (FR-RECO-05). Audited. */
+        post: operations["resolveConflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bills/{id}/sources/{sourceId}/separate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Undoes a merge within 30 days (FR-RECO-07): fields the source filled are emptied again,
+         *     its conflicts removed, and its document detached so it can be saved as its own bill.
+         */
+        post: operations["separateSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{id}/retrieve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Fetch now (FR-RETR-06), for profiles with an automatic connector; throttled. */
+        post: operations["retrieveProfileBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{id}/retrieval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Turn automatic checks of the official site on or off (FR-RETR-01). */
+        put: operations["setProfileRetrieval"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/retrieval/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Automatic connectors and their health (FR-RETR-05). */
+        get: operations["listConnectors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/types": {
         parameters: {
             query?: never;
@@ -983,6 +1081,7 @@ export interface components {
             sortOrder: number;
             archived: boolean;
             summary: components["schemas"]["ProfileSummary"];
+            retrieval?: components["schemas"]["ProfileRetrieval"];
         };
         ProfileSummary: {
             billCount: number;
@@ -1021,6 +1120,8 @@ export interface components {
             expectedAmountMinor?: number | null;
             autoCreateBill?: boolean;
             pinned?: boolean;
+            /** @description Check the official site automatically (only where a connector exists) */
+            retrievalEnabled?: boolean;
         };
         ProfileOrder: {
             ids: string[];
@@ -1095,7 +1196,7 @@ export interface components {
             detail?: string | null;
         };
         /** @enum {string} */
-        NotificationKind: "due_soon" | "due_today" | "overdue" | "missing_bill" | "bill_created";
+        NotificationKind: "due_soon" | "due_today" | "overdue" | "missing_bill" | "bill_created" | "bill_retrieved";
         Notification: {
             /** Format: uuid */
             id: string;
@@ -1157,6 +1258,45 @@ export interface components {
         PushTestResult: {
             devices: number;
             delivered: number;
+        };
+        /** @description How this profile's bill can come from the official source (M6) */
+        ProfileRetrieval: {
+            /**
+             * @description automatic = a connector fetches it; assisted = open the official lookup page yourself and upload the bill; none = no official source known
+             * @enum {string}
+             */
+            mode: "automatic" | "assisted" | "none";
+            /** @description The provider's official bill lookup page */
+            lookupUrl?: string | null;
+            /** @description Automatic checks are on */
+            enabled: boolean;
+            /** @description The connector is switched off after repeated failures */
+            connectorPaused?: boolean;
+            /** Format: date-time */
+            lastAt?: string | null;
+            /** @enum {string|null} */
+            lastOutcome?: "created" | "merged" | "unchanged" | "not_found" | "failed" | "skipped" | null;
+            lastMessage?: string | null;
+        };
+        RetrievalResult: {
+            /** @enum {string} */
+            outcome: "created" | "merged" | "unchanged" | "not_found" | "failed" | "skipped";
+            message: string;
+            /** Format: uuid */
+            billId?: string | null;
+        };
+        ConnectorStatus: {
+            id: string;
+            name: string;
+            providers: string[];
+            healthy: boolean;
+            /** Format: date-time */
+            disabledUntil?: string | null;
+            consecutiveFailures?: number;
+            /** Format: date-time */
+            lastSuccessAt?: string | null;
+            /** Format: date-time */
+            lastFailureAt?: string | null;
         };
         Bill: {
             /** Format: uuid */
@@ -1302,6 +1442,8 @@ export interface components {
              * @enum {string}
              */
             duplicate?: "attach" | "keep_separate";
+            /** @description The person saved this from the provider's official site (assisted retrieval); recorded as an official copy */
+            officialCopy?: boolean;
         };
         HistoryEntry: {
             month: string;
@@ -1366,6 +1508,63 @@ export interface components {
             payments: components["schemas"]["Payment"][];
             history: components["schemas"]["AuditEvent"][];
             documents: components["schemas"]["Document"][];
+            /** @description Every channel that produced or confirmed this bill, with its values (FR-RECO-06) */
+            sources: components["schemas"]["BillOrigin"][];
+            /** @description Fields where sources disagree, open first (FR-RECO-04) */
+            conflicts: components["schemas"]["BillConflict"][];
+        };
+        /** @enum {string} */
+        BillOriginKind: "manual" | "scan" | "upload" | "official" | "auto";
+        BillOrigin: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["BillOriginKind"];
+            /** Format: uuid */
+            documentId?: string | null;
+            documentName?: string | null;
+            connector?: string | null;
+            /** @description Field → value as this source gave it (money in minor units, dates YYYY-MM-DD) */
+            values: {
+                [key: string]: string;
+            };
+            /** @description Empty bill fields this source filled */
+            filledFields: string[];
+            /** @description Attached to an existing bill (can be separated within 30 days) */
+            merged: boolean;
+            canSeparate?: boolean;
+            createdByName?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        BillConflict: {
+            /** Format: uuid */
+            id: string;
+            field: string;
+            /** @description The bill's value when the conflict arose */
+            billValue: string;
+            sourceValue: string;
+            /** Format: uuid */
+            sourceId: string;
+            sourceKind: components["schemas"]["BillOriginKind"];
+            /** @enum {string} */
+            status: "open" | "resolved";
+            /** @enum {string|null} */
+            resolution?: "keep" | "source" | "manual" | "revised" | "confirmed" | null;
+            resolvedValue?: string | null;
+            resolvedByName?: string | null;
+            /** Format: date-time */
+            resolvedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ConflictResolution: {
+            /**
+             * @description keep the bill's value, use the source's, enter one, or the provider revised the bill (use the source's, noted as a revision)
+             * @enum {string}
+             */
+            action: "keep" | "source" | "manual" | "revised";
+            /** @description For action manual */
+            value?: string;
         };
         /** @enum {string} */
         PaymentMethod: "cash" | "bank_transfer" | "card" | "jazzcash" | "easypaisa" | "cheque" | "other";
@@ -1662,6 +1861,8 @@ export interface components {
             recent: components["schemas"]["Bill"][];
             /** @description Bills expected by now but not added yet (FR-DASH-04, FR-REM-04) */
             expectedMissing: components["schemas"]["ExpectedBill"][];
+            /** @description Bills whose sources disagree and need a decision (docs/06 §4) */
+            reviewCount: number;
         };
     };
     responses: {
@@ -2269,6 +2470,142 @@ export interface operations {
             };
         };
     };
+    resolveConflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                conflictId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConflictResolution"];
+            };
+        };
+        responses: {
+            /** @description The bill after resolving */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    separateSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Separated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bill: components["schemas"]["BillDetail"];
+                        /**
+                         * Format: uuid
+                         * @description The detached document
+                         */
+                        documentId?: string | null;
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    retrieveProfileBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What happened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetrievalResult"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    setProfileRetrieval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description The profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listConnectors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connectors */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorStatus"][];
+                };
+            };
+        };
+    };
     listTypes: {
         parameters: {
             query?: never;
@@ -2597,6 +2934,8 @@ export interface operations {
                 minAmount?: number;
                 /** @description Maximum payable amount, minor units */
                 maxAmount?: number;
+                /** @description Only bills with open conflicts */
+                needsReview?: boolean;
                 /** @description How the bill arrived (repeatable) */
                 source?: components["schemas"]["BillSource"][];
                 cursor?: string;

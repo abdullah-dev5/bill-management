@@ -130,7 +130,7 @@ function ExtractionResult({ extraction: e }: { extraction: Extraction }) {
       {e.history.length > 0 && (
         <div>
           <h4 className="mb-1 text-sm font-semibold text-ink">{t('extraction.history', { count: e.history.length })}</h4>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="tabular w-full text-sm">
               <thead className="text-left text-muted">
                 <tr>

@@ -53,7 +53,7 @@ INSERT INTO bill_profiles (
     $14, $15, $16, $17,
     $18, $19, $20, $21, $22
 )
-RETURNING id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc
+RETURNING id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc, last_retrieval_at, last_retrieval_outcome, last_retrieval_message
 `
 
 type CreateProfileParams struct {
@@ -134,12 +134,15 @@ func (q *Queries) CreateProfile(ctx context.Context, arg CreateProfileParams) (B
 		&i.ArchivedAt,
 		&i.ReferenceHash,
 		&i.ReferenceEnc,
+		&i.LastRetrievalAt,
+		&i.LastRetrievalOutcome,
+		&i.LastRetrievalMessage,
 	)
 	return i, err
 }
 
 const getProfile = `-- name: GetProfile :one
-SELECT id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc FROM bill_profiles WHERE id = $1 AND household_id = $2
+SELECT id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc, last_retrieval_at, last_retrieval_outcome, last_retrieval_message FROM bill_profiles WHERE id = $1 AND household_id = $2
 `
 
 type GetProfileParams struct {
@@ -177,6 +180,9 @@ func (q *Queries) GetProfile(ctx context.Context, arg GetProfileParams) (BillPro
 		&i.ArchivedAt,
 		&i.ReferenceHash,
 		&i.ReferenceEnc,
+		&i.LastRetrievalAt,
+		&i.LastRetrievalOutcome,
+		&i.LastRetrievalMessage,
 	)
 	return i, err
 }
@@ -334,7 +340,7 @@ func (q *Queries) ListProfileColors(ctx context.Context, householdID uuid.UUID) 
 }
 
 const listProfiles = `-- name: ListProfiles :many
-SELECT id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc FROM bill_profiles
+SELECT id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc, last_retrieval_at, last_retrieval_outcome, last_retrieval_message FROM bill_profiles
 WHERE household_id = $1 AND ($2::boolean OR archived_at IS NULL)
 ORDER BY archived_at NULLS FIRST, sort_order, created_at
 `
@@ -380,6 +386,9 @@ func (q *Queries) ListProfiles(ctx context.Context, arg ListProfilesParams) ([]B
 			&i.ArchivedAt,
 			&i.ReferenceHash,
 			&i.ReferenceEnc,
+			&i.LastRetrievalAt,
+			&i.LastRetrievalOutcome,
+			&i.LastRetrievalMessage,
 		); err != nil {
 			return nil, err
 		}
@@ -505,7 +514,7 @@ UPDATE bill_profiles SET
     typical_issue_day = $15, typical_due_day = $16, expected_amount_minor = $17,
     auto_create_bill = $18, pinned = $19, updated_at = now()
 WHERE id = $1 AND household_id = $2
-RETURNING id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc
+RETURNING id, household_id, property_id, category_id, kind, name, icon, color, provider_id, meter_number, multiplying_factor, consumption_unit, billing_cycle, typical_issue_day, typical_due_day, expected_amount_minor, auto_create_bill, is_default, pinned, sort_order, retrieval_enabled, created_at, updated_at, archived_at, reference_hash, reference_enc, last_retrieval_at, last_retrieval_outcome, last_retrieval_message
 `
 
 type UpdateProfileParams struct {
@@ -580,6 +589,9 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (B
 		&i.ArchivedAt,
 		&i.ReferenceHash,
 		&i.ReferenceEnc,
+		&i.LastRetrievalAt,
+		&i.LastRetrievalOutcome,
+		&i.LastRetrievalMessage,
 	)
 	return i, err
 }

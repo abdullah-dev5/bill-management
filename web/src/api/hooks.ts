@@ -28,6 +28,7 @@ export interface BillFilters {
   sources?: BillSource[]
   from?: string
   to?: string
+  needsReview?: boolean
   limit?: number
 }
 
@@ -91,6 +92,7 @@ export async function fetchBillsPage(filters: BillFilters, cursor?: string) {
           source: filters.sources?.length ? filters.sources : undefined,
           from: filters.from,
           to: filters.to,
+          needsReview: filters.needsReview || undefined,
           limit: filters.limit,
           cursor,
         },

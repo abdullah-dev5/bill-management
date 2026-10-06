@@ -133,6 +133,7 @@ export interface BillsSearch {
   source?: string
   from?: string
   to?: string
+  review?: true
 }
 const num = (v: unknown) => {
   const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN
@@ -155,6 +156,7 @@ const billsRoute = createRoute({
     source: str(s.source),
     from: dateStr(s.from),
     to: dateStr(s.to),
+    review: s.review === true || s.review === 'true' ? true : undefined,
   }),
 })
 const newBillRoute = createRoute({
@@ -170,7 +172,16 @@ const billRoute = createRoute({ getParentRoute: () => appRoute, path: '/bills/$b
 const editBillRoute = createRoute({ getParentRoute: () => appRoute, path: '/bills/$billId/edit', component: EditBillPage })
 
 const settingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings', component: SettingsPage })
-const scanRoute = createRoute({ getParentRoute: () => appRoute, path: '/scan/$documentId', component: ScanPage })
+const scanRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/scan/$documentId',
+  component: ScanPage,
+  // official: the person saved this from the provider's site (assisted retrieval).
+  validateSearch: (s: Record<string, unknown>): { official?: true; profileId?: string } => ({
+    official: s.official === true || s.official === 'true' ? true : undefined,
+    profileId: str(s.profileId),
+  }),
+})
 const monthRe = /^\d{4}-(0[1-9]|1[0-2])$/
 const presets = ['month', '3m', 'year', '12m', 'custom'] as const
 const analyticsRoute = createRoute({

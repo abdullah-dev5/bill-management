@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { AlarmClock, Bell, BellOff, CalendarClock, CircleAlert, FileQuestion, Repeat } from 'lucide-react'
+import { AlarmClock, Bell, BellOff, CalendarClock, CircleAlert, FileQuestion, Landmark, Repeat } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Schemas } from '@/api/client'
 import { useMarkNotificationsRead, useNotifications } from '@/api/hooks'
@@ -9,6 +9,7 @@ import { Card, EmptyState, ErrorNotice, Skeleton } from '@/components/ui/misc'
 import { cn } from '@/lib/cn'
 import { daysUntil, formatDayMonth, formatMonth } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
+import { tr } from '@/lib/tr'
 import { relativeTime } from '../home/activity'
 
 type Notification = Schemas['Notification']
@@ -19,6 +20,7 @@ const ICONS = {
   overdue: CircleAlert,
   missing_bill: FileQuestion,
   bill_created: Repeat,
+  bill_retrieved: Landmark,
 } as const
 
 /** Bell with the unread count; opens the notifications page. */
@@ -89,7 +91,8 @@ export function NotificationsPage() {
 }
 
 /** What the reminder says, e.g. "Due in 2 days · Rs 3,266". */
-export function notificationText(n: Notification, t: ReturnType<typeof useTranslation>['t']): { title: string; line: string } {
+export function notificationText(n: Notification): { title: string; line: string } {
+  const t = tr
   const what = n.periodKey ? formatMonth(n.periodKey) : (n.description ?? '')
   const title = [n.profileName, what].filter(Boolean).join(' · ')
   const amount = n.amountMinor != null ? formatMoney(n.amountMinor) : ''
@@ -105,6 +108,8 @@ export function notificationText(n: Notification, t: ReturnType<typeof useTransl
       return { title, line: t('notifications.overdue', { date: formatDayMonth(due), amount }) }
     case 'missing_bill':
       return { title, line: t('notifications.missing', { month: n.periodKey ? formatMonth(n.periodKey) : '' }) }
+    case 'bill_retrieved':
+      return { title, line: t('notifications.retrieved', { amount }) }
     case 'bill_created':
       return { title, line: due ? t('notifications.createdDue', { amount, date: formatDayMonth(due) }) : t('notifications.created', { amount }) }
   }
@@ -113,7 +118,7 @@ export function notificationText(n: Notification, t: ReturnType<typeof useTransl
 function NotificationRow({ n, onOpen }: { n: Notification; onOpen: () => void }) {
   const { t } = useTranslation()
   const Icon = ICONS[n.kind]
-  const { title, line } = notificationText(n, t)
+  const { title, line } = notificationText(n)
   const body = (
     <>
       <span
@@ -127,7 +132,7 @@ function NotificationRow({ n, onOpen }: { n: Notification; onOpen: () => void })
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={cn('truncate text-sm text-ink', !n.read && 'font-semibold')}>{title}</span>
         <span className="text-sm text-body">{line}</span>
-        <span className="text-xs text-muted">{relativeTime(n.createdAt, t)}</span>
+        <span className="text-xs text-muted">{relativeTime(n.createdAt)}</span>
       </span>
       {!n.read && <span className="mt-1.5 size-2.5 shrink-0 rounded-full bg-[var(--danger)]" aria-label={t('notifications.unread')} />}
     </>

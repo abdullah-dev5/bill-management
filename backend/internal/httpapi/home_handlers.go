@@ -34,6 +34,13 @@ func (s *Server) GetHome(w http.ResponseWriter, r *http.Request, params apigen.G
 	out := apigen.HomeSummary{Month: month, DueSoon: []apigen.Bill{}, Overdue: []apigen.Bill{}, Pinned: []apigen.Profile{}, Recent: []apigen.Bill{},
 		ExpectedMissing: []apigen.ExpectedBill{}}
 
+	review, err := s.db.CountOpenConflicts(ctx, a.HouseholdID)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out.ReviewCount = int(review)
+
 	// FR-DASH-04: computed live, so Home is right even between ticks.
 	cycleProfiles, err := s.db.ListCycleProfiles(ctx, a.HouseholdID)
 	if err != nil {
@@ -191,6 +198,10 @@ func (s *Server) RunTick(ctx context.Context) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	retrieved, err := s.runRetrievals(ctx)
+	if err != nil {
+		return nil, err
+	}
 	pushed, err := s.sendPushes(ctx)
 	if err != nil {
 		return nil, err
@@ -199,7 +210,7 @@ func (s *Server) RunTick(ctx context.Context) (map[string]any, error) {
 	return map[string]any{
 		"sessionsDeleted": sessions, "resetTokensDeleted": tokens, "accountsPurged": len(due),
 		"staleUploadsDeleted": stale, "filesDeleted": filesDeleted,
-		"billsCreated": reminders.BillsCreated, "notifications": reminders.Notifications, "pushed": pushed,
+		"billsCreated": reminders.BillsCreated, "notifications": reminders.Notifications, "pushed": pushed, "retrievals": retrieved,
 	}, nil
 }
 

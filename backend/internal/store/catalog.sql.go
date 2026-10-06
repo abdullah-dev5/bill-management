@@ -114,7 +114,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 const createProvider = `-- name: CreateProvider :one
 INSERT INTO providers (id, household_id, name, short_name, category_id, ref_number_label, consumption_unit)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, household_id, name, short_name, category_id, region, ref_number_label, ref_number_pattern, consumption_unit, created_at, updated_at, archived_at
+RETURNING id, household_id, name, short_name, category_id, region, ref_number_label, ref_number_pattern, consumption_unit, created_at, updated_at, archived_at, lookup_url
 `
 
 type CreateProviderParams struct {
@@ -151,6 +151,7 @@ func (q *Queries) CreateProvider(ctx context.Context, arg CreateProviderParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchivedAt,
+		&i.LookupUrl,
 	)
 	return i, err
 }
@@ -186,7 +187,7 @@ func (q *Queries) GetCategory(ctx context.Context, arg GetCategoryParams) (Categ
 }
 
 const getProvider = `-- name: GetProvider :one
-SELECT id, household_id, name, short_name, category_id, region, ref_number_label, ref_number_pattern, consumption_unit, created_at, updated_at, archived_at FROM providers
+SELECT id, household_id, name, short_name, category_id, region, ref_number_label, ref_number_pattern, consumption_unit, created_at, updated_at, archived_at, lookup_url FROM providers
 WHERE id = $1 AND (household_id IS NULL OR household_id = $2) AND archived_at IS NULL
 `
 
@@ -211,6 +212,7 @@ func (q *Queries) GetProvider(ctx context.Context, arg GetProviderParams) (Provi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchivedAt,
+		&i.LookupUrl,
 	)
 	return i, err
 }
@@ -254,7 +256,7 @@ func (q *Queries) ListCategories(ctx context.Context, householdID *uuid.UUID) ([
 }
 
 const listProviders = `-- name: ListProviders :many
-SELECT id, household_id, name, short_name, category_id, region, ref_number_label, ref_number_pattern, consumption_unit, created_at, updated_at, archived_at FROM providers
+SELECT id, household_id, name, short_name, category_id, region, ref_number_label, ref_number_pattern, consumption_unit, created_at, updated_at, archived_at, lookup_url FROM providers
 WHERE (household_id IS NULL OR household_id = $1)
   AND archived_at IS NULL
   AND ($2::uuid IS NULL OR category_id = $2)
@@ -288,6 +290,7 @@ func (q *Queries) ListProviders(ctx context.Context, arg ListProvidersParams) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ArchivedAt,
+			&i.LookupUrl,
 		); err != nil {
 			return nil, err
 		}
