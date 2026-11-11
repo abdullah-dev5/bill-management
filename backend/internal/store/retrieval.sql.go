@@ -69,9 +69,27 @@ func (q *Queries) ConnectorSucceeded(ctx context.Context, arg ConnectorSucceeded
 	return err
 }
 
+const countScheduledRetrievalAttempts = `-- name: CountScheduledRetrievalAttempts :one
+SELECT count(*)::bigint
+FROM retrieval_runs
+WHERE profile_id = $1 AND period_key = $2 AND trigger = 'schedule'
+`
+
+type CountScheduledRetrievalAttemptsParams struct {
+	ProfileID uuid.UUID
+	PeriodKey *string
+}
+
+func (q *Queries) CountScheduledRetrievalAttempts(ctx context.Context, arg CountScheduledRetrievalAttemptsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countScheduledRetrievalAttempts, arg.ProfileID, arg.PeriodKey)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createRetrievalRun = `-- name: CreateRetrievalRun :exec
-INSERT INTO retrieval_runs (id, household_id, profile_id, connector, trigger, outcome, bill_id, message, started_at, finished_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO retrieval_runs (id, household_id, profile_id, connector, trigger, outcome, bill_id, message, started_at, finished_at, period_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type CreateRetrievalRunParams struct {
@@ -85,6 +103,7 @@ type CreateRetrievalRunParams struct {
 	Message     *string
 	StartedAt   time.Time
 	FinishedAt  time.Time
+	PeriodKey   *string
 }
 
 func (q *Queries) CreateRetrievalRun(ctx context.Context, arg CreateRetrievalRunParams) error {
@@ -99,6 +118,7 @@ func (q *Queries) CreateRetrievalRun(ctx context.Context, arg CreateRetrievalRun
 		arg.Message,
 		arg.StartedAt,
 		arg.FinishedAt,
+		arg.PeriodKey,
 	)
 	return err
 }

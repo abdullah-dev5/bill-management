@@ -38,8 +38,13 @@ ON CONFLICT (id) DO UPDATE SET
 RETURNING *;
 
 -- name: CreateRetrievalRun :exec
-INSERT INTO retrieval_runs (id, household_id, profile_id, connector, trigger, outcome, bill_id, message, started_at, finished_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+INSERT INTO retrieval_runs (id, household_id, profile_id, connector, trigger, outcome, bill_id, message, started_at, finished_at, period_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+
+-- name: CountScheduledRetrievalAttempts :one
+SELECT count(*)::bigint
+FROM retrieval_runs
+WHERE profile_id = $1 AND period_key = $2 AND trigger = 'schedule';
 
 -- name: FindDocumentBySHA :one
 SELECT id, bill_id FROM documents WHERE household_id = $1 AND sha256 = $2;

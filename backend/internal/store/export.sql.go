@@ -199,7 +199,7 @@ func (q *Queries) ExportCustomTypes(ctx context.Context, householdID *uuid.UUID)
 }
 
 const exportDocuments = `-- name: ExportDocuments :many
-SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text, payment_id FROM documents
+SELECT id, household_id, bill_id, kind, source, status, storage_key, file_name, content_type, size_bytes, sha256, created_by, created_at, updated_at, uploaded_at, page_count, ocr_text, payment_id, profile_id FROM documents
 WHERE household_id = $1 AND status = 'ready'
 ORDER BY created_at
 `
@@ -232,6 +232,7 @@ func (q *Queries) ExportDocuments(ctx context.Context, householdID uuid.UUID) ([
 			&i.PageCount,
 			&i.OcrText,
 			&i.PaymentID,
+			&i.ProfileID,
 		); err != nil {
 			return nil, err
 		}

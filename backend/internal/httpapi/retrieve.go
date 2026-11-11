@@ -45,10 +45,10 @@ var errNoConnector = errors.New("no automatic connector for this provider")
 
 // retrieveProfile fetches the official bill for one profile and reconciles it like any other
 // copy (FR-RETR-04). Every outcome is recorded; a failing connector only affects itself.
-func (s *Server) retrieveProfile(ctx context.Context, p store.BillProfile, providerShort, tz, currency, trigger string) retrievalResult {
+func (s *Server) retrieveProfile(ctx context.Context, p store.BillProfile, providerShort, tz, currency, trigger, requestedPeriod string) retrievalResult {
 	started := s.now()
 	conn := s.retrieval.For(providerShort)
-	res := s.runRetrieval(ctx, conn, p, providerShort, tz, currency)
+	res := s.runRetrieval(ctx, conn, p, providerShort, tz, currency, requestedPeriod)
 	connID := "none"
 	if conn != nil {
 		connID = conn.ID()
@@ -59,12 +59,16 @@ func (s *Server) retrieveProfile(ctx context.Context, p store.BillProfile, provi
 	})
 	_ = s.db.CreateRetrievalRun(ctx, store.CreateRetrievalRunParams{
 		ID: uuid.Must(uuid.NewV7()), HouseholdID: p.HouseholdID, ProfileID: p.ID, Connector: connID, Trigger: trigger,
-		Outcome: res.Outcome, BillID: res.BillID, Message: strPtr(res.Message), StartedAt: started, FinishedAt: finished,
+		PeriodKey: ptr(periodOrToday(s.now(), tz, requestedPeriod)), Outcome: res.Outcome, BillID: res.BillID, Message: strPtr(res.Message), StartedAt: started, FinishedAt: finished,
 	})
 	return res
 }
 
-func (s *Server) runRetrieval(ctx context.Context, conn retrieval.Connector, p store.BillProfile, providerShort, tz, currency string) retrievalResult {
+func (s *Server) retrievalPeriod(_ store.BillProfile, tz string) string {
+	return domain.MonthKey(s.today(tz))
+}
+
+func (s *Server) runRetrieval(ctx context.Context, conn retrieval.Connector, p store.BillProfile, providerShort, tz, currency, requestedPeriod string) retrievalResult {
 	if conn == nil {
 		return retrievalResult{Outcome: outcomeSkipped, Message: errNoConnector.Error()}
 	}
@@ -77,7 +81,11 @@ func (s *Server) runRetrieval(ctx context.Context, conn retrieval.Connector, p s
 		return retrievalResult{Outcome: outcomeSkipped, Message: "Add the reference number to this profile first."}
 	}
 	today := s.today(tz)
-	req := retrieval.Request{Provider: providerShort, Reference: domain.NormalizeReference(*ref), Period: domain.MonthKey(today)}
+	period := requestedPeriod
+	if period == "" {
+		period = domain.MonthKey(today)
+	}
+	req := retrieval.Request{Provider: providerShort, Reference: domain.NormalizeReference(*ref), Period: period}
 
 	doc, err := s.retrieval.Fetch(ctx, conn, req)
 	switch {
@@ -118,12 +126,23 @@ func (s *Server) connectorFailed(ctx context.Context, c retrieval.Connector, cau
 }
 
 // reconcileRetrieved stores the official document, reads it, and merges it into the bill of that
-// month or creates the bill (as "check this", unverified) — the same rules as a scanned copy.
+// month or creates the bill. HESCO bills are verified only after the automatic validation gate;
+// other connectors retain the existing unverified behavior until they define their own gate.
 func (s *Server) reconcileRetrieved(ctx context.Context, conn retrieval.Connector, p store.BillProfile, doc retrieval.Document, today time.Time, currency string) (retrievalResult, error) {
 	sum := sha256.Sum256(doc.Data)
 	if existing, err := s.db.FindDocumentBySHA(ctx, store.FindDocumentBySHAParams{HouseholdID: p.HouseholdID, Sha256: sum[:]}); err == nil {
+		if existing.BillID == nil {
+			_ = s.db.AttachDocumentToProfile(ctx, store.AttachDocumentToProfileParams{
+				ID: existing.ID, HouseholdID: p.HouseholdID, ProfileID: &p.ID,
+			})
+		}
 		return retrievalResult{Outcome: outcomeUnchanged, BillID: existing.BillID, Message: "Already up to date: this official bill is already saved."}, nil
 	} else if !store.IsNotFound(err) {
+		return retrievalResult{}, err
+	}
+
+	docRow, err := s.storeRetrievedDocument(ctx, p.HouseholdID, &p.ID, doc)
+	if err != nil {
 		return retrievalResult{}, err
 	}
 
@@ -136,37 +155,32 @@ func (s *Server) reconcileRetrieved(ctx context.Context, conn retrieval.Connecto
 		providers = append(providers, extract.Provider{ShortName: h.ShortName, Name: h.Name, RefPattern: deref(h.RefNumberPattern)})
 	}
 	// Official PDFs carry their text; images go through the normal reading chain (no AI without consent).
-	read, _, err := s.extractor.Run(ctx, extract.Input{Data: doc.Data, ContentType: doc.ContentType, FileName: doc.FileName, Providers: providers})
+	hh, err := s.db.GetHousehold(ctx, p.HouseholdID)
 	if err != nil {
+		return retrievalResult{}, errors.New("household reading settings could not be loaded")
+	}
+	read, trace, err := s.extractor.Run(ctx, extract.Input{
+		Data: doc.Data, ContentType: doc.ContentType, FileName: doc.FileName,
+		Providers: providers, AIConsent: hh.AiExtractionConsent,
+	})
+	if err != nil {
+		s.log.WarnContext(ctx, "retrieved bill saved but could not be extracted", "profile_id", p.ID, "document_id", docRow.ID, "connector", conn.ID(), "trace", trace, "err", err)
 		return retrievalResult{}, err
 	}
 	cand := candidateFromResult(read)
 	period := cand["periodKey"]
 	if period == "" || cand["payableMinor"] == "" {
+		s.log.WarnContext(ctx, "retrieved bill saved but required fields were not extracted", "profile_id", p.ID, "document_id", docRow.ID, "connector", conn.ID(), "trace", trace)
 		return retrievalResult{}, errors.New("billing month or amount not found in the official bill")
+	}
+	if read.RawText != "" {
+		if err := s.db.SetDocumentText(ctx, store.SetDocumentTextParams{ID: docRow.ID, OcrText: ptr(extract.Redact(read.RawText, read.Text(extract.FCustomerName)))}); err != nil {
+			return retrievalResult{}, err
+		}
 	}
 
 	var out retrievalResult
 	err = s.db.InTx(ctx, func(q *store.Queries) error {
-		key := "households/" + p.HouseholdID.String() + "/" + uuid.NewString()
-		if err := s.files.Put(ctx, key, doc.ContentType, bytes.NewReader(doc.Data), int64(len(doc.Data))); err != nil {
-			return err
-		}
-		docRow, err := q.CreateDocument(ctx, store.CreateDocumentParams{
-			ID: uuid.Must(uuid.NewV7()), HouseholdID: p.HouseholdID, Kind: store.DocumentKindBill, Source: store.DocumentSourceUpload,
-			StorageKey: key, FileName: doc.FileName, ContentType: doc.ContentType, SizeBytes: int64(len(doc.Data)), Sha256: sum[:],
-		})
-		if err != nil {
-			return err
-		}
-		if _, err := q.MarkDocumentReady(ctx, store.MarkDocumentReadyParams{ID: docRow.ID, HouseholdID: p.HouseholdID}); err != nil {
-			return err
-		}
-		if read.RawText != "" {
-			if err := q.SetDocumentText(ctx, store.SetDocumentTextParams{ID: docRow.ID, OcrText: ptr(extract.Redact(read.RawText, read.Text(extract.FCustomerName)))}); err != nil {
-				return err
-			}
-		}
 		connector := conn.ID()
 		src := sourceInput{Kind: store.BillSourceKindOfficial, DocumentID: &docRow.ID, Connector: &connector}
 		system := authInfo{HouseholdID: p.HouseholdID} // no person behind it
@@ -184,7 +198,7 @@ func (s *Server) reconcileRetrieved(ctx context.Context, conn retrieval.Connecto
 			}
 			out = retrievalResult{Outcome: outcomeMerged, BillID: &existingID, Message: mergedMessage(merged)}
 		case store.IsNotFound(err):
-			id, err := s.createRetrievedBill(ctx, q, p, cand, currency, src)
+			id, err := s.createRetrievedBill(ctx, q, p, cand, currency, src, conn.ID() == "hesco-pitc")
 			if err != nil {
 				return err
 			}
@@ -203,6 +217,28 @@ func (s *Server) reconcileRetrieved(ctx context.Context, conn retrieval.Connecto
 	return out, err
 }
 
+func (s *Server) storeRetrievedDocument(ctx context.Context, householdID uuid.UUID, profileID *uuid.UUID, doc retrieval.Document) (store.Document, error) {
+	sum := sha256.Sum256(doc.Data)
+	key := "households/" + householdID.String() + "/" + uuid.NewString()
+	if err := s.files.Put(ctx, key, doc.ContentType, bytes.NewReader(doc.Data), int64(len(doc.Data))); err != nil {
+		return store.Document{}, err
+	}
+	var out store.Document
+	err := s.db.InTx(ctx, func(q *store.Queries) error {
+		var err error
+		out, err = q.CreateDocument(ctx, store.CreateDocumentParams{
+			ID: uuid.Must(uuid.NewV7()), HouseholdID: householdID, ProfileID: profileID, Kind: store.DocumentKindBill, Source: store.DocumentSourceUpload,
+			StorageKey: key, FileName: doc.FileName, ContentType: doc.ContentType, SizeBytes: int64(len(doc.Data)), Sha256: sum[:],
+		})
+		if err != nil {
+			return err
+		}
+		_, err = q.MarkDocumentReady(ctx, store.MarkDocumentReadyParams{ID: out.ID, HouseholdID: householdID})
+		return err
+	})
+	return out, err
+}
+
 func mergedMessage(m mergeOutcome) string {
 	switch {
 	case len(m.Conflicts) > 0:
@@ -217,7 +253,7 @@ func mergedMessage(m mergeOutcome) string {
 func candidateFromResult(r extract.Result) map[string]string {
 	m := map[string]string{}
 	for from, to := range map[string]string{
-		extract.FBillingMonth: "periodKey", extract.FBillNumber: "billNumber", extract.FIssueDate: "issueDate", extract.FDueDate: "dueDate",
+		extract.FReference: "referenceNumber", extract.FBillingMonth: "periodKey", extract.FBillNumber: "billNumber", extract.FIssueDate: "issueDate", extract.FDueDate: "dueDate",
 		extract.FCurrentCharges: "currentChargesMinor", extract.FArrears: "arrearsMinor", extract.FPayable: "payableMinor",
 		extract.FPayableAfterDue: "payableAfterDueMinor", extract.FPreviousReading: "previousReading",
 		extract.FCurrentReading: "currentReading", extract.FUnits: "units",
@@ -232,7 +268,7 @@ func candidateFromResult(r extract.Result) map[string]string {
 	return m
 }
 
-func (s *Server) createRetrievedBill(ctx context.Context, q *store.Queries, p store.BillProfile, cand map[string]string, currency string, src sourceInput) (uuid.UUID, error) {
+func (s *Server) createRetrievedBill(ctx context.Context, q *store.Queries, p store.BillProfile, cand map[string]string, currency string, src sourceInput, autoVerify bool) (uuid.UUID, error) {
 	num := func(k string) int64 { n, _ := strconv.ParseInt(cand[k], 10, 64); return n }
 	payable, arrears := num("payableMinor"), num("arrearsMinor")
 	current := num("currentChargesMinor")
@@ -252,16 +288,22 @@ func (s *Server) createRetrievedBill(ctx context.Context, q *store.Queries, p st
 		}
 	}
 	id := uuid.Must(uuid.NewV7())
+	var verifiedAt *time.Time
+	if autoVerify && s.retrievedBillPassesGate(ctx, p, cand) {
+		now := s.now()
+		verifiedAt = &now
+	}
 	if _, err := q.CreateBill(ctx, store.CreateBillParams{
 		ID: id, HouseholdID: p.HouseholdID, ProfileID: p.ID, CategoryID: p.CategoryID, BillNumber: params.BillNumber,
 		PeriodKey: params.PeriodKey, IssueDate: params.IssueDate, DueDate: params.DueDate, ExpenseDate: params.ExpenseDate,
 		CurrentChargesMinor: params.CurrentChargesMinor, ArrearsMinor: params.ArrearsMinor, PayableMinor: params.PayableMinor,
 		PayableAfterDueMinor: params.PayableAfterDueMinor, Currency: currency, Tags: []string{},
 		PreviousReading: params.PreviousReading, CurrentReading: params.CurrentReading, Units: params.Units,
-		// Not verified: a person checks a retrieved bill like a scanned one (status "check").
+		VerifiedAt: verifiedAt,
 	}); err != nil {
 		return uuid.Nil, err
 	}
+
 	created, err := q.GetBill(ctx, store.GetBillParams{ID: id, HouseholdID: p.HouseholdID, Today: s.now()})
 	if err != nil {
 		return uuid.Nil, err
@@ -275,6 +317,14 @@ func (s *Server) createRetrievedBill(ctx context.Context, q *store.Queries, p st
 	return id, q.CreateSystemAuditEvent(ctx, store.CreateSystemAuditEventParams{
 		ID: uuid.Must(uuid.NewV7()), HouseholdID: p.HouseholdID, EntityType: "bill", EntityID: id, Action: "create", Changes: raw,
 	})
+}
+
+func (s *Server) retrievedBillPassesGate(ctx context.Context, p store.BillProfile, cand map[string]string) bool {
+	if cand["periodKey"] == "" || cand["payableMinor"] == "" || cand["dueDate"] == "" || cand["referenceNumber"] == "" {
+		return false
+	}
+	ref := s.refDisplay(ctx, p)
+	return ref != nil && domain.NormalizeReference(*ref) == domain.NormalizeReference(cand["referenceNumber"])
 }
 
 // notifyRetrieved tells everyone in the household a new official bill arrived (FR-REM-06).
@@ -323,15 +373,38 @@ func (s *Server) runRetrievals(ctx context.Context) (int, error) {
 		} else if !store.IsNotFound(err) {
 			return n, err
 		}
-		issue := 1
 		if p.TypicalIssueDay != nil {
-			issue = max(int(*p.TypicalIssueDay)-2, 1)
+			issueDate := time.Date(today.Year(), today.Month(), min(int(*p.TypicalIssueDay), daysInMonth(today)), 0, 0, 0, 0, time.UTC)
+			if today.Before(issueDate.AddDate(0, 0, -1)) || today.After(issueDate.AddDate(0, 0, 2)) {
+				continue
+			}
 		}
-		if today.Day() < issue {
+		attempts, err := s.db.CountScheduledRetrievalAttempts(ctx, store.CountScheduledRetrievalAttemptsParams{
+			ProfileID: p.ID, PeriodKey: &period,
+		})
+		if err != nil {
+			return n, err
+		}
+		if attempts >= 4 {
 			continue
 		}
-		s.retrieveProfile(ctx, p, r.ProviderShort, r.Timezone, r.Currency, "schedule")
+		s.retrieveProfile(ctx, p, r.ProviderShort, r.Timezone, r.Currency, "schedule", "")
 		n++
 	}
 	return n, nil
+}
+
+func daysInMonth(t time.Time) int {
+	return time.Date(t.Year(), t.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+func periodOrToday(now time.Time, tz, requested string) string {
+	if requested != "" {
+		return requested
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.UTC
+	}
+	return domain.MonthKey(now.In(loc))
 }

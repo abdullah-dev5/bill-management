@@ -83,6 +83,7 @@ function Automatic({ profile }: { profile: Profile }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const r = profile.retrieval!
+  const [period, setPeriod] = useState('')
   const refresh = () =>
     Promise.all(
       // A fetched bill can change any bill already loaded (merged copies), Home and the bell.
@@ -95,7 +96,12 @@ function Automatic({ profile }: { profile: Profile }) {
     onError: (e) => toast.error(e.message),
   })
   const fetchNow = useMutation({
-    mutationFn: () => unwrap(api.POST('/profiles/{id}/retrieve', { params: { path: { id: profile.id } } })),
+    mutationFn: () =>
+      unwrap(
+        api.POST('/profiles/{id}/retrieve', {
+          params: { path: { id: profile.id }, query: period ? { period } : {} },
+        }),
+      ),
     onSuccess: async (res) => {
       await refresh()
       const ok = res.outcome === 'created' || res.outcome === 'merged' || res.outcome === 'unchanged' || res.outcome === 'not_found'
@@ -122,6 +128,16 @@ function Automatic({ profile }: { profile: Profile }) {
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-body">
+          <span className="sr-only">{t('official.period')}</span>
+          <input
+            type="month"
+            value={period}
+            onChange={(event) => setPeriod(event.target.value)}
+            aria-label={t('official.period')}
+            className="h-10 rounded-full border border-line bg-card px-3 text-sm text-ink"
+          />
+        </label>
         <Button variant="secondary" className="h-10" loading={fetchNow.isPending} onClick={() => fetchNow.mutate()} disabled={r.connectorPaused ?? false}>
           <RefreshCw className="size-4" aria-hidden /> {t('official.fetchNow')}
         </Button>

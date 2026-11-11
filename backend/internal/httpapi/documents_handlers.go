@@ -138,7 +138,7 @@ func (s *Server) CreateDocument(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		doc, err = q.CreateDocument(ctx, store.CreateDocumentParams{
-			ID: uuid.Must(uuid.NewV7()), HouseholdID: a.HouseholdID, BillID: in.BillId,
+			ID: uuid.Must(uuid.NewV7()), HouseholdID: a.HouseholdID, BillID: in.BillId, ProfileID: nil,
 			Kind: store.DocumentKind(in.Kind), Source: store.DocumentSource(in.Source),
 			StorageKey: "households/" + a.HouseholdID.String() + "/" + uuid.NewString(),
 			FileName:   fileName, ContentType: contentType, SizeBytes: in.SizeBytes, Sha256: sum, CreatedBy: &a.UserID,

@@ -2533,7 +2533,10 @@ export interface operations {
     };
     retrieveProfileBill: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional billing period to fetch in YYYY-MM format. Without it, the current month is fetched. */
+                period?: string;
+            };
             header?: never;
             path: {
                 id: components["parameters"]["Id"];

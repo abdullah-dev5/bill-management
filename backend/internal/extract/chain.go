@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"math"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -113,6 +115,18 @@ func (c *Chain) Run(ctx context.Context, in Input) (Result, []TierRun, error) {
 			record("pdf-text", "used", "", start)
 		}
 	}
+	if in.ContentType == "text/html" {
+		start := time.Now()
+		text := htmlText(in.Data)
+		if len(strings.TrimSpace(text)) >= minPDFTextChars {
+			gotAnything = true
+			result.RawText = text
+			result.Merge(ParseText(text, in.Providers, "html-text"))
+			record("html-text", "used", "", start)
+		} else {
+			record("html-text", "skipped", "The official page did not contain readable bill text.", start)
+		}
+	}
 
 	// Tier 1: Gemini, only with the household's AI consent.
 	switch {
@@ -143,6 +157,8 @@ func (c *Chain) Run(ctx context.Context, in Input) (Result, []TierRun, error) {
 		trace = append(trace, TierRun{Tier: "ocrspace", Outcome: "skipped", Message: "No OCR.space API key is configured."})
 	case pdfHadText:
 		trace = append(trace, TierRun{Tier: "ocrspace", Outcome: "skipped", Message: "The PDF's own text was already read."})
+	case in.ContentType == "text/html":
+		trace = append(trace, TierRun{Tier: "ocrspace", Outcome: "skipped", Message: "The official page text was already read."})
 	case len(in.Data) > OCRSpaceMaxBytes:
 		trace = append(trace, TierRun{Tier: "ocrspace", Outcome: "skipped", Message: "The file is larger than OCR.space's 1 MB limit."})
 	default:
@@ -174,6 +190,13 @@ func (c *Chain) Run(ctx context.Context, in Input) (Result, []TierRun, error) {
 	}
 	Validate(&result, Context{ReferencePattern: referencePattern(result.Text(FProvider), in.Providers)})
 	return result, trace, nil
+}
+
+var htmlTag = regexp.MustCompile(`<[^>]+>`)
+
+func htmlText(data []byte) string {
+	text := htmlTag.ReplaceAllString(string(data), " ")
+	return strings.Join(strings.Fields(html.UnescapeString(text)), " ")
 }
 
 // attempt runs one tier with the daily limit, circuit breaker and one retry of temporary failures.

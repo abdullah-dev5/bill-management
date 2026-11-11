@@ -44,7 +44,9 @@ LIMIT 200;
 
 -- name: ListProfileDocuments :many
 SELECT d.* FROM documents d
-JOIN bills b ON b.id = d.bill_id
-WHERE b.profile_id = $1 AND d.household_id = $2 AND d.status = 'ready'
+WHERE d.household_id = $2 AND d.status = 'ready'
+  AND (d.profile_id = $1 OR EXISTS (
+    SELECT 1 FROM bills b WHERE b.id = d.bill_id AND b.profile_id = $1
+  ))
 ORDER BY d.created_at DESC
 LIMIT 200;

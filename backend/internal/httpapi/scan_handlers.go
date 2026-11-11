@@ -392,7 +392,8 @@ func (s *Server) ListProfileDocuments(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 	ctx := r.Context()
-	rows, err := s.db.ListProfileDocuments(ctx, store.ListProfileDocumentsParams{ProfileID: id, HouseholdID: mustAuth(r).HouseholdID})
+	profileID := uuid.UUID(id)
+	rows, err := s.db.ListProfileDocuments(ctx, store.ListProfileDocumentsParams{ProfileID: &profileID, HouseholdID: mustAuth(r).HouseholdID})
 	if err != nil {
 		s.fail(w, r, err)
 		return

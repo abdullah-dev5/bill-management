@@ -114,7 +114,7 @@ export function ProfileDocuments({ profile }: { profile: Profile }) {
               className="flex w-full flex-col overflow-hidden rounded-field border border-line bg-card text-left transition hover:border-focus"
             >
               <span className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-card-muted">
-                {d.contentType === 'application/pdf' || !d.viewUrl ? (
+                {d.contentType === 'application/pdf' || d.contentType === 'text/html' || !d.viewUrl ? (
                   <FileText className="size-10 text-muted" aria-hidden />
                 ) : (
                   <img src={d.viewUrl} alt="" loading="lazy" className="size-full object-cover" />

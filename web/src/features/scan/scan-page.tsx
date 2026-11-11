@@ -214,7 +214,7 @@ export function ScanPage() {
           <Card className="p-3">
             {!d ? (
               <Skeleton className="h-80 w-full rounded-field" />
-            ) : d.contentType === 'application/pdf' ? (
+            ) : d.contentType === 'application/pdf' || d.contentType === 'text/html' ? (
               <div className="flex flex-col items-center gap-3 rounded-field bg-card-muted px-4 py-12 text-center">
                 <FileText className="size-12 text-muted" aria-hidden />
                 <p className="font-medium text-ink">{d.fileName}</p>
