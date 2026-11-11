@@ -46,7 +46,6 @@ Bills are sensitive. They contain **full name, home address, reference/consumer 
 
 ## 7. Compliance notes
 - Pakistan's Personal Data Protection Bill: **check its current status before public launch.** Either way, follow its principles (consent, purpose limitation, data subject rights) and GDPR-style practice.
-- Provider retrieval: follow each provider's terms of service, use public lookup pages only, identify our client honestly (no browser spoofing to evade blocks), and stop if asked.
 
 ## 8. Security checklist per milestone
 - [ ] M1: auth, sessions, CSRF, household scoping tests, rate limits, secret management, dependency scanning (Dependabot)

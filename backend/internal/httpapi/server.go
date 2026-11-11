@@ -77,9 +77,8 @@ func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, 
 	}
 }
 
-// connectors are the automatic retrieval connectors in use. None of the providers seen so far
-// permits automated lookups (PITC and SSGC pages have CAPTCHAs), so production has none and those
-// providers use the assisted flow; the sample connector exists for development and tests.
+// connectors are the automatic retrieval connectors in use. Production has none yet; the sample
+// connector exists for development and tests.
 func connectors(cfg config.Config) []retrieval.Connector {
 	if cfg.RetrievalSample && !cfg.IsProduction() {
 		return []retrieval.Connector{retrieval.Sample{}}

@@ -1,9 +1,8 @@
 -- +goose Up
 -- Official retrieval (M6, ADR-002, FR-RETR-01…06). Two ways in:
 --  * assisted: the provider's official public lookup page opens in the person's own browser; they
---    solve any CAPTCHA, save the bill, and upload it as an official copy. Used where providers don't
---    allow automated access (PITC and SSGC pages have CAPTCHAs).
---  * automatic: a connector fetches the bill on a schedule. Only for providers that permit it.
+--    save the bill and upload it as an official copy.
+--  * automatic: a connector fetches the bill on a schedule.
 
 -- The official public lookup page (verified links only).
 ALTER TABLE providers ADD COLUMN lookup_url text;

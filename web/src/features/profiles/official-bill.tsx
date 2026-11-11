@@ -12,9 +12,9 @@ import { CaptureSheet } from '@/features/documents/capture-sheet'
 import { relativeTime } from '@/features/home/activity'
 
 /**
- * The profile's official source (M6). Assisted: open the provider's own lookup page, solve its
- * CAPTCHA, save the bill and upload it as an official copy. Automatic: a connector checks the
- * official site; the person can switch it on and fetch now.
+ * The profile's official source (M6). Assisted: open the provider's own lookup page, save the
+ * bill and upload it as an official copy. Automatic: a connector checks the official site; the
+ * person can switch it on and fetch now.
  */
 export function OfficialBillCard({ profile }: { profile: Profile }) {
   const { t } = useTranslation()
