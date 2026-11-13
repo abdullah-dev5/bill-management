@@ -1799,6 +1799,12 @@ type SetProfileRetrievalJSONBody struct {
 	Enabled bool `json:"enabled"`
 }
 
+// RetrieveProfileBillParams defines parameters for RetrieveProfileBill.
+type RetrieveProfileBillParams struct {
+	// Period Optional billing period to fetch in YYYY-MM format. Without it, the current month is fetched.
+	Period *string `form:"period,omitempty" json:"period,omitempty"`
+}
+
 // ListProvidersParams defines parameters for ListProviders.
 type ListProvidersParams struct {
 	TypeId *openapi_types.UUID `form:"typeId,omitempty" json:"typeId,omitempty"`
@@ -2046,7 +2052,7 @@ type ServerInterface interface {
 	SetProfileRetrieval(w http.ResponseWriter, r *http.Request, id Id)
 
 	// (POST /profiles/{id}/retrieve)
-	RetrieveProfileBill(w http.ResponseWriter, r *http.Request, id Id)
+	RetrieveProfileBill(w http.ResponseWriter, r *http.Request, id Id, params RetrieveProfileBillParams)
 
 	// (GET /providers)
 	ListProviders(w http.ResponseWriter, r *http.Request, params ListProvidersParams)
@@ -2350,7 +2356,7 @@ func (_ Unimplemented) SetProfileRetrieval(w http.ResponseWriter, r *http.Reques
 }
 
 // (POST /profiles/{id}/retrieve)
-func (_ Unimplemented) RetrieveProfileBill(w http.ResponseWriter, r *http.Request, id Id) {
+func (_ Unimplemented) RetrieveProfileBill(w http.ResponseWriter, r *http.Request, id Id, params RetrieveProfileBillParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3876,8 +3882,24 @@ func (siw *ServerInterfaceWrapper) RetrieveProfileBill(w http.ResponseWriter, r 
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RetrieveProfileBillParams
+
+	// ------------- Optional query parameter "period" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "period", r.URL.Query(), &params.Period, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "period"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "period", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RetrieveProfileBill(w, r, id)
+		siw.Handler.RetrieveProfileBill(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4606,17 +4628,18 @@ var swaggerSpec = []string{
 	"geYbVNm3gu57izzbV+NBUGfn0pvrgz79ohwjnsSVWgZfDyb9jL12g/ocxwQprgPnu89i64nLxxw9oIBv",
 	"5+yDN7e8rwxXG02nG3KrbD6jbvitUuqiv74Y5vNMsKLHdN6LlE8Dnagh8EjAb9aIAwGmjwJXz5ljXkVH",
 	"13VZYbx2qh1tfJrbXn41AuF5wWS+QkpbdxjMG2ikihi/88gHkoxsQK5ndMAlisw7sb7UcTBKJeHkebNm",
-	"C+1NFwqptoILIPfvEO48w2lK2L+bQKk6WejqYZ0GM/tWL4tZoAhajwzdB7lG9TZ6XaD2XRRhhRN+nRGU",
-	"JhmUB5eKz1EBtwpw7a89bGRmKRtTj73WoA9vJbNg3oCZrAHampYzOdu7IYvWSNsf90+ODpHp2oluyAIK",
-	"0d/pQDtp+nReWQuL82I8CedN5c1DN3mv2ClC5Ok20G32B7BIrwmpbCmemsMApt4UbQZ7oi5rGTzXQdIm",
-	"jPAOjNu6s90tQbBtVIZHL0ip1kK+0K3UwWaDaPe6ogZDHO7QHFK6+VT3IbcAkOiam6BT2ERp8/32njF3",
-	"CJpB8L54aUUqWb4JblOv2Q/rcq2dmooNnWBzIvueE2Ka9dD9usQj8+YVVEDXmUTNPNHpWYPR56CY6iGu",
-	"TTddU0XZAJsvVtgifJjmgo3g+mvCr0Ax0W9psJydHnyv3cqPIU5/JrAkEiX0hqCLEUlIpASNqFpASpci",
-	"8ysiELQcvBihKxJxk3itiJAvkW41pdswmm5Drhej6XIYUnj0UnuJP7+21iqpNl1uD0bepKO/1EovZPvJ",
-	"2x/laBt7Fq84WPzAYtSgF/bSLlee6zcegoZBW4DZ+hDv2UIqMte7tNLelSsbXNqt+aVL1NPTbq46Hwz/",
-	"xSo+GZB+Zd7QHC2OBp1jb90+rq8LtZMHQe0XCBJcxYQZJobNerccWQxzbW0YKGs5UuVq/eX+hD9/AMhA",
-	"AlIOy0wkoxejPZzSvdtHGm52wM+urnum/RDu336TlM++PUH6P3jad+lHI1x4v+n7qvRSYRd3v3lXmb+Q",
-	"OfH/XXRTuv9w//8GAA==",
+	"C20bj1tZfaVqk/7D9pCF6BhbHFpx0/MVDB62zjwyNr1d9HeqZjxTiCqTHJXXgzbx0VSaL80Cg/W49BSj",
+	"lWsob9LEW21zFyDcv0Mo9wynKWH/boLA6iSvK6N1GgPtW72sgYECbz2yjx9ERNDb6CUc2HdRhBVO+HVG",
+	"UJpkUPpcKj5HBdwqwLW/9rD/maVsTPX32p4+vAXQgnkDJsAGaGtazuRs74YsWqOIf9w/OTpEpiMpuiEL",
+	"KLJ/p4MIpelBemWtR85D8yScE5Y3Rt3knWmnCJGn20C3SwPAIr0Gq7KlMGwOA5h6U7QZ7Pe6rNXzXAeA",
+	"mxDJOzDc6659twTBtlEZHr0gpVqLFEMnVgebDaLd6/gaDN+4Q3NIV+dT3WPdAkCia24CamETpc3323vG",
+	"3CFoBsH74qUVqWT5Br9NfXQ/rMtteGqqUXSCzakje05Aa9ax9+vSnMwbc1ABHXUSNfPEwmcNBq2DYqqH",
+	"uDbddE3VcgNsvlhhi/BhGic2guuvCb8CpUu/pcFydnrwvXaZP4YchJnAkkiU0BuCLkYkIZESNKJqAelq",
+	"isyviEDQTvFihK5IxE1SuSJCvkS6jZZuMWk6Kbk+k6aDY0iZ00vtJf782lqHpdpQuj3QepMSbqlNYMiu",
+	"lbd2ytE29qx5cbCwg8WoQS/spV2uPNdvPAQNgyYEs/Uh3rOFVGSud2mlvStXErm0W/NLl6inp91c5UEY",
+	"/otVszIg/co8vTlaHA06p+W6/XdfF2onD4LaLxAAuYp5NkwMm/XcObIY5rbbMFDWcqTKnQjKvRd//gCQ",
+	"geSqHJaZSEYvRns4pXu3jzTc7ICfXc36TPtY3L/9BjCffXuC9H/wtO/Sj0a48H7T91XppcLm737zrjJ/",
+	"IXPi/7voFHX/4f7/DQA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

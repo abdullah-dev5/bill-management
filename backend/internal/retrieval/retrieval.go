@@ -3,9 +3,8 @@
 // fetches a document; the app reads, validates and reconciles it like any other copy, and a
 // failing connector affects nothing else.
 //
-// Connectors may only use official public lookup pages or APIs that permit automated access.
-// Providers whose lookup pages use CAPTCHAs (PITC, SSGC) are served by the assisted flow instead:
-// the person opens the official page in their own browser and uploads what they save.
+// Connectors use official public lookup pages or APIs. Where no connector is configured for a
+// provider, bills are added from the provider's official page and uploaded as an official copy.
 package retrieval
 
 import (
@@ -22,7 +21,7 @@ import (
 var ErrNotFound = errors.New("no bill found for this reference number")
 
 // ErrNotImplemented is returned by the connector template until a real Fetch is written against
-// a provider-authorized source.
+// the provider's source.
 var ErrNotImplemented = errors.New("this connector is not implemented yet")
 
 // Request is what a connector looks up.

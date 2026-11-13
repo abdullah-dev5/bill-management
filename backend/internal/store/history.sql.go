@@ -128,15 +128,17 @@ func (q *Queries) ListProfileBillMonths(ctx context.Context, arg ListProfileBill
 }
 
 const listProfileDocuments = `-- name: ListProfileDocuments :many
-SELECT d.id, d.household_id, d.bill_id, d.kind, d.source, d.status, d.storage_key, d.file_name, d.content_type, d.size_bytes, d.sha256, d.created_by, d.created_at, d.updated_at, d.uploaded_at, d.page_count, d.ocr_text, d.payment_id FROM documents d
-JOIN bills b ON b.id = d.bill_id
-WHERE b.profile_id = $1 AND d.household_id = $2 AND d.status = 'ready'
+SELECT d.id, d.household_id, d.bill_id, d.kind, d.source, d.status, d.storage_key, d.file_name, d.content_type, d.size_bytes, d.sha256, d.created_by, d.created_at, d.updated_at, d.uploaded_at, d.page_count, d.ocr_text, d.payment_id, d.profile_id FROM documents d
+WHERE d.household_id = $2 AND d.status = 'ready'
+  AND (d.profile_id = $1 OR EXISTS (
+    SELECT 1 FROM bills b WHERE b.id = d.bill_id AND b.profile_id = $1
+  ))
 ORDER BY d.created_at DESC
 LIMIT 200
 `
 
 type ListProfileDocumentsParams struct {
-	ProfileID   uuid.UUID
+	ProfileID   *uuid.UUID
 	HouseholdID uuid.UUID
 }
 
@@ -168,6 +170,7 @@ func (q *Queries) ListProfileDocuments(ctx context.Context, arg ListProfileDocum
 			&i.PageCount,
 			&i.OcrText,
 			&i.PaymentID,
+			&i.ProfileID,
 		); err != nil {
 			return nil, err
 		}

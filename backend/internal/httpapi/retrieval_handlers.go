@@ -3,10 +3,12 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/abdullah-dev5/bill-management/backend/internal/apigen"
+	"github.com/abdullah-dev5/bill-management/backend/internal/domain"
 	"github.com/abdullah-dev5/bill-management/backend/internal/store"
 )
 
@@ -54,7 +56,7 @@ func (s *Server) retrievalInfo(ctx context.Context, householdID uuid.UUID) (func
 }
 
 // RetrieveProfileBill is "Fetch now" (FR-RETR-06): user-initiated and throttled.
-func (s *Server) RetrieveProfileBill(w http.ResponseWriter, r *http.Request, id apigen.Id) {
+func (s *Server) RetrieveProfileBill(w http.ResponseWriter, r *http.Request, id apigen.Id, params apigen.RetrieveProfileBillParams) {
 	a := mustAuth(r)
 	ctx := r.Context()
 	p, err := s.db.GetProfile(ctx, store.GetProfileParams{ID: id, HouseholdID: a.HouseholdID})
@@ -78,16 +80,30 @@ func (s *Server) RetrieveProfileBill(w http.ResponseWriter, r *http.Request, id 
 		s.fail(w, r, errConflict("no_connector", "Bills from "+prov.ShortName+" can't be fetched automatically. Open the official bill page and upload the bill instead."))
 		return
 	}
-	if p.LastRetrievalAt != nil && s.now().Sub(*p.LastRetrievalAt) < manualRetrievalGap {
-		s.fail(w, r, errTooManyRequests)
-		return
-	}
 	hh, err := s.db.GetHousehold(ctx, a.HouseholdID)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	res := s.retrieveProfile(ctx, p, prov.ShortName, hh.Timezone, hh.Currency, "manual")
+	period := ""
+	if params.Period != nil {
+		period = *params.Period
+	}
+	if period != "" {
+		if _, err := time.Parse("2006-01", period); err != nil {
+			s.fail(w, r, &apiError{status: http.StatusBadRequest, code: "invalid_period", message: "Period must use YYYY-MM format."})
+			return
+		}
+	}
+	// A historical fetch is independent of the current month's scheduled check.
+	// Keep the manual guard for current-month retries, but do not let an automatic
+	// check for another period block a user-requested historical fetch.
+	currentPeriod := domain.MonthKey(s.today(hh.Timezone))
+	if (period == "" || period == currentPeriod) && p.LastRetrievalAt != nil && s.now().Sub(*p.LastRetrievalAt) < manualRetrievalGap {
+		s.fail(w, r, errTooManyRequests)
+		return
+	}
+	res := s.retrieveProfile(ctx, p, prov.ShortName, hh.Timezone, hh.Currency, "manual", period)
 	writeJSON(w, http.StatusOK, apigen.RetrievalResult{Outcome: apigen.RetrievalResultOutcome(res.Outcome), Message: res.Message, BillId: res.BillID})
 }
 

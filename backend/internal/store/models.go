@@ -918,6 +918,7 @@ type Document struct {
 	PageCount   *int32
 	OcrText     *string
 	PaymentID   *uuid.UUID
+	ProfileID   *uuid.UUID
 }
 
 type Extraction struct {
@@ -1089,6 +1090,7 @@ type RetrievalRun struct {
 	Message     *string
 	StartedAt   time.Time
 	FinishedAt  time.Time
+	PeriodKey   *string
 }
 
 type Session struct {

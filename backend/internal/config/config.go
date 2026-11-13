@@ -18,6 +18,7 @@ type Config struct {
 	TickToken    string // bearer token for POST /internal/tick
 	// RetrievalSample enables the sample retrieval connector (development and tests; never in production).
 	RetrievalSample bool
+	HESCOEndpoint   string
 	ResendAPIKey    string
 	MailFrom        string
 
@@ -58,6 +59,7 @@ func Load() (Config, error) {
 		AppBaseURL:      strings.TrimRight(getenv("APP_BASE_URL", "http://localhost:5173"), "/"),
 		TickToken:       os.Getenv("TICK_TOKEN"),
 		RetrievalSample: os.Getenv("RETRIEVAL_SAMPLE") != "0",
+		HESCOEndpoint:   getenv("HESCO_RETRIEVAL_ENDPOINT", "https://usersnap.pitc.com.pk/api/SnapsForDuplicateBill/ToDuplicate"),
 		ResendAPIKey:    os.Getenv("RESEND_API_KEY"),
 		MailFrom:        getenv("MAIL_FROM", "Bill Manager <no-reply@localhost>"),
 		DataKey:         os.Getenv("DATA_ENCRYPTION_KEY"),

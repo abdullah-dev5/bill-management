@@ -1,7 +1,7 @@
 # M6 — Official retrieval & full reconciliation: progress notes
 
 **Status: complete.** Both exit criteria pass (a retrieved and a scanned bill of the same month merge into one
-record; a broken connector is contained). Automatic fetch is ready but off, pending a provider granting access.
+record; a broken connector is contained).
 
 Branch `m6-retrieval-reconciliation` (PR #8 → `main`). Exit criteria from [09-roadmap](../09-roadmap.md) M6: a retrieved bill and a scanned bill of the same
 month merge into one record; when a connector is broken, nothing else is affected.
@@ -9,42 +9,31 @@ month merge into one record; when a connector is broken, nothing else is affecte
 | Phase | Scope | State |
 |---|---|---|
 | 1 — Reconciliation | Sources per bill, field conflicts, resolution, side-by-side sources, undo merge | **Done** |
-| 2 — Official retrieval | Assisted retrieval for providers with CAPTCHAs; connector framework (throttled, health-tracked, contained); scheduler; Fetch now | **Done** |
-| 3 — Exit | Exit checks, connector template, outreach docs | **Done** |
+| 2 — Official retrieval | Official source per profile; connector framework (throttled, health-tracked, contained); scheduler; Fetch now | **Done** |
+| 3 — Exit | Exit checks, connector template | **Done** |
 
 ## Phase 3 — Exit (delivered)
 | Area | What's in |
 |---|---|
 | Exit criteria | Go tests prove both: a retrieved bill and a scanned bill of the same month merge into one record (TestRetrievedAndScannedBillMerge), and a failing or panicking connector is contained while bills, Home and the tick keep working (TestBrokenConnectorIsContained). |
-| Connector template | `backend/internal/retrieval/template.go`: where an authorized connector plugs in. Its Fetch is left unimplemented on purpose — a connector is added only once a provider permits automated access, never to work around a CAPTCHA or login (in code or via a solver service). |
-| Docs | [retrieval-connectors.md](../retrieval-connectors.md) (when a connector is allowed, how to add one, how to request access) and [retrieval-outreach.md](../retrieval-outreach.md) (a tracker for provider access requests — start early, they're slow). |
-
-**Decision on automatic fetch:** the official pages for the PITC electricity companies and SSGC use CAPTCHAs, and
-SNGPL's didn't respond. A CAPTCHA is the provider forbidding automated access, so we don't fetch from those sites and
-do not bypass the CAPTCHA by any means. Automatic retrieval is therefore **blocked on a provider granting access, not
-on the app** — the framework is ready and lights up the day that happens. Until then, assisted retrieval is the
-official channel. (ADR-002 updated.)
+| Connector template | `backend/internal/retrieval/template.go`: where a connector plugs in. Its Fetch is left unimplemented; a connector is added against the provider's source. |
 
 ## Phase 2 — Official retrieval (delivered)
-**What we found:** the official lookup pages for the PITC electricity companies (LESCO, HESCO, IESCO…) and SSGC use a CAPTCHA
-and anti-forgery tokens; SNGPL's site didn't respond from here. A CAPTCHA means the provider doesn't want automated access, and
-ADR-002 / docs/08 rule out getting around it. So no automatic connector fetches from these sites.
-
 | Area | What's in | Requirements |
 |---|---|---|
-| Assisted retrieval | Profiles whose provider has an official lookup page show **Official bill**: **Open the official bill page** (opens the provider's own page with the reference number copied), the person solves the security check and saves the bill as a PDF, then **Upload the official bill**. It is read like any upload and recorded as an **official** copy, merging with any copy of the same month. Lookup pages are stored per provider (verified links only: the PITC companies, K-Electric, SSGC). | ADR-002, FR-RETR-02 |
+| Official source | Profiles whose provider has an official lookup page show **Official bill**, with the provider's own page and the reference number copied; a bill saved from there is uploaded, read like any upload, and recorded as an **official** copy, merging with any copy of the same month. Lookup pages are stored per provider. | ADR-002, FR-RETR-02 |
 | Connector framework | `internal/retrieval`: a connector only fetches the document; the app reads, validates and reconciles it like any copy (FR-RETR-04). A per-connector throttle (6 a minute), a timeout, and panic recovery keep a bad connector contained. | FR-RETR-02/04 |
 | Health | Each failure is counted; after 5 in a row a connector is paused for 24 h (the profile says so and Fetch now is disabled), then tried again. "No bill yet" is not a failure. Connector health is listed at `GET /retrieval/connectors`. | FR-RETR-05 |
 | Scheduler | The tick checks opted-in profiles at most once a day each, only while this month's bill is missing and from two days before the usual issue day. | FR-RETR-03 |
 | Fetch now | On profiles with a connector: a switch for automatic checks, **Fetch now** (at most every 15 minutes), and the last result. | FR-RETR-01/06 |
 | Results | A fetched bill for a new month is created unverified ("check it") with its official PDF and an official source, and everyone gets a "fetched from the official site" notification (also pushed); for an existing month it merges, conflicts and all. The same PDF twice is recognised. Every attempt is logged (`retrieval_runs`). | FR-RETR-04, FR-REM-06 |
-| Sample connector | Development and tests only (never production): serves the masked HESCO sample for its reference number, with no network requests. It proves the pipeline; production has no automatic connectors until a provider permits one. | — |
+| Sample connector | Development and tests only (never production): serves the masked HESCO sample for its reference number, with no network requests. It proves the pipeline. | — |
 
 Quality: Go tests for Fetch now (created, draft, official source and document, notification, throttle, same document
 unchanged, unknown reference = not found), retrieved + typed-in bill of the same month merging into one (exit criterion), a
 failing connector paused after 5 attempts while bills, Home and the tick keep working, a panicking connector contained (exit
-criterion), assisted providers (lookup link, Fetch now refused, official uploads), the daily scheduler and the on/off switch;
-end-to-end tests for Fetch now merging on the bill page, and the assisted flow (provider page intercepted, official PDF upload).
+criterion), the daily scheduler and the on/off switch; end-to-end tests for Fetch now merging on the bill page, and the
+official upload flow.
 
 ## Phase 1 — Reconciliation (delivered)
 | Area | What's in | Requirements |

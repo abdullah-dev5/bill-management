@@ -24,6 +24,7 @@
     "clsx": "^2.1.1",
     "heic2any": "^0.0.4",
     "i18next": "^26.4.2",
+    "jsbarcode": "^3.12.3",
     "lucide-react": "^1.50.0",
     "openapi-fetch": "^0.17.0",
     "react": "^19.3.0",

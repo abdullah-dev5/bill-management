@@ -409,6 +409,14 @@ paths:
       tags: [profiles]
       operationId: retrieveProfileBill
       description: Fetch now (FR-RETR-06), for profiles with an automatic connector; throttled.
+      parameters:
+        - name: period
+          in: query
+          required: false
+          description: Optional billing period to fetch in YYYY-MM format. Without it, the current month is fetched.
+          schema:
+            type: string
+            pattern: '^\d{4}-(0[1-9]|1[0-2])$'
       responses:
         '200':
           description: What happened

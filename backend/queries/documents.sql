@@ -1,8 +1,8 @@
 -- name: CreateDocument :one
 INSERT INTO documents (
-    id, household_id, bill_id, kind, source, storage_key, file_name,
+    id, household_id, bill_id, profile_id, kind, source, storage_key, file_name,
     content_type, size_bytes, sha256, created_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetDocument :one
@@ -42,6 +42,10 @@ RETURNING *;
 UPDATE documents SET bill_id = $3, kind = $4, updated_at = now()
 WHERE id = $1 AND household_id = $2
 RETURNING *;
+
+-- name: AttachDocumentToProfile :exec
+UPDATE documents SET profile_id = $3, updated_at = now()
+WHERE id = $1 AND household_id = $2 AND profile_id IS NULL;
 
 -- name: DeleteDocument :execrows
 DELETE FROM documents WHERE id = $1 AND household_id = $2;

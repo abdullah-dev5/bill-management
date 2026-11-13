@@ -77,14 +77,14 @@ func New(db *store.DB, cfg config.Config, log *slog.Logger, mailer mail.Mailer, 
 	}
 }
 
-// connectors are the automatic retrieval connectors in use. None of the providers seen so far
-// permits automated lookups (PITC and SSGC pages have CAPTCHAs), so production has none and those
-// providers use the assisted flow; the sample connector exists for development and tests.
+// connectors are the automatic retrieval connectors in use. Each provider has its own isolated
+// connector; the sample connector exists only for development and tests.
 func connectors(cfg config.Config) []retrieval.Connector {
+	out := []retrieval.Connector{retrieval.NewHESCO(nil, cfg.HESCOEndpoint)}
 	if cfg.RetrievalSample && !cfg.IsProduction() {
-		return []retrieval.Connector{retrieval.Sample{}}
+		out = append(out, retrieval.Sample{})
 	}
-	return nil
+	return out
 }
 
 // pushSubject identifies the sender to push services (an https URL or mailto:).

@@ -150,8 +150,11 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 			return
 		}
 		// Sliding expiry, refreshed at most hourly to avoid a write per request.
-		if s.now().Sub(sess.LastSeenAt) > time.Hour {
-			if err := s.db.TouchSession(ctx, store.TouchSessionParams{ID: sess.ID, ExpiresAt: s.now().Add(sessionTTL)}); err == nil {
+		// Base the decision on the app clock and expiry so controlled clocks and
+		// database clock skew cannot prevent a session from being refreshed.
+		now := s.now()
+		if now.Sub(sess.LastSeenAt) > time.Hour || sess.ExpiresAt.Sub(now) < sessionTTL/2 {
+			if err := s.db.TouchSession(ctx, store.TouchSessionParams{ID: sess.ID, ExpiresAt: now.Add(sessionTTL)}); err == nil {
 				s.setSessionCookie(w, c.Value)
 			}
 		}
